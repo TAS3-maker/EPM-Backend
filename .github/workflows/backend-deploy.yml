@@ -1,0 +1,66 @@
+name: Laravel Backend Deploy
+
+on:
+  push:
+    branches:
+      - main   # or 'master', depending on your setup
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Setup PHP
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, pdo, tokenizer, xml, ctype, json, openssl
+          tools: composer, npm
+
+      # 3️⃣ Install composer dependencies
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader
+
+      # 4️⃣ Install Node dependencies (if using Vite or Tailwind)
+      - name: Install Node dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm install
+            npm run build
+          fi
+
+      # 5️⃣ Deploy to Hostinger via SFTP
+      - name: Deploy Laravel backend to Hostinger
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          port: 22
+          source: "./"
+          target: "/var/www/EPM/Backend/EPM-backend/"
+          rm: false
+
+      # 6️⃣ SSH into server to run migrations and cache optimizations
+      - name: Run post-deploy commands (migrate + cache)
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOSTINGER_HOST }}
+          username: ${{ secrets.HOSTINGER_USERNAME }}
+          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          port: 22
+          script: |
+            cd /var/www/EPM/Backend/EPM-backend
+            composer install --no-dev --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:cache
+            php artisan config:cache
+            php artisan view:clear
+            php artisan optimize
