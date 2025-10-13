@@ -17,6 +17,7 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\GraphController;
 use App\Http\Controllers\TagActivityController;
 use Illuminate\Support\Facades\Artisan;
+use App\Http\Controllers\CacheController;
 
 Route::get('/storagelink', function() {
     Artisan::call('storage:link');
@@ -33,7 +34,7 @@ Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/check-token', [UserController::class, 'checkToken']);
 
 Route::middleware('auth:api')->group(function () {
-    
+Route::get('/clearCache', [CacheController::class, 'clearAll']);
 Route::get('/getalltl',[UserController::class,'get_all_tl']);
 Route::delete('/deleteprofilepic',[UserController::class,'DeleteProfilepic']);
 Route::get('/getmyprofile/{id}', [UserController::class, 'getMyProfile']);
