@@ -79,9 +79,13 @@ public function assignProjectToManager(Request $request)
 
     $project = Project::findOrFail($validatedData['project_id']);
 
-    $existingManagerIds = json_decode($project->project_manager_id, true) ?? [];
+    $existingManagerIds = json_decode($project->project_manager_id, true);
+    if (!is_array($existingManagerIds)) {
+        $existingManagerIds = $existingManagerIds ? [$existingManagerIds] : [];
+    }
 
     $mergedManagerIds = array_unique(array_merge($existingManagerIds, $validatedData['project_manager_ids']));
+
 
     $project->project_manager_id = json_encode($mergedManagerIds);
     $project->assigned_by = auth()->user()->id;
