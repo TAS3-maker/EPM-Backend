@@ -107,7 +107,7 @@ class PerformaSheetController extends Controller
         })->get();
 
         foreach ($users as $user) {
-            Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
+           // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
         }
 
         return response()->json([
