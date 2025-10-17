@@ -27,7 +27,7 @@ public function AddTasks(Request $request)
             'description' => 'nullable|string',
             'status' => 'required|in:To do,In Progress,Completed,Cancel',
             'project_id' => 'required|exists:projects,id',
-            'hours' => 'nullable|integer',
+            'hours' => 'nullable|numeric',
             'deadline' => 'nullable|date',
         ]);
 
