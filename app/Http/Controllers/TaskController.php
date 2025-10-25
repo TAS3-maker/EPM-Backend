@@ -19,106 +19,89 @@ class TaskController extends Controller
      */
 public function AddTasks(Request $request)
 {
-    try {
-        $user = Auth::user();
+    try {
+        $user = Auth::user();
 
+        $validatedData = $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'status' => 'required|in:To do,In Progress,Completed,Cancel',
+            'project_id' => 'required|exists:projects,id',
+            'hours' => 'nullable|numeric',
+            'deadline' => 'nullable|date',
+        ]);
 
-        $validatedData = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|in:To do,In Progress,Completed,Cancel',
-            'project_id' => 'required|exists:projects,id',
-            'hours' => 'nullable|numeric',
-            'deadline' => 'nullable|date',
-            'start_date' => 'nullable|date'
-        ]);
+        $duplicateTask = Task::where('title', $validatedData['title'])
+            ->where('description', $validatedData['description'] ?? null)
+            ->where('status', $validatedData['status'])
+            ->where('project_id', $validatedData['project_id'])
+            ->where('hours', $validatedData['hours'] ?? null)
+            ->where('deadline', $validatedData['deadline'] ?? null)
+            ->first();
 
+        if ($duplicateTask) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task is already created with the same data.'
+            ], 409); 
+        }
 
-        $duplicateTask = Task::where('title', $validatedData['title'])
-            ->where('description', $validatedData['description'] ?? null)
-            ->where('status', $validatedData['status'])
-            ->where('project_id', $validatedData['project_id'])
-            ->where('hours', $validatedData['hours'] ?? null)
-            ->where('deadline', $validatedData['deadline'] ?? null)
-            ->first();
+        $project = Project::find($validatedData['project_id']);
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found.'
+            ], 404);
+        }
 
+        $currentHours = $project->total_hours ?? 0;
+        $currentRemaining = $project->remaining_hours ?? 0;
+        $newTaskHours = $validatedData['hours'] ?? 0;
+        $newTotalHours = $currentHours + $newTaskHours;
+        $newRemaining = $currentRemaining + $newTaskHours;
 
-        if ($duplicateTask) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Task is already created with the same data.'
-            ], 409); 
-        }
+        $task = Task::create([
+            'title' => $validatedData['title'],
+            'description' => $validatedData['description'] ?? null,
+            'status' => $validatedData['status'],
+            'project_id' => $validatedData['project_id'],
+            'project_manager_id' => $user->id,
+            'hours' => $validatedData['hours'] ?? null,
+            'deadline' => $validatedData['deadline'] ?? null
+        ]);
 
+        $highestDeadline = Task::where('project_id', $validatedData['project_id'])
+            ->whereNotNull('deadline')
+            ->max('deadline');
 
-        // Project existence check
-        $project = Project::find($validatedData['project_id']);
-        if (!$project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project not found.'
-            ], 404);
-        }
+        $project->update([
+            'total_hours' => $newTotalHours,
+            'remaining_hours' => $newRemaining,
+            'deadline' => $highestDeadline
+        ]);
 
+        return response()->json([
+            'success' => true,
+            'message' => 'Task created successfully and project updated.',
+            'project' => [
+                'id' => $project->id,
+                'name' => $project->project_name,
+                'updated_total_hours' => $newTotalHours,
+                'updated_remaining_hours' => $newRemaining,
+                'updated_deadline' => $highestDeadline
+            ],
+            'task' => $task
+        ]);
 
-        // Update project hours
-        $currentHours = $project->total_hours ?? 0;
-        $currentRemaining = $project->remaining_hours ?? 0;
-        $newTaskHours = $validatedData['hours'] ?? 0;
-        $newTotalHours = $currentHours + $newTaskHours;
-        $newRemaining = $currentRemaining + $newTaskHours;
+    } catch (\Exception $e) {
+        \Log::error('Error adding task: ' . $e->getMessage());
 
-
-        // Create task
-        $task = Task::create([
-            'title' => $validatedData['title'],
-            'description' => $validatedData['description'] ?? null,
-            'status' => $validatedData['status'],
-            'project_id' => $validatedData['project_id'],
-            'project_manager_id' => $user->id,
-            'hours' => $validatedData['hours'] ?? null,
-            'deadline' => $validatedData['deadline'] ?? null,
-            'start_date' => $validatedData['start_date'] ?? null // optional
-        ]);
-
-
-        // Update project deadline
-        $highestDeadline = Task::where('project_id', $validatedData['project_id'])
-            ->whereNotNull('deadline')
-            ->max('deadline');
-
-
-        $project->update([
-            'total_hours' => $newTotalHours,
-            'remaining_hours' => $newRemaining,
-            'deadline' => $highestDeadline
-        ]);
-
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Task created successfully and project updated.',
-            'project' => [
-                'id' => $project->id,
-                'name' => $project->project_name,
-                'updated_total_hours' => $newTotalHours,
-                'updated_remaining_hours' => $newRemaining,
-                'updated_deadline' => $highestDeadline
-            ],
-            'task' => $task
-        ]);
-
-
-    } catch (\Exception $e) {
-        \Log::error('Error adding task: ' . $e->getMessage());
-
-
-        return response()->json([
-            'success' => false,
-            'message' => 'Internal Server Error',
-            'error' => $e->getMessage()
-        ], 500);
-    }
+        return response()->json([
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => $e->getMessage()
+        ], 500);
+    }
 }
 
 public function getAllTaskofProjectById($id)
