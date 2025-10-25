@@ -29,6 +29,7 @@ public function AddTasks(Request $request)
             'project_id' => 'required|exists:projects,id',
             'hours' => 'nullable|numeric',
             'deadline' => 'nullable|date',
+            'start_date' => 'nullable|date'
         ]);
 
         $duplicateTask = Task::where('title', $validatedData['title'])
@@ -46,6 +47,7 @@ public function AddTasks(Request $request)
             ], 409); 
         }
 
+        // Project existence check
         $project = Project::find($validatedData['project_id']);
         if (!$project) {
             return response()->json([
@@ -54,12 +56,14 @@ public function AddTasks(Request $request)
             ], 404);
         }
 
+        // Update project hours
         $currentHours = $project->total_hours ?? 0;
         $currentRemaining = $project->remaining_hours ?? 0;
         $newTaskHours = $validatedData['hours'] ?? 0;
         $newTotalHours = $currentHours + $newTaskHours;
         $newRemaining = $currentRemaining + $newTaskHours;
 
+        // Create task
         $task = Task::create([
             'title' => $validatedData['title'],
             'description' => $validatedData['description'] ?? null,
@@ -67,9 +71,11 @@ public function AddTasks(Request $request)
             'project_id' => $validatedData['project_id'],
             'project_manager_id' => $user->id,
             'hours' => $validatedData['hours'] ?? null,
-            'deadline' => $validatedData['deadline'] ?? null
+            'deadline' => $validatedData['deadline'] ?? null,
+            'start_date' => $validatedData['start_date'] ?? null // optional
         ]);
 
+        // Update project deadline
         $highestDeadline = Task::where('project_id', $validatedData['project_id'])
             ->whereNotNull('deadline')
             ->max('deadline');
@@ -103,6 +109,7 @@ public function AddTasks(Request $request)
         ], 500);
     }
 }
+
 
 	public function getAllTaskofProjectById($id)
 	{
