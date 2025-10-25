@@ -23,23 +23,14 @@ public function AddTasks(Request $request)
         $user = Auth::user();
 
         // Validation with custom error messages
-        $validator = Validator::make($request->all(), [
+        $validatedData = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'required|in:To do,In Progress,Completed,Cancel',
             'project_id' => 'required|exists:projects,id',
-            'hours' => 'nullable|numeric|min:0',
-            'deadline' => 'nullable|date|after_or_equal:today',
-            'start_date' => 'nullable|date'
-        ], [
-            'title.required' => 'Task title is required.',
-            'status.required' => 'Task status is required.',
-            'status.in' => 'Status must be one of: To do, In Progress, Completed, Cancel.',
-            'project_id.required' => 'Project ID is required.',
-            'project_id.exists' => 'Selected project does not exist.',
-            'hours.numeric' => 'Hours must be a valid number.',
-            'hours.min' => 'Hours cannot be negative.',
-            'deadline.after_or_equal' => 'Deadline must be today or a future date.'
+            'hours' => 'nullable|numeric',
+            'deadline' => 'nullable|date',
+            'start_date' => 'nullable|date' 
         ]);
 
         if ($validator->fails()) {
