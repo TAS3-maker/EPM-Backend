@@ -30,43 +30,45 @@ class ProjectController extends Controller
         return ApiResponse::success('Projects fetched successfully', ProjectResource::collection(Project::with('client', 'salesTeam')->orderBy('id','DESC')->get()));
     }
     public function store(Request $request)
-    {
-        $messages = [
-            'project_name.unique' => 'The project name has already been taken.',
-        ];
+{
+    $messages = [
+        'project_name.unique' => 'The project name has already been taken.',
+    ];
 
-        $validator = Validator::make($request->all(), [
-            'sales_team_id' => 'required',
-            'client_id' => 'required|exists:clients,id',
-            'project_name' => 'required|string|max:255|unique:projects,project_name',
-            'requirements' => 'nullable|string',
-            'project_type'    => 'nullable|string|in:fixed,hourly',
-            'budget' => 'nullable|numeric',
-            'deadline' => 'nullable|date',
-            'total_hours' => 'nullable|string',
-            'tags_activitys' => 'nullable|array',
-            'technology' => 'nullable|array',
-            'project_status' => 'required|string|in:online,offline'
-        ], $messages);
+    $validator = Validator::make($request->all(), [
+        'sales_team_id' => 'required',
+        'client_id' => 'required|exists:clients,id',
+        'project_name' => 'required|string|max:255|unique:projects,project_name',
+        'requirements' => 'nullable|string',
+        'project_type' => 'nullable|string|in:fixed,hourly',
+        'budget' => 'nullable|numeric',
+        'deadline' => 'nullable|date',
+        'total_hours' => 'nullable|string',
+        'tags_activitys' => 'nullable|array',
+        'technology' => 'nullable|array',
+        'project_status' => 'required|string|in:online,offline',
+        'status' => 'nullable|string|in:Active,Inactive', 
+    ], $messages);
 
-        if ($validator->fails()) {
-            return ApiResponse::error('Validation failed', $validator->errors(), 422);
-        }
-
-        $validatedData = $validator->validated();
-
-        if ($request->has('tags_activitys')) {
-            $validatedData['tags_activitys'] = json_encode($request->tags_activitys);
-        }
-
-        if ($request->has('technology')) {
-            $validatedData['technology'] = json_encode($request->technology);
-        }
-
-        $project = Project::create($validatedData);
-        //$project->refresh();
-        return ApiResponse::success('Project created successfully', $project, 201);
+    if ($validator->fails()) {
+        return ApiResponse::error('Validation failed', $validator->errors(), 422);
     }
+
+    $validatedData = $validator->validated();
+
+    if ($request->has('tags_activitys')) {
+        $validatedData['tags_activitys'] = json_encode($request->tags_activitys);
+    }
+
+    if ($request->has('technology')) {
+        $validatedData['technology'] = json_encode($request->technology);
+    }
+
+    $project = Project::create($validatedData);
+    
+    return ApiResponse::success('Project created successfully', $project, 201);
+}
+
 
 
 public function assignProjectToManager(Request $request)
