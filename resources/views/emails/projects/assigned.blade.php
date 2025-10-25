@@ -41,7 +41,7 @@
                             </table>
 
                             <p style="text-align: center;">
-                                <a href="http://13.60.180.240:3000/projectmanager/tasks/{{ $project->id }}"
+                                <a href="http://195.35.21.186/projectmanager/tasks/{{ $project->id }}"
                                    style="display: inline-block; padding: 12px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">
                                     View Project
                                 </a>
