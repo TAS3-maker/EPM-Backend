@@ -330,7 +330,8 @@ public function EditTasks(Request $request, $id)
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|nullable|string',
             'hours' => 'sometimes|nullable|integer|min:0',
-            'deadline' => 'sometimes|nullable|date'
+            'deadline' => 'sometimes|nullable|date',
+            'start_date' => 'sometimes|nullable|date' // ✅ added optional start_date
         ]);
 
         $task = Task::find($id);
@@ -349,6 +350,7 @@ public function EditTasks(Request $request, $id)
             ], 404);
         }
 
+        // Handle null values properly
         if (array_key_exists('hours', $validatedData) && (int)$validatedData['hours'] === 0) {
             $validatedData['hours'] = null;
         }
@@ -357,6 +359,11 @@ public function EditTasks(Request $request, $id)
             $validatedData['deadline'] = null;
         }
 
+        if (array_key_exists('start_date', $validatedData) && empty($validatedData['start_date'])) {
+            $validatedData['start_date'] = null; // ✅ handle empty start_date
+        }
+
+        // Handle hours update and recalculate total hours
         if (array_key_exists('hours', $validatedData)) {
             $previousHours = $task->hours ?? 0;
             $newHours = $validatedData['hours'] ?? 0;
@@ -370,8 +377,10 @@ public function EditTasks(Request $request, $id)
             }
         }
 
+        // Update other fields including start_date
         $task->update($validatedData);
 
+        // Update project deadline based on all tasks
         $highestDeadline = Task::where('project_id', $task->project_id)
             ->whereNotNull('deadline')
             ->max('deadline');
@@ -393,7 +402,7 @@ public function EditTasks(Request $request, $id)
         ]);
 
     } catch (\Exception $e) {
-        Log::error('Error updating task: ' . $e->getMessage());
+        \Log::error('Error updating task: ' . $e->getMessage());
 
         return response()->json([
             'success' => false,
@@ -402,6 +411,7 @@ public function EditTasks(Request $request, $id)
         ], 500);
     }
 }
+
 
 
 public function DeleteTasks(Request $request, $id)
