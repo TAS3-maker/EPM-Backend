@@ -6,14 +6,3 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('profile_pics/{filename}', function ($filename) {
-    $path = storage_path('app/public/profile_pics/'.$filename);
-    if (!File::exists($path)) {
-        abort(404);
-    }
-    return response()->file($path);
-<<<<<<< HEAD
-});
-=======
-});
->>>>>>> 6e1c28d6b3f9dc51e9ae22a15e72f47858eadd6e
