@@ -12,4 +12,8 @@ Route::get('profile_pics/{filename}', function ($filename) {
         abort(404);
     }
     return response()->file($path);
+<<<<<<< HEAD
 });
+=======
+});
+>>>>>>> 6e1c28d6b3f9dc51e9ae22a15e72f47858eadd6e

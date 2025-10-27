@@ -104,9 +104,96 @@ public function AddTasks(Request $request)
     }
 }
 
-	public function getAllTaskofProjectById($id)
-	{
-         $project = Project::find($id);
+public function getAllTaskofProjectById($id)
+{
+    $project = Project::find($id);
+
+    if (!$project) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Project not found.'
+        ], 404);
+    }
+
+    $projectManagers = json_decode($project->project_manager_id, true);
+    
+    $tasks = Task::where('project_id', $id)
+        ->with('projectManager:id,name') 
+        ->get();
+
+    $totalTaskHours = $tasks->sum('hours');
+
+    $formattedTasks = $tasks->map(function ($task) {
+        return [
+            'id' => $task->id,
+            'title' => $task->title,
+            'description' => $task->description,
+            'status' => $task->status,
+            'hours' => $task->hours,
+            'deadline' => $task->deadline,
+            'start_date' => $task->start_date,
+            'project_manager' => $task->projectManager ? [
+                'id' => $task->projectManager->id,
+                'name' => $task->projectManager->name
+            ] : null
+        ];
+    });
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Project fetched successfully.',
+        'data' => [
+            'id' => $project->id,
+            'project_name' => $project->project_name,
+            'project_type' => $project->project_type,
+            'project_status' => $project->project_status,
+            'deadline' => $project->deadline,
+            'total_hours' => $project->total_hours,
+            'total_working_hours' => $project->total_working_hours,
+            'total_task_hours' => $totalTaskHours, 
+            'project_managers' => $projectManagers, 
+            'tasks' => $formattedTasks, 
+            'created_at' => $project->created_at->format('Y-m-d H:i:s'),
+            'updated_at' => $project->updated_at->format('Y-m-d H:i:s')
+        ]
+    ]);
+}
+
+public function getEmployeTasksbyProject(Request $request)
+{
+    try {
+        $user = Auth::user(); 
+        $userId = $user->id;
+
+        $validatedData = $request->validate([
+            'project_id' => 'required|exists:projects,id'
+        ]);
+
+        $projectId = $validatedData['project_id'];
+
+        $projectManagerId = DB::table('project_user')
+            ->where('project_id', $projectId)
+            ->where('user_id', $userId)
+            ->value('project_manager_id'); 
+
+        if (!$projectManagerId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No project manager found for this project and user.'
+            ], 403);
+        }
+
+        $projectManager = User::find($projectManagerId);
+
+        if (!$projectManager) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project Manager not found in users table.',
+                'project_manager_id' => $projectManagerId
+            ], 404);
+        }
+
+        $project = Project::find($projectId);
 
         if (!$project) {
             return response()->json([
@@ -115,128 +202,14 @@ public function AddTasks(Request $request)
             ], 404);
         }
 
-        $projectManagers = json_decode($project->project_manager_id, true);
-        $tasks = Task::where('project_id', $id)
-            ->with('projectManager:id,name') 
+        $tasks = Task::where('project_id', $projectId)
+            ->where('project_manager_id', $projectManagerId)
             ->get();
 
-        $totalTaskHours = $tasks->sum('hours');
-
-        $formattedTasks = $tasks->map(function ($task) {
-            return [
-                'id' => $task->id,
-                'title' => $task->title,
-                'description' => $task->description,
-                'status' => $task->status,
-                'hours' => $task->hours,
-                'deadline' => $task->deadline,
-                'project_manager' => $task->projectManager ? [
-                    'id' => $task->projectManager->id,
-                    'name' => $task->projectManager->name
-                ] : null
-            ];
-        });
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Project fetched successfully.',
-            'data' => [
-                'id' => $project->id,
-                'project_name' => $project->project_name,
-                'project_type' => $project->project_type,
-                'project_status' => $project->project_status,
-                'deadline' => $project->deadline,
-                'total_hours' => $project->total_hours,
-                'total_working_hours' => $project->total_working_hours,
-                'total_task_hours' => $totalTaskHours, 
-                'project_managers' => $projectManagers, 
-                'tasks' => $formattedTasks, 
-                'created_at' => $project->created_at->format('Y-m-d H:i:s'),
-                'updated_at' => $project->updated_at->format('Y-m-d H:i:s')
-            ]
-        ]);
-    }
-
-	public function getEmployeTasksbyProject(Request $request)
-	{
-		try {
-            $user = Auth::user(); 
-            $userId = $user->id;
-
-            $validatedData = $request->validate([
-                'project_id' => 'required|exists:projects,id'
-            ]);
-
-            $projectId = $validatedData['project_id'];
-
-            $projectManagerId = DB::table('project_user')
-                ->where('project_id', $projectId)
-                ->where('user_id', $userId)
-                ->value('project_manager_id'); 
-
-            if (!$projectManagerId) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'No project manager found for this project and user.'
-                ], 403);
-            }
-
-            $projectManager = User::find($projectManagerId);
-
-            if (!$projectManager) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Project Manager not found in users table.',
-                    'project_manager_id' => $projectManagerId
-                ], 404);
-            }
-
-            $project = Project::find($projectId);
-
-            if (!$project) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Project not found.'
-                ], 404);
-            }
-
-            $tasks = Task::where('project_id', $projectId)
-                ->where('project_manager_id', $projectManagerId)
-                ->get();
-
-            if ($tasks->isEmpty()) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'No tasks found for this project and project manager.',
-                    'project' => [
-                        'id' => $project->id,
-                        'name' => $project->project_name,
-                        'deadline' => $project->deadline,
-                        'total_hours' => $project->total_hours,
-                        'total_working_hours' => $project->total_working_hours
-                    ],
-                    'project_manager' => [
-                        'id' => $projectManagerId,
-                        'name' => $projectManager->name
-                    ],
-                    'data' => []
-                ]);
-            }
-
-            $formattedTasks = $tasks->map(function ($task) {
-                return [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'status' => $task->status,
-                    'hours' => $task->hours,
-                    'deadline' => $task->deadline
-                ];
-            });
-
+        if ($tasks->isEmpty()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Tasks fetched successfully.',
+                'message' => 'No tasks found for this project and project manager.',
                 'project' => [
                     'id' => $project->id,
                     'name' => $project->project_name,
@@ -248,19 +221,49 @@ public function AddTasks(Request $request)
                     'id' => $projectManagerId,
                     'name' => $projectManager->name
                 ],
-                'data' => $formattedTasks
+                'data' => []
             ]);
-
-        } catch (\Exception $e) {
-            Log::error('Error fetching tasks: ' . $e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Internal Server Error',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        $formattedTasks = $tasks->map(function ($task) {
+            return [
+                'id' => $task->id,
+                'title' => $task->title,
+                'description' => $task->description,
+                'status' => $task->status,
+                'hours' => $task->hours,
+                'deadline' => $task->deadline,
+                'start_date' => $task->start_date 
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tasks fetched successfully.',
+            'project' => [
+                'id' => $project->id,
+                'name' => $project->project_name,
+                'deadline' => $project->deadline,
+                'total_hours' => $project->total_hours,
+                'total_working_hours' => $project->total_working_hours
+            ],
+            'project_manager' => [
+                'id' => $projectManagerId,
+                'name' => $projectManager->name
+            ],
+            'data' => $formattedTasks
+        ]);
+
+    } catch (\Exception $e) {
+        Log::error('Error fetching tasks: ' . $e->getMessage());
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => $e->getMessage()
+        ], 500);
     }
+}
 
 	public function ApproveTaskofProject(Request $request)
     {
@@ -323,7 +326,8 @@ public function EditTasks(Request $request, $id)
             'title' => 'sometimes|string|max:255',
             'description' => 'sometimes|nullable|string',
             'hours' => 'sometimes|nullable|integer|min:0',
-            'deadline' => 'sometimes|nullable|date'
+            'deadline' => 'sometimes|nullable|date',
+            'start_date' => 'sometimes|nullable|date' // ✅ added optional start_date
         ]);
 
         $task = Task::find($id);
@@ -342,6 +346,7 @@ public function EditTasks(Request $request, $id)
             ], 404);
         }
 
+        // Handle null values properly
         if (array_key_exists('hours', $validatedData) && (int)$validatedData['hours'] === 0) {
             $validatedData['hours'] = null;
         }
@@ -350,6 +355,11 @@ public function EditTasks(Request $request, $id)
             $validatedData['deadline'] = null;
         }
 
+        if (array_key_exists('start_date', $validatedData) && empty($validatedData['start_date'])) {
+            $validatedData['start_date'] = null; // ✅ handle empty start_date
+        }
+
+        // Handle hours update and recalculate total hours
         if (array_key_exists('hours', $validatedData)) {
             $previousHours = $task->hours ?? 0;
             $newHours = $validatedData['hours'] ?? 0;
@@ -363,8 +373,10 @@ public function EditTasks(Request $request, $id)
             }
         }
 
+        // Update other fields including start_date
         $task->update($validatedData);
 
+        // Update project deadline based on all tasks
         $highestDeadline = Task::where('project_id', $task->project_id)
             ->whereNotNull('deadline')
             ->max('deadline');
@@ -386,7 +398,7 @@ public function EditTasks(Request $request, $id)
         ]);
 
     } catch (\Exception $e) {
-        Log::error('Error updating task: ' . $e->getMessage());
+        \Log::error('Error updating task: ' . $e->getMessage());
 
         return response()->json([
             'success' => false,
@@ -395,6 +407,7 @@ public function EditTasks(Request $request, $id)
         ], 500);
     }
 }
+
 
 
 public function DeleteTasks(Request $request, $id)

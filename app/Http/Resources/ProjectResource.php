@@ -31,6 +31,7 @@ public function toArray($request)
         'budget' => $this->budget,
         'deadline' => $this->deadline,
         'tags_activities' => $tags,
+        'status' => $this->status,  
         'technology' => $this->technology,
         'project_manager_ids' => $this->projectManager ? $this->projectManager->pluck('id') : [],
         'project_managers' => $this->projectManager ? $this->projectManager->map(function ($manager) {
