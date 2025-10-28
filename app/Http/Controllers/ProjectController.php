@@ -262,6 +262,8 @@ public function assignProjectToManager(Request $request)
                         'id' => $project->id,
                         'project_name' => $project->project_name,
                         'deadline' => $project->deadline,
+                        'project_type' => $project->project_type,
+                        'project_status' => $project->project_status,
                         'created_at' => $project->created_at ? Carbon::parse($project->created_at)->toDateString() : null,
                         'updated_at' => $project->updated_at ? Carbon::parse($project->updated_at)->toDateString() : null,
                         'client' => $project->client ?? ['message' => 'No Client Found'],
