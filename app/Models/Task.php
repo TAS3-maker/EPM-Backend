@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory; // ✅ Correct namespace
+use Illuminate\Database\Eloquent\Factories\HasFactory; 
 use Illuminate\Database\Eloquent\Model;
 
 class Task extends Model
@@ -16,16 +16,17 @@ class Task extends Model
         'description',
         'hours',
         'deadline',
-        'status'
+        'status',
+        'start_date'
     ];
 
-    // ✅ Task belongs to a Project
+    
     public function project()
     {
         return $this->belongsTo(Project::class);
     }
 
-    // ✅ Task is assigned to a Project Manager
+    
     public function projectManager()
     {
         return $this->belongsTo(User::class, 'project_manager_id');
