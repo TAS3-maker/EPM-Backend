@@ -215,26 +215,37 @@ public function assignProjectToManager(Request $request)
         'projects' => $projects
     ]);
     }
-    public function getemployeeProjects()
-    {
-        $projectManagerId = auth()->user()->id;
+public function getemployeeProjects()
+{
+    $projectManagerId = auth()->user()->id;
 
-        $projects = Project::whereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)])
-            ->with(['assignedEmployees' => function ($query) {
+    $projects = Project::whereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)])
+        ->with([
+            'assignedEmployees' => function ($query) {
                 $query->select('users.id', 'users.name', 'users.email');
-            },'client:id,name'
-            ])
-            ->get(['id', 'project_name', 'client_id', 'deadline', 'project_manager_id']);
-
-        if ($projects->isEmpty()) {
-            return ApiResponse::error('No projects found for this Project Manager.', [], 404);
-        }
-
-        return ApiResponse::success('Projects fetched successfully', [
-            'project_manager_id' => $projectManagerId,
-            'projects' => $projects
+            },
+            'client:id,name'
+        ])
+        ->get([
+            'id',
+            'project_name',
+            'client_id',
+            'deadline',
+            'project_manager_id',
+            'project_status',   
+            'project_type'   
         ]);
+
+    if ($projects->isEmpty()) {
+        return ApiResponse::error('No projects found for this Project Manager.', [], 404);
     }
+
+    return ApiResponse::success('Projects fetched successfully', [
+        'project_manager_id' => $projectManagerId,
+        'projects' => $projects
+    ]);
+}
+
     public function getTlProjects()
     {
         $user = auth()->user();
