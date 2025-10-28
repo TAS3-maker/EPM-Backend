@@ -29,8 +29,10 @@ public function AddTasks(Request $request)
             'project_id' => 'required|exists:projects,id',
             'hours' => 'nullable|numeric',
             'deadline' => 'nullable|date',
+            'start_date' => 'nullable|date', // start_date ka validation
         ]);
 
+        // Duplicate check SE start_date hata diya
         $duplicateTask = Task::where('title', $validatedData['title'])
             ->where('description', $validatedData['description'] ?? null)
             ->where('status', $validatedData['status'])
@@ -67,7 +69,8 @@ public function AddTasks(Request $request)
             'project_id' => $validatedData['project_id'],
             'project_manager_id' => $user->id,
             'hours' => $validatedData['hours'] ?? null,
-            'deadline' => $validatedData['deadline'] ?? null
+            'deadline' => $validatedData['deadline'] ?? null,
+            'start_date' => $validatedData['start_date'] ?? null // start_date include
         ]);
 
         $highestDeadline = Task::where('project_id', $validatedData['project_id'])
@@ -103,6 +106,7 @@ public function AddTasks(Request $request)
         ], 500);
     }
 }
+
 
 public function getAllTaskofProjectById($id)
 {
