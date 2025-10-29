@@ -22,99 +22,120 @@ use Carbon\Carbon;
 
 class PerformaSheetController extends Controller
 {
-    public function addPerformaSheets(Request $request)
-    {
-        $user = auth()->user();
+public function addPerformaSheets(Request $request)
+{
+    $user = auth()->user();
 
-        try {
-            $validatedData = $request->validate([
-                'data' => 'required|array',
-                'data.*.project_id' => [
-                    'required',
-                    Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
-                        $query->where('user_id', $user->id);
-                    })
-                ],
-                'data.*.date' => 'required|date_format:Y-m-d',
-                'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-                'data.*.work_type' => 'required|string|max:255',
-                'data.*.activity_type' => 'required|string|max:255',
-                'data.*.narration' => 'nullable|string',
-                'data.*.project_type' => 'required|string|max:255',
-                'data.*.project_type_status' => 'required|string|max:255',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
+    try {
+        $validatedData = $request->validate([
+            'data' => 'required|array',
+            'data.*.project_id' => [
+                'required',
+                Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+            ],
+            'data.*.date' => 'required|date_format:Y-m-d',
+            'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+            'data.*.work_type' => 'required|string|max:255',
+            'data.*.activity_type' => 'required|string|max:255',
+            'data.*.narration' => 'nullable|string',
+            'data.*.project_type' => 'required|string|max:255',
+            'data.*.project_type_status' => 'required|string|max:255',
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation failed!',
+            'errors' => $e->errors()
+        ], 422);
+    }
+
+    $inserted = [];
+    $sheetsWithDetails = [];
+
+    foreach ($validatedData['data'] as $record) {
+        $project = Project::find($record['project_id']);
+        $projectName = $project ? $project->project_name : "Unknown Project";
+
+        /**
+         * Force every record to be Billable
+         * - If user selected Non Billable, convert to Billable
+         * - If project is hourly, keep Billable
+         * - Basically: Non Billable can never go to DB
+         */
+        if (
+            !isset($record['activity_type']) ||
+            strtolower($record['activity_type']) === 'non billable' ||
+            strtolower($record['activity_type']) === 'non-billable'
+        ) {
+            $record['activity_type'] = 'Billable';
+        }
+
+        if ($project && $project->billing_type === 'hourly') {
+            $record['activity_type'] = 'Billable';
+        }
+
+        // Check if project has tasks
+        $tasks = Task::where('project_id', $record['project_id'])->get();
+
+        if ($tasks->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed!',
-                'errors' => $e->errors()
-            ], 422);
+                'message' => "No tasks found for project '{$projectName}'. Please create at least one task to proceed."
+            ], 400);
         }
 
-        $inserted = [];
-        $sheetsWithDetails = [];
+        // Check for valid (active) task
+        $validStatusTask = $tasks->first(function ($task) {
+            return in_array(strtolower($task->status), ['to do', 'in progress']);
+        });
 
-        foreach ($validatedData['data'] as $record) {
-            $project = Project::find($record['project_id']);
-            $projectName = $project ? $project->project_name : "Unknown Project";
-
-            if ($project && $project->billing_type === 'hourly') {
-                $record['activity_type'] = 'Billable';
-            }
-
-            $tasks = Task::where('project_id', $record['project_id'])->get();
-
-            if ($tasks->isEmpty()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "No tasks found for project '{$projectName}'. Please create at least one task to proceed."
-                ], 400);
-            }
-
-            $validStatusTask = $tasks->first(function ($task) {
-                return in_array(strtolower($task->status), ['to do', 'in progress']);
-            });
-
-            if (!$validStatusTask) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
-                ], 400);
-            }
-
-            $insertedSheet = PerformaSheet::create([
-                'user_id' => $user->id,
-                'status' => 'pending',
-                'data' => json_encode($record)
-            ]);
-
-            $sheetsWithDetails[] = [
-                'project_name' => $projectName,
-                'date' => $record['date'],
-                'time' => $record['time'],
-                'work_type' => $record['work_type'],
-                'activity_type' => $record['activity_type'],
-                'narration' => $record['narration'],
-                'project_type' => $record['project_type'],
-                'project_type_status' => $record['project_type_status'],
-            ];
-
-            $inserted[] = $insertedSheet;
+        if (!$validStatusTask) {
+            return response()->json([
+                'success' => false,
+                'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
+            ], 400);
         }
 
-        $users = User::whereHas('role', function ($query) {
-            $query->whereIn('name', ['Super Admin', 'Billing Manager']);
-        })->get();
-
-        foreach ($users as $user) {
-           // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => count($inserted) . ' Performa Sheets added successfully',
+        // Create Performa Sheet
+        $insertedSheet = PerformaSheet::create([
+            'user_id' => $user->id,
+            'status' => 'pending',
+            'data' => json_encode($record)
         ]);
+
+        // Store sheet details for mail/report
+        $sheetsWithDetails[] = [
+            'project_name' => $projectName,
+            'date' => $record['date'],
+            'time' => $record['time'],
+            'work_type' => $record['work_type'],
+            'activity_type' => $record['activity_type'],
+            'narration' => $record['narration'],
+            'project_type' => $record['project_type'],
+            'project_type_status' => $record['project_type_status'],
+        ];
+
+        $inserted[] = $insertedSheet;
     }
+
+    // Get users with higher roles (Super Admin / Billing Manager)
+    $users = User::whereHas('role', function ($query) {
+        $query->whereIn('name', ['Super Admin', 'Billing Manager']);
+    })->get();
+
+    // Send email (currently commented)
+    foreach ($users as $user) {
+         Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => count($inserted) . ' Performa Sheets added successfully',
+    ]);
+}
+
 
 	public function getUserPerformaSheets()
     {
