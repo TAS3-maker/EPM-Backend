@@ -1,41 +1,23 @@
-name: Laravel Backend Deploy
-
+name: Laravel Backend Deploy (Staging)
 on:
   push:
     branches:
-      - main
-
+      - staging
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Checkout
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      # 2️⃣ Setup PHP
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'   # ✅ Use PHP 8.2 to match your dependencies
+          php-version: '8.2'
           extensions: mbstring, bcmath, pdo, tokenizer, xml, ctype, json, openssl
           tools: composer
-
-      # 3️⃣ Install dependencies (skip scripts to avoid SQLite error)
       - name: Install Composer dependencies
         run: composer install --no-dev --optimize-autoloader --no-scripts
-
-      # 4️⃣ (Optional) Build frontend assets if you use Laravel Vite
-      - name: Build frontend (if exists)
-        run: |
-          if [ -f package.json ]; then
-            npm install
-            npm run build
-          fi
-
-      # 5️⃣ Deploy to Hostinger via SCP
-      - name: Deploy Laravel backend to Hostinger
+      - name: Deploy Laravel backend to staging
         uses: appleboy/scp-action@master
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
@@ -43,11 +25,9 @@ jobs:
           password: ${{ secrets.HOSTINGER_PASSWORD }}
           port: 22
           source: "./"
-          target: "/var/www/EPM/Backend/EPM-backend/"
+          target: "/var/www/EPM-Staging/Backend/EPM-backend/"
           rm: false
-
-      # 6️⃣ Run post-deploy commands on VPS
-      - name: Run Artisan and permissions
+      - name: Run Artisan and permissions on staging
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.HOSTINGER_HOST }}
@@ -55,7 +35,7 @@ jobs:
           password: ${{ secrets.HOSTINGER_PASSWORD }}
           port: 22
           script: |
-            cd /var/www/EPM/Backend/EPM-backend
+            cd /var/www/EPM-Staging/Backend/EPM-backend
             composer install --no-dev --optimize-autoloader
             php artisan config:clear
             php artisan route:clear
@@ -65,4 +45,3 @@ jobs:
             chmod -R 775 storage bootstrap/cache
             chown -R www-data:www-data storage bootstrap/cache
             php artisan migrate --force
-
