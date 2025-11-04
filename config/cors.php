@@ -10,7 +10,7 @@ return [
         'http://localhost:3000',
         'http://127.0.0.1:3000',
         'http://localhost:5173',
-        'https://epm.techarcsoftwares.com'
+        'https://epm.techarcsoftwares.com',
         'https://emp-staging.techarchsoftwares.com'
     ],
 
