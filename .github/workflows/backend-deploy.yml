@@ -20,9 +20,9 @@ jobs:
       - name: Deploy Laravel backend to staging
         uses: appleboy/scp-action@master
         with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          host: ${{ secrets.HOSTINGER_STAGING_HOST }}
+          username: ${{ secrets.HOSTINGER_STAGING_USERNAME }}
+          password: ${{ secrets.HOSTINGER_STAGING_PASSWORD }}
           port: 22
           source: "./"
           target: "/var/www/EPM-Staging/Backend/EPM-backend/"
@@ -30,9 +30,9 @@ jobs:
       - name: Run Artisan and permissions on staging
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.HOSTINGER_HOST }}
-          username: ${{ secrets.HOSTINGER_USERNAME }}
-          password: ${{ secrets.HOSTINGER_PASSWORD }}
+          host: ${{ secrets.HOSTINGER_STAGING_HOST }}
+          username: ${{ secrets.HOSTINGER_STAGING_USERNAME }}
+          password: ${{ secrets.HOSTINGER_STAGING_PASSWORD }}
           port: 22
           script: |
             cd /var/www/EPM-Staging/Backend/EPM-backend
