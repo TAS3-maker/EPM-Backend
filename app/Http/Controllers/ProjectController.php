@@ -189,7 +189,7 @@ public function assignProjectToManager(Request $request)
               ->orWhereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)]);
     })
     ->with(['assignedEmployees:id,name,email','client:id,name'])
-    ->get(['id', 'project_name', 'client_id', 'tl_id', 'deadline', 'project_manager_id'])
+    ->get(['id', 'project_name', 'client_id', 'tl_id', 'deadline', 'project_manager_id','tags_activitys'])
     ->map(function ($project) {
         $tlIds = json_decode($project->tl_id, true);
 
@@ -203,6 +203,11 @@ public function assignProjectToManager(Request $request)
             $project->team_leads = collect(); 
         }
 
+        $tagIds = json_decode($project->tags_activitys, true);
+        $project->tags_activitys = is_array($tagIds) && !empty($tagIds)
+            ? TagsActivity::whereIn('id', $tagIds)->get(['id', 'name'])
+            : collect();
+        
         return $project;
     });
 
@@ -308,7 +313,10 @@ public function getemployeeProjects()
 
         $projects = Project::whereRaw("JSON_CONTAINS(project_manager_id, ?, '$')", [json_encode($user->id)])
             ->with('client', 'assignedBy')
-            ->get();
+            ->get()->map(function ($project) {
+            $project->tags_activitys = $project->tags_activitys_details;
+            return $project;
+        });
 
         return ApiResponse::success('Projects fetched successfully', $projects);
     }
