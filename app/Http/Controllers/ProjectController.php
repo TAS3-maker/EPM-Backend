@@ -390,6 +390,7 @@ public function assignProjectToTL(Request $request): JsonResponse
                 'tags_activitys' => 'nullable|array',
                 'technology' => 'nullable|array',
                 'tags_activitys.*' => 'integer',
+                'project_status' => 'required|string',
             ]);
         } catch (ValidationException $e) {
             return ApiResponse::error(
@@ -401,6 +402,7 @@ public function assignProjectToTL(Request $request): JsonResponse
 
         $project->client_id = $validatedData['client_id'];
         $project->project_name = $validatedData['project_name'];
+        $project->project_status = $validatedData['project_status'];
         $project->deadline = $validatedData['deadline'] ?? null;
         $project->technology = isset($validatedData['technology']) ? json_encode($validatedData['technology']) : $project->technology;
 

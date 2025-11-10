@@ -18,7 +18,8 @@ class LeavePolicy extends Model
         'leave_type', 
         'reason', 
         'status',
-        'hours' 
+        'hours',
+        'halfday_period' 
     ];
 
     public function user()

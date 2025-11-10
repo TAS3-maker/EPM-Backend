@@ -39,8 +39,21 @@ class LeaveController extends Controller
                 }
             }
         }
-    ]
+    ],
+            'halfday_period' => [
+            'nullable',
+            function ($attribute, $value, $fail) use ($request) {
+                if ($request->leave_type === 'Half Day') {
+                    if (!$value) {
+                        $fail('The halfday_period field is required when leave_type is Half Day.');
+                    } elseif (!in_array(strtolower($value), ['morning', 'afternoon'])) {
+                        $fail('Halfday period must be either morning or afternoon.');
+                    }
+                }
+            }
+        ],
 		]);
+
 		if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
 			$endDate = $request->start_date;
 		} elseif ($request->leave_type === 'Multiple Days Leave' && isset($request->end_date)) {
@@ -52,7 +65,7 @@ class LeaveController extends Controller
 			], 400);
 		}
 		$hours = ($request->leave_type === 'Short Leave') ? ($request->hours ?? null) : null;
-		
+		$halfdayPeriod = ($request->leave_type === 'Half Day') ? strtolower($request->halfday_period) : null;
 			$leave = LeavePolicy::create([
 				'user_id' => $user->id, 
 				'start_date' => $request->start_date,
@@ -60,7 +73,8 @@ class LeaveController extends Controller
 				'leave_type' => $request->leave_type,
 				'reason' => $request->reason,
 				'status' => $request->status ?? 'Pending',
-				'hours' => $hours 
+				'hours' => $hours,
+                'halfday_period' => $halfdayPeriod,
 			]);
 		return response()->json([
 			'success' => true,
@@ -93,6 +107,7 @@ class LeaveController extends Controller
                 'reason' => $leave->reason,
                 'status' => $leave->status,
                 'hours' => $leave->hours,
+                'halfday_period' => $leave->halfday_period,
                 'created_at' => $leave->created_at,
                 'updated_at' => $leave->updated_at
             ];
@@ -180,6 +195,7 @@ class LeaveController extends Controller
                 'reason' => $leave->reason,
                 'status' => $leave->status,
                 'hours' => $leave->hours,
+                'halfday_period' => $leave->halfday_period,
                 'created_at' => $leave->created_at,
                 'updated_at' => $leave->updated_at
             ];
