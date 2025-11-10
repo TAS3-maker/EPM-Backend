@@ -219,7 +219,9 @@ public function getEmployeTasksbyProject(Request $request)
                     'name' => $project->project_name,
                     'deadline' => $project->deadline,
                     'total_hours' => $project->total_hours,
-                    'total_working_hours' => $project->total_working_hours
+                    'total_working_hours' => $project->total_working_hours,
+                    'project_type' => $project->project_type,
+                    'project_status' => $project->project_status
                 ],
                 'project_manager' => [
                     'id' => $projectManagerId,
@@ -249,7 +251,9 @@ public function getEmployeTasksbyProject(Request $request)
                 'name' => $project->project_name,
                 'deadline' => $project->deadline,
                 'total_hours' => $project->total_hours,
-                'total_working_hours' => $project->total_working_hours
+                'total_working_hours' => $project->total_working_hours,
+                'project_type' => $project->project_type,
+                'project_status' => $project->project_status
             ],
             'project_manager' => [
                 'id' => $projectManagerId,

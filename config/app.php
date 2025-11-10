@@ -84,6 +84,8 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
+    'clear_key' => env('CACHE_CLEAR_KEY', 'defaultKey'),
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

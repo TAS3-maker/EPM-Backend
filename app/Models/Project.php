@@ -4,12 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\TagsActivity;
 
 class Project extends Model
 {
     use HasFactory;
 
     protected $fillable = ['sales_team_id', 'remaining_hours' , 'client_id', 'project_name', 'requirements', 'budget', 'deadline', 'total_hours', 'project_manager_id', 'tags_activitys', 'assigned_by','technology', 'project_type' , 'project_status','status'];
+
+    protected $appends = ['tags_activity_names']; 
 
     public function client()
     {
@@ -58,7 +61,17 @@ class Project extends Model
     // }
 
     public function tasks()
-{
-    return $this->hasMany(\App\Models\Task::class, 'project_id', 'id');
-}
+    {
+        return $this->hasMany(\App\Models\Task::class, 'project_id', 'id');
+    }
+    public function getTagsActivityNamesAttribute()
+    {
+        $ids = json_decode($this->tags_activitys, true);
+        if (empty($ids)) {
+            return [];
+        }
+
+        return TagsActivity::whereIn('id', $ids)->get(['id', 'name']);
+    }
+
 }

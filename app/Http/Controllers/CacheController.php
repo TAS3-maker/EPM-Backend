@@ -10,9 +10,8 @@ class CacheController extends Controller
 {
     public function clearAll(Request $request)
     {
-
+        
         try {
-            $key = $request->query('key');
             if (!$key || $key !== env('CACHE_CLEAR_KEY')) {
                 return response()->json([
                     'status' => 'error',
