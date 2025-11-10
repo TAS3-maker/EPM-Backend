@@ -19,6 +19,7 @@ class TeamResource extends JsonResource
             'name' => $this->name,
             'created_at' => $this->created_at ? $this->created_at->format('Y-m-d H:i:s') : null,
             'updated_at' => $this->updated_at ? $this->updated_at->format('Y-m-d H:i:s') : null,
+            'department_id'=> $this->department_id ? Department::where('id',$this->department_id)->get(['id','name'])  : null,
             'users' => $this->users->map(function ($user) {
                 return [
                     'id' => $user->id,
