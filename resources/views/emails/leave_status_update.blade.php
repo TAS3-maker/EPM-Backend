@@ -50,7 +50,7 @@
                 to <strong>{{ \Carbon\Carbon::parse($leave->end_date)->format('d M Y') }}</strong>)
                 has been
                 <span class="status">{{ $leave->status }}</span>
-                by your <strong>{{ $managerName }}</strong>.
+                by <strong>{{ $managerName }}</strong>.
             </p>
             <p><strong>Reason:</strong> {{ $leave->reason }}</p>
         </div>
