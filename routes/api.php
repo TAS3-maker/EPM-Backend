@@ -100,6 +100,7 @@ Route::get('/get-performa-sheet', [PerformaSheetController::class, 'getUserPerfo
 Route::get('/get-all-performa-sheets', [PerformaSheetController::class, 'getAllPerformaSheets']);
 Route::get('/get-performa-manager-emp', [PerformaSheetController::class, 'getPerformaManagerEmp']);
 Route::post('/sink-performaapi', [PerformaSheetController::class, 'SinkPerformaAPI']);
+Route::get('/get-weekly-performa-sheet', [PerformaSheetController::class, 'getUserWeeklyPerformaSheets']);
 
 // App => Http => Controllers =>LeaveController
 Route::post('/add-leave', [LeaveController::class, 'Addleave']);
