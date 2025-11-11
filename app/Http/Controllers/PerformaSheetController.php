@@ -951,7 +951,74 @@ public function approveRejectPerformaSheets(Request $request)
         'results' => $results
     ]);
 }
+public function getUserWeeklyPerformaSheets(Request $request){
+    $user = auth()->user();
+    $weeklyTotals = [];
 
+    $startOfWeek = Carbon::now()->startOfWeek();
+    $endOfWeek = Carbon::now()->endOfWeek();
+    $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+
+    $sheets = PerformaSheet::with('user:id,name')
+    ->where('user_id', $user->id)
+    ->get()
+    ->filter(function ($sheet) {
+        $data = json_decode($sheet->data, true);
+        if (!$data || !isset($data['date'])) return false;
+
+        $date = $data['date'];
+        return $date >= now()->startOfWeek()->toDateString() &&
+               $date <= now()->endOfWeek()->toDateString();
+    })
+    ->values();
+
+    foreach ($period as $day) {
+        $carbonDay = Carbon::instance($day);
+        $weeklyTotals[$carbonDay->toDateString()] = [
+            'dayname' => $carbonDay->format('D'),
+            'totalHours' => '00:00'
+        ];
+    }
+
+    $timeToMinutes = function ($time) {
+        [$hours, $minutes] = explode(':', $time);
+        return intval($hours) * 60 + intval($minutes);
+    };
+
+    $minutesToTime = function ($minutes) {
+        $h = floor($minutes / 60);
+        $m = $minutes % 60;
+        return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+    };
+
+    $totalsInMinutes = [];
+
+    foreach ($sheets as $sheet) {
+        $data = json_decode($sheet->data, true);
+        if (!$data || !isset($data['date'], $data['time'])) continue;
+
+        $date = $data['date'];
+        $time = $data['time'];
+
+        if ($date >= $startOfWeek->toDateString() && $date <= $endOfWeek->toDateString()) {
+            $minutes = $timeToMinutes($time);
+
+            if (!isset($totalsInMinutes[$date])) {
+                $totalsInMinutes[$date] = 0;
+            }
+            $totalsInMinutes[$date] += $minutes;
+        }
+    }
+
+    foreach ($totalsInMinutes as $date => $minutes) {
+        $weeklyTotals[$date]['totalHours'] = $minutesToTime($minutes);
+    }
+    return response()->json([
+        'success' => true,
+        'message' => 'Weekly Performa Sheets fetched successfully',
+        'data' => $weeklyTotals
+    ]);
+}
 
 
 
