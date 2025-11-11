@@ -960,23 +960,26 @@ public function getUserWeeklyPerformaSheets(Request $request){
     $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
 
     $sheets = PerformaSheet::with('user:id,name')
-    ->where('user_id', $user->id)
-    ->get()
-    ->filter(function ($sheet) {
-        $data = json_decode($sheet->data, true);
-        if (!$data || !isset($data['date'])) return false;
+        ->where('user_id', $user->id)
+        ->get()
+        ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+            $data = json_decode($sheet->data, true);
+            if (!$data || !isset($data['date'])) return false;
 
-        $date = $data['date'];
-        return $date >= now()->startOfWeek()->toDateString() &&
-               $date <= now()->endOfWeek()->toDateString();
-    })
-    ->values();
+            $date = $data['date'];
+            return $date >= $startOfWeek->toDateString() &&
+                   $date <= $endOfWeek->toDateString();
+        })
+        ->values();
 
+    // Initialize weekly totals
     foreach ($period as $day) {
         $carbonDay = Carbon::instance($day);
         $weeklyTotals[$carbonDay->toDateString()] = [
             'dayname' => $carbonDay->format('D'),
-            'totalHours' => '00:00'
+            'totalHours' => '00:00',
+            'totalBillableHours' => '00:00',
+            'totalNonBillableHours' => '00:00'
         ];
     }
 
@@ -992,34 +995,41 @@ public function getUserWeeklyPerformaSheets(Request $request){
     };
 
     $totalsInMinutes = [];
+    $billableInMinutes = [];
+    $nonBillableInMinutes = [];
 
     foreach ($sheets as $sheet) {
         $data = json_decode($sheet->data, true);
-        if (!$data || !isset($data['date'], $data['time'])) continue;
+        if (!$data || !isset($data['date'], $data['time'], $data['activity_type'])) continue;
 
         $date = $data['date'];
         $time = $data['time'];
+        $activityType = strtolower($data['activity_type']); // to handle case variations
+        $minutes = $timeToMinutes($time);
 
-        if ($date >= $startOfWeek->toDateString() && $date <= $endOfWeek->toDateString()) {
-            $minutes = $timeToMinutes($time);
+        // Total
+        $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
 
-            if (!isset($totalsInMinutes[$date])) {
-                $totalsInMinutes[$date] = 0;
-            }
-            $totalsInMinutes[$date] += $minutes;
+        // Billable / Non-Billable
+        if ($activityType === 'billable') {
+            $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+        } else {
+            $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
         }
     }
 
-    foreach ($totalsInMinutes as $date => $minutes) {
-        $weeklyTotals[$date]['totalHours'] = $minutesToTime($minutes);
+    // Assign to weekly totals
+    foreach ($weeklyTotals as $date => &$totals) {
+        $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+        $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+        $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
     }
+
     return response()->json([
         'success' => true,
         'message' => 'Weekly Performa Sheets fetched successfully',
         'data' => $weeklyTotals
     ]);
 }
-
-
 
 }
