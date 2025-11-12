@@ -55,7 +55,7 @@ public function sendOtp(Request $request)
     // Send OTP via mail
     Mail::raw("Your OTP is: $otp", function ($message) use ($request) {
         $message->to($request->email)
-                ->subject('Your OTP Code');
+                ->subject('EPM TAS OTP code');
     });
 
     return ApiResponse::success('OTP sent to your email.', [
