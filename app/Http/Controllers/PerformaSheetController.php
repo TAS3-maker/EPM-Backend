@@ -954,9 +954,10 @@ public function approveRejectPerformaSheets(Request $request)
 public function getUserWeeklyPerformaSheets(Request $request){
     $user = auth()->user();
     $weeklyTotals = [];
-
-    $startOfWeek = Carbon::now()->startOfWeek();
-    $endOfWeek = Carbon::now()->endOfWeek();
+    
+    $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+    $startOfWeek = $selectedDate->copy()->startOfWeek();
+    $endOfWeek = $selectedDate->copy()->endOfWeek();
     $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
 
     $sheets = PerformaSheet::with('user:id,name')
