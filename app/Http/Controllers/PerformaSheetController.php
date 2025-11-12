@@ -953,84 +953,189 @@ public function approveRejectPerformaSheets(Request $request)
 }
 public function getUserWeeklyPerformaSheets(Request $request){
     $user = auth()->user();
-    $weeklyTotals = [];
-    
-    $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
-    $startOfWeek = $selectedDate->copy()->startOfWeek();
-    $endOfWeek = $selectedDate->copy()->endOfWeek();
-    $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+    try{
+        $weeklyTotals = [];
 
-    $sheets = PerformaSheet::with('user:id,name')
-        ->where('user_id', $user->id)
-        ->get()
-        ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+        $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+
+        $startOfWeek = $selectedDate->copy()->startOfWeek();
+        $endOfWeek = $selectedDate->copy()->endOfWeek();
+        $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+
+        $sheets = PerformaSheet::with('user:id,name')
+            ->where('user_id', $user->id)
+            ->get()
+            ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+                $data = json_decode($sheet->data, true);
+                if (!$data || !isset($data['date'])) return false;
+
+                $date = $data['date'];
+                return $date >= $startOfWeek->toDateString() &&
+                    $date <= $endOfWeek->toDateString();
+            })
+            ->values();
+
+        // Initialize weekly totals
+        foreach ($period as $day) {
+            $carbonDay = Carbon::instance($day);
+            $weeklyTotals[$carbonDay->toDateString()] = [
+                'dayname' => $carbonDay->format('D'),
+                'totalHours' => '00:00',
+                'totalBillableHours' => '00:00',
+                'totalNonBillableHours' => '00:00'
+            ];
+        }
+
+        $timeToMinutes = function ($time) {
+            [$hours, $minutes] = explode(':', $time);
+            return intval($hours) * 60 + intval($minutes);
+        };
+
+        $minutesToTime = function ($minutes) {
+            $h = floor($minutes / 60);
+            $m = $minutes % 60;
+            return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+        };
+
+        $totalsInMinutes = [];
+        $billableInMinutes = [];
+        $nonBillableInMinutes = [];
+
+        foreach ($sheets as $sheet) {
             $data = json_decode($sheet->data, true);
-            if (!$data || !isset($data['date'])) return false;
+            if (!$data || !isset($data['date'], $data['time'], $data['activity_type'])) continue;
 
             $date = $data['date'];
-            return $date >= $startOfWeek->toDateString() &&
-                   $date <= $endOfWeek->toDateString();
-        })
-        ->values();
+            $time = $data['time'];
+            $activityType = strtolower($data['activity_type']); // to handle case variations
+            $minutes = $timeToMinutes($time);
 
-    // Initialize weekly totals
-    foreach ($period as $day) {
-        $carbonDay = Carbon::instance($day);
-        $weeklyTotals[$carbonDay->toDateString()] = [
-            'dayname' => $carbonDay->format('D'),
-            'totalHours' => '00:00',
-            'totalBillableHours' => '00:00',
-            'totalNonBillableHours' => '00:00'
-        ];
-    }
+            // Total
+            $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
 
-    $timeToMinutes = function ($time) {
-        [$hours, $minutes] = explode(':', $time);
-        return intval($hours) * 60 + intval($minutes);
-    };
-
-    $minutesToTime = function ($minutes) {
-        $h = floor($minutes / 60);
-        $m = $minutes % 60;
-        return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
-    };
-
-    $totalsInMinutes = [];
-    $billableInMinutes = [];
-    $nonBillableInMinutes = [];
-
-    foreach ($sheets as $sheet) {
-        $data = json_decode($sheet->data, true);
-        if (!$data || !isset($data['date'], $data['time'], $data['activity_type'])) continue;
-
-        $date = $data['date'];
-        $time = $data['time'];
-        $activityType = strtolower($data['activity_type']); // to handle case variations
-        $minutes = $timeToMinutes($time);
-
-        // Total
-        $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
-
-        // Billable / Non-Billable
-        if ($activityType === 'billable') {
-            $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
-        } else {
-            $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+            // Billable / Non-Billable
+            if ($activityType === 'billable') {
+                $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+            } else {
+                $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+            }
         }
-    }
 
-    // Assign to weekly totals
-    foreach ($weeklyTotals as $date => &$totals) {
-        $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
-        $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
-        $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
-    }
+        // Assign to weekly totals
+        foreach ($weeklyTotals as $date => &$totals) {
+            $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+            $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+            $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+        }
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Weekly Performa Sheets fetched successfully',
-        'data' => $weeklyTotals
-    ]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Weekly Performa Sheets fetched successfully',
+            'data' => $weeklyTotals
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => $e->getMessage()
+        ], 500);
+    }
 }
+public function getAllUsersWithUnfilledPerformaSheets(Request $request){
+    try {
+        $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+        $date = Carbon::parse($date)->toDateString();
+        $allUsers = User::select('id', 'name', 'email','tl_id','team_id','role_id')->get();
+
+        $submittedUserIds = PerformaSheet::all()
+            ->filter(function ($sheet) use ($date) {
+                $data = json_decode($sheet->data, true);
+                return isset($data['date']) && $data['date'] === $date;
+            })
+            ->pluck('user_id')
+            ->unique();
+
+        $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())->values();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Users who did not submit a timesheet fetched successfully',
+            'date' => $date,
+            'count' => $usersWithoutTimesheet->count(),
+            'data' => $usersWithoutTimesheet,
+        ]); 
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}
+
+public function getMissingUserPerformaSheets(Request $request)
+{
+    try {
+        $user = User::find($request->user_id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        if (!$user->created_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User joining date not set'
+            ], 400);
+        }
+
+        $startDate = Carbon::parse($user->created_at)->startOfDay();
+        $endDate = Carbon::now()->startOfDay();
+
+        $allDates = collect();
+        $current = $startDate->copy();
+
+        while ($current->lte($endDate)) {
+            if ($current->isWeekday()) {
+                $allDates->push($current->toDateString());
+            }
+            $current->addDay();
+        }
+
+        $submittedDates = PerformaSheet::where('user_id', $user->id)
+            ->get()
+            ->map(function ($sheet) {
+                $data = json_decode($sheet->data, true);
+                return isset($data['date']) ? $data['date'] : null;
+            })
+            ->filter()
+            ->unique()
+            ->values();
+
+        $missingDates = $allDates->diff($submittedDates)->values();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Missing timesheet dates fetched successfully',
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'created_date' => $user->created_at,
+            ],
+            'total_missing_days' => $missingDates->count(),
+            'data' => $missingDates
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+}   
 
 }
