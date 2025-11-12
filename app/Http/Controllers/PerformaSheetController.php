@@ -900,8 +900,8 @@ public function approveRejectPerformaSheets(Request $request)
                 if ($extraHours > 0 && $remainingHours == 0) {
                 // Update existing performa sheet instead of creating new
                 $originalData['time'] = $formatTime($submittedHours);  // full submitted hours
-                $originalData['activity_type'] = 'Non Billable';
-                $originalData['message'] = 'Non Billable - remaining hours finished, updated as non-billable';
+                $originalData['activity_type'] = 'Billable';
+                $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
                 $performa->data = json_encode($originalData);
                 $performa->status = 'approved';
                 $performa->save();
@@ -909,14 +909,14 @@ public function approveRejectPerformaSheets(Request $request)
                 $results[] = [
                     'performa_id' => $performa->id,
                     'status' => 'approved',
-                    'note' => 'Existing performa updated to non-billable as remaining hours are finished'
+                    'note' => 'Existing performa updated to billable as remaining hours are finished'
                 ];
             } elseif ($extraHours > 0) {
                 // Existing logic for when remainingHours > 0 and extraHours exist
                 $nonBillableData = $originalData;
                 $nonBillableData['time'] = $formatTime($extraHours);
-                $nonBillableData['activity_type'] = 'Non Billable';
-                $nonBillableData['message'] = 'Non Billable - extra time beyond remaining hours';
+                $nonBillableData['activity_type'] = 'Billable';
+                $nonBillableData['message'] = 'Billable - extra time beyond remaining hours';
                 $newPerforma = new PerformaSheet();
                 $newPerforma->user_id = $performa->user_id;
                 $newPerforma->status = 'approved';
@@ -925,7 +925,7 @@ public function approveRejectPerformaSheets(Request $request)
                 $results[] = [
                     'performa_id' => $newPerforma->id,
                     'status' => 'approved',
-                    'note' => 'New non-billable entry created for extra hours'
+                    'note' => 'New billable entry created for extra hours'
                 ];
             }
 
