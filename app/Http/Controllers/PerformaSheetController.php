@@ -772,10 +772,7 @@ public function approveRejectPerformaSheets(Request $request)
     foreach ($performaSheets as $performa) {
         $originalData = json_decode($performa->data, true);
         $oldStatus = $performa->status; 
-return response()->json([
-        'message' => 'Performa sheets fetched.',
-        'results' => $originalData
-    ]);
+        
         // === CASE 1: Reject flow with reverse approved ===
         if ($request->status === 'rejected') {
 
@@ -813,7 +810,9 @@ return response()->json([
         }
 
         // === CASE 2: Inhouse approved ===
-        if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
+         
+        // if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
+        if ((strtolower($originalData['activity_type']) == 'inhouse' || strtolower($originalData['activity_type']) == 'in-house' ) && $request->status === 'approved') {
             $originalData['activity_type'] = 'inhouse';
             $performa->status = 'approved';
             $performa->data = json_encode($originalData);
