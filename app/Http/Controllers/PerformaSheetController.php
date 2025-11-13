@@ -363,7 +363,7 @@ public function addPerformaSheets(Request $request)
                 if ($billableHoursValue > 0) {
                     $billableData = $originalData;
                     $billableData['time'] = $billableTimeFormatted;
-                    $billableData['activity_type'] = "Billable";
+                    // $billableData['activity_type'] = "Billable";
                     $billableData['message'] = $isHourly ? "Billable - hourly project" : "Billable - within limit";
 
                     $performa->data = json_encode($billableData);
@@ -379,7 +379,7 @@ public function addPerformaSheets(Request $request)
                 if (!$isHourly && $extraHours > 0) {
                     $nonBillableData = $originalData;
                     $nonBillableData['time'] = $nonBillableTimeFormatted;
-                    $nonBillableData['activity_type'] = "Billable";
+                    // $nonBillableData['activity_type'] = "Billable";
                     $nonBillableData['message'] = "Billable - Extra hours approved";
 
                     if ($originalData['activity_type'] === 'Non Billable') {
@@ -477,7 +477,7 @@ public function addPerformaSheets(Request $request)
 
                 if ($entryHours <= $remaining) {
                     // Fully convert to Billable
-                    $data['activity_type'] = 'Billable';
+                    // $data['activity_type'] = 'Billable';
                     $data['message'] = 'Converted from Non Billable to Billable via Sync';
                     $entry->data = json_encode($data);
                     $entry->save();
@@ -492,7 +492,7 @@ public function addPerformaSheets(Request $request)
 
                     // Update current entry
                     $data['time'] = $billableTime;
-                    $data['activity_type'] = 'Billable';
+                    // $data['activity_type'] = 'Billable';
                     $data['message'] = 'Partially converted to Billable via Sync';
                     $entry->data = json_encode($data);
                     $entry->save();
@@ -502,7 +502,7 @@ public function addPerformaSheets(Request $request)
                     // Create new Non Billable entry with leftover
                     //code changed to billable
                     $newData = $data;
-                    $newData['activity_type'] = 'Billable';
+                    // $newData['activity_type'] = 'Billable';
                     $newData['time'] = $nonBillableTime;
                     $newData['message'] = 'Remaining Billable after partial conversion';
 
@@ -813,7 +813,7 @@ public function approveRejectPerformaSheets(Request $request)
          
         // if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
         if ((strtolower($originalData['activity_type']) == 'inhouse' || strtolower($originalData['activity_type']) == 'in-house' ) && $request->status === 'approved') {
-            $originalData['activity_type'] = 'inhouse';
+            // $originalData['activity_type'] = 'inhouse';
             $performa->status = 'approved';
             $performa->data = json_encode($originalData);
             $performa->save();
@@ -872,7 +872,7 @@ public function approveRejectPerformaSheets(Request $request)
                 if ($billableHours > 0) {
                     $billableData = $originalData;
                     $billableData['time'] = $formatTime($billableHours);
-                    $billableData['activity_type'] = 'Billable';
+                    // $billableData['activity_type'] = 'Billable';
                     $billableData['message'] = 'Billable - within remaining hours';
                     $performa->data = json_encode($billableData);
                     $performa->status = 'approved';
@@ -903,7 +903,7 @@ public function approveRejectPerformaSheets(Request $request)
                 if ($extraHours > 0 && $remainingHours == 0) {
                 // Update existing performa sheet instead of creating new
                 $originalData['time'] = $formatTime($submittedHours);  // full submitted hours
-                $originalData['activity_type'] = 'Billable';
+                // $originalData['activity_type'] = 'Billable';
                 $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
                 $performa->data = json_encode($originalData);
                 $performa->status = 'approved';
@@ -918,7 +918,7 @@ public function approveRejectPerformaSheets(Request $request)
                 // Existing logic for when remainingHours > 0 and extraHours exist
                 $nonBillableData = $originalData;
                 $nonBillableData['time'] = $formatTime($extraHours);
-                $nonBillableData['activity_type'] = 'Billable';
+                // $nonBillableData['activity_type'] = 'Billable';
                 $nonBillableData['message'] = 'Billable - extra time beyond remaining hours';
                 $newPerforma = new PerformaSheet();
                 $newPerforma->user_id = $performa->user_id;
