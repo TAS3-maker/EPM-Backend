@@ -315,10 +315,7 @@ public function getemployeeProjects()
 
         $projects = Project::whereRaw("JSON_CONTAINS(project_manager_id, ?, '$')", [json_encode($user->id)])
             ->with('client', 'assignedBy')
-            ->get()->map(function ($project) {
-            $project->tags_activitys = $project->tags_activitys_details;
-            return $project;
-        });
+            ->get();
 
         return ApiResponse::success('Projects fetched successfully', $projects);
     }
