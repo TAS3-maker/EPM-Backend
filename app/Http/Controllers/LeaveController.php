@@ -121,17 +121,18 @@ class LeaveController extends Controller
     public function getLeavesByemploye()
     {
         $user = auth()->user();
-
-        if ($user->role_id == 7) {
+        
+        // code commented to show only current user's leaves
+        // if ($user->role_id == 7) {
             $leaves = LeavePolicy::with('user:id,name')
                 ->where('user_id', $user->id)
                 ->latest()
                 ->get();
-        } else {
-            $leaves = LeavePolicy::with('user:id,name')
-                ->latest()
-                ->get();
-        }
+        // } else {
+        //     $leaves = LeavePolicy::with('user:id,name')
+        //         ->latest()
+        //         ->get();
+        // }
 
         if ($leaves->isEmpty()) {
             return response()->json([
