@@ -379,8 +379,8 @@ public function addPerformaSheets(Request $request)
                 if (!$isHourly && $extraHours > 0) {
                     $nonBillableData = $originalData;
                     $nonBillableData['time'] = $nonBillableTimeFormatted;
-                    $nonBillableData['activity_type'] = "Non Billable";
-                    $nonBillableData['message'] = "Non Billable - Extra hours approved";
+                    $nonBillableData['activity_type'] = "Billable";
+                    $nonBillableData['message'] = "Billable - Extra hours approved";
 
                     if ($originalData['activity_type'] === 'Non Billable') {
                         $performa->data = json_encode($nonBillableData);
@@ -500,10 +500,11 @@ public function addPerformaSheets(Request $request)
                     $workingHours += $remaining;
 
                     // Create new Non Billable entry with leftover
+                    //code changed to billable
                     $newData = $data;
-                    $newData['activity_type'] = 'Non Billable';
+                    $newData['activity_type'] = 'Billable';
                     $newData['time'] = $nonBillableTime;
-                    $newData['message'] = 'Remaining Non Billable after partial conversion';
+                    $newData['message'] = 'Remaining Billable after partial conversion';
 
                     $newEntry = PerformaSheet::create([
                         'user_id' => $entry->user_id,
@@ -525,7 +526,7 @@ public function addPerformaSheets(Request $request)
 
             return response()->json([
                 'success' => true,
-                'message' => 'Non Billable entries converted based on remaining hours',
+                'message' => 'Billable entries converted based on remaining hours',
                 'converted' => $converted,
                 'updated_total_working_hours' => $workingHours,
                 'remaining_after_conversion' => max(0, $totalHours - $workingHours),
