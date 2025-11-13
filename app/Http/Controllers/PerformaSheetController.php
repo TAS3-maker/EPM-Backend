@@ -1046,6 +1046,7 @@ public function getUserWeeklyPerformaSheets(Request $request){
 }
 public function getAllUsersWithUnfilledPerformaSheets(Request $request){
     try {
+        $authUser = auth()->user();
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
         $date = Carbon::parse($date)->toDateString();
        // $allUsers = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7)->get();
