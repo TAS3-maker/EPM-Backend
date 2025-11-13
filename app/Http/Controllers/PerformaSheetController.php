@@ -1048,8 +1048,15 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request){
     try {
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
         $date = Carbon::parse($date)->toDateString();
-        $allUsers = User::select('id', 'name', 'email','tl_id','team_id','role_id')->get();
+       // $allUsers = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7)->get();
+        $query = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7);
 
+        //if auth user is not super admin then get only current users's team members
+        if ($authUser->role_id != 1) {
+            $query->where('tl_id', $authUser->id);
+        }
+        $allUsers = $query->get();
+        
         $submittedUserIds = PerformaSheet::all()
             ->filter(function ($sheet) use ($date) {
                 $data = json_decode($sheet->data, true);
