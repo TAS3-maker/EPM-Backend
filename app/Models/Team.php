@@ -11,10 +11,10 @@ class Team extends Model
 
     protected $fillable = ['name','department_id'];
 
-    public function users()
-    {
-        return $this->hasMany(User::class, 'team_id');
-    }
+    // public function users()
+    // {
+    //     return $this->hasMany(User::class, 'team_id');
+    // }
      // public function users()
     // {
     //     return $this->hasMany(User::class, 'team_id');
