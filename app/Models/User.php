@@ -117,4 +117,9 @@ public function assigns() {
     {
         return in_array($teamId, $this->team_id ?? []);
     }
+    public function getTeamNamesAttribute()
+    {
+        if (!$this->team_id || !is_array($this->team_id)) return null;
+        return Team::whereIn('id', $this->team_id)->pluck('name')->toArray();
+    }
 }
