@@ -1102,32 +1102,29 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request){
             ->pluck('user_id')
             ->unique();
 
-      $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
-        ->map(function ($user) {
-            $teams = [];
+     $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
+    ->map(function ($user) {
+        $teamName = null;
 
-            if (is_array($user->team_id) && count($user->team_id) > 0) {
-                $teams = \App\Models\Team::whereIn('id', $user->team_id)
-                    ->get(['id', 'name'])
-                    ->map(function ($team) {
-                        return [
-                            'id' => $team->id,
-                            'name' => $team->name,
-                        ];
-                    })
-                    ->toArray();
-            }
+        if (is_array($user->team_id) && count($user->team_id) > 0) {
+            $teamId = $user->team_id[0]; // get the single team ID
+            $team = \App\Models\Team::find($teamId);
+            $teamName = $team ? $team->name : null;
+        }
 
-            return [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'tl_id' => $user->tl_id,
-                'tl_name' => $user->tl ? $user->tl->name : null,
-                'team' => $teams, // team array with id and name
-            ];
-        })
-        ->values();
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'tl_id' => $user->tl_id,
+            'tl_name' => $user->tl ? $user->tl->name : null,
+            'team_id' => $user->team_id,   // still an array
+            'team_name' => $teamName,      // single name
+        ];
+    })
+    ->values();
+
+        
         return response()->json([
             'success' => true,
             'message' => 'Users who did not submit a timesheet fetched successfully',
