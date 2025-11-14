@@ -490,10 +490,17 @@ public function get_all_tl(Request $request)
             'team_id' => 'required|integer'
         ]);
 
-        $teamId = $request->team_id;
+        $teamId = intval($request->team_id);
+        $teamIds = [$teamId];
 
-        $tls = \App\Models\User::where('team_id', $teamId)
-            ->where('role_id', 6)
+        $tls = \App\Models\User::where('role_id', 6)
+            ->where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $t) {
+                    if ($t !== null) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    }
+                }
+            })
             ->get();
         if ($tls->isEmpty()) {
             return response()->json([
