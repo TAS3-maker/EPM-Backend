@@ -1067,21 +1067,34 @@ public function getUserWeeklyPerformaSheets(Request $request){
         ], 500);
     }
 }
+
 public function getAllUsersWithUnfilledPerformaSheets(Request $request){
     try {
         $authUser = auth()->user();
         $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
         $date = Carbon::parse($date)->toDateString();
-       // $allUsers = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7)->get();
-        $query = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7);
-
+        // $allUsers = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7)->get();
+       $query = User::select('users.id', 'users.name', 'users.email', 'users.tl_id', 'users.team_id', 'users.role_id')
+                     ->where('role_id', 7);
         //if auth user is not super admin then get only current users's team members
         if ($authUser->role_id != 1) {
-            $query->where('tl_id', $authUser->id);
+            $teamIds = $authUser->team_id ?? [];
+            if (!is_array($teamIds)) {
+                $teamIds = [];
+            }
+
+            $query->where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $t) {
+                    if ($t !== null) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    }
+                }
+            });
         }
-        $allUsers = $query->get();
-        
-        $submittedUserIds = PerformaSheet::all()
+
+        $allUsers = $query->with(['tl:id,name'])->get();
+
+         $submittedUserIds = PerformaSheet::all()
             ->filter(function ($sheet) use ($date) {
                 $data = json_decode($sheet->data, true);
                 return isset($data['date']) && $data['date'] === $date;
@@ -1089,8 +1102,32 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request){
             ->pluck('user_id')
             ->unique();
 
-        $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())->values();
+      $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
+        ->map(function ($user) {
+            $teams = [];
 
+            if (is_array($user->team_id) && count($user->team_id) > 0) {
+                $teams = \App\Models\Team::whereIn('id', $user->team_id)
+                    ->get(['id', 'name'])
+                    ->map(function ($team) {
+                        return [
+                            'id' => $team->id,
+                            'name' => $team->name,
+                        ];
+                    })
+                    ->toArray();
+            }
+
+            return [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'tl_id' => $user->tl_id,
+                'tl_name' => $user->tl ? $user->tl->name : null,
+                'team' => $teams, // team array with id and name
+            ];
+        })
+        ->values();
         return response()->json([
             'success' => true,
             'message' => 'Users who did not submit a timesheet fetched successfully',
