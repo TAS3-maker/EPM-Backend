@@ -11,9 +11,18 @@ class Team extends Model
 
     protected $fillable = ['name','department_id'];
 
+    // public function users()
+    // {
+    //     return $this->hasMany(User::class, 'team_id');
+    // }
+     // public function users()
+    // {
+    //     return $this->hasMany(User::class, 'team_id');
+    // }
     public function users()
     {
-        return $this->hasMany(User::class, 'team_id');
+        return $this->hasMany(User::class)
+            ->whereJsonContains('team_id', $this->id);
     }
     public function department()
     {
