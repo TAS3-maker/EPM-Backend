@@ -122,4 +122,8 @@ public function assigns() {
         if (!$this->team_id || !is_array($this->team_id)) return null;
         return Team::whereIn('id', $this->team_id)->pluck('name')->toArray();
     }
+    public function tl()
+    {
+        return $this->belongsTo(User::class, 'tl_id');
+    }
 }
