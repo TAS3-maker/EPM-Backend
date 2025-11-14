@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Team;
+use App\Models\User;
 use App\Http\Resources\TeamResource;
 use App\Http\Helpers\ApiResponse;
 
