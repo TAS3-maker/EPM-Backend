@@ -10,12 +10,12 @@ use App\Http\Helpers\ApiResponse;
 
 class TeamController extends Controller
 {
-    // public function index()
-    // {
-    //     $teams = Team::with('users')->latest()->get();
-    //     return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
-    // }
     public function index()
+    {
+        $teams = Team::with('users')->latest()->get();
+        return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+    }
+   /*  public function index()
 {
     // 1. Fetch all teams
     $teams = Team::latest()->get();
@@ -67,7 +67,7 @@ class TeamController extends Controller
     });
 
     return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
-}
+} */
 
 
     public function show($id)
