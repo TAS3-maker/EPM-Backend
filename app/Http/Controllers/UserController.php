@@ -117,7 +117,7 @@ public function store(Request $request)
 
 public function index()
 {
-        $users = User::with(['team', 'role'])->orderBy('id', 'desc')->get();
+        $users = User::with('role')->orderBy('id', 'desc')->get();
         return ApiResponse::success('Users fetched successfully', UserResource::collection($users));
     }
 
