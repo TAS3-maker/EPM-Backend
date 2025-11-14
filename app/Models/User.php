@@ -49,6 +49,7 @@ class User extends Authenticatable implements JWTSubject
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'team_id' => 'array',
     ];
 
     /**
@@ -112,5 +113,8 @@ public function assigns() {
     {
         return $this->hasMany(LeavePolicy::class, 'user_id');
     }
-
+    public function belongsToTeam($teamId)
+    {
+        return in_array($teamId, $this->team_id ?? []);
+    }
 }
