@@ -191,7 +191,7 @@ public function addPerformaSheets(Request $request)
     {
         $user = $request->user(); 
         $role_id = $user->role_id;
-        $team_id = $user->team_id;
+        $team_id = $user->team_id ?? [];
 
         if ($role_id == 1 || $role_id == 4) {
             $sheets = PerformaSheet::with('user:id,name')->get();
@@ -213,24 +213,47 @@ public function addPerformaSheets(Request $request)
             //     ->get();
             $teamId = $user->team_id;
 
-                $teamMemberIds = User::where('team_id', $teamId)
-                    ->where('role_id', 7) 
-                    ->where('id', '!=', $user->id) 
+                // $teamMemberIds = User::where('team_id', $teamId)
+                //     ->where('role_id', 7) 
+                //     ->where('id', '!=', $user->id) 
+                //     ->pluck('id')
+                //     ->toArray();
+                    $teamMemberIds = User::where('role_id', 7) 
+                    ->where('id', '!=', $user->id)
+                    ->where(function ($q) use ($team_id) {
+                        foreach ($team_id as $t) {
+                            if ($t !== null) {
+                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                            }
+                        }
+                    })
                     ->pluck('id')
                     ->toArray();
-
+            
                 $sheets = PerformaSheet::with('user:id,name')
                     ->whereIn('user_id', $teamMemberIds)
                     ->get();
 
         } else if ($role_id == 5 && $team_id) {
                 
-                $teamMemberIds = User::where('team_id', $team_id)
-                    ->where('role_id', 7) 
-                    ->where('id', '!=', $user->id) 
+                // $teamMemberIds = User::where('team_id', $team_id)
+                //     ->where('role_id', 7) 
+                //     ->where('id', '!=', $user->id) 
+                //     ->pluck('id')
+                //     ->toArray();
+
+                $teamMemberIds = User::where('role_id', 7) 
+                    ->where('id', '!=', $user->id)
+                    ->where(function ($q) use ($team_id) {
+                        foreach ($team_id as $t) {
+                            if ($t !== null) {
+                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                            }
+                        }
+                    })
                     ->pluck('id')
                     ->toArray();
-
+            
                 $sheets = PerformaSheet::with('user:id,name')
                     ->whereIn('user_id', $teamMemberIds)
                     ->get();
