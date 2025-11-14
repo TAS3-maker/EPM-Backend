@@ -828,7 +828,7 @@ public function assignProjectToTL(Request $request): JsonResponse
     {
 
         $projects = Project::all();
-
+        $teams = Team::all()->keyBy('id'); // Fetch all teams once
         $teamProjectMap = [];
 
         foreach ($projects as $project) {
@@ -839,14 +839,30 @@ public function assignProjectToTL(Request $request): JsonResponse
                 continue;
             }
 
-            $managers = User::with('team:id,name')
-                ->whereIn('id', $managerIds)
-                ->get();
+            // $managers = User::with('team:id,name')
+            //     ->whereIn('id', $managerIds)
+            //     ->get();
 
-            $teamNames = $managers
-                ->filter(fn ($user) => $user->team)
-                ->pluck('team.name')
-                ->unique();
+            $managers = User::whereIn('id', $managerIds)->get();
+            
+            // $teamNames = $managers
+            //     ->filter(fn ($user) => $user->team)
+            //     ->pluck('team.name')
+            //     ->unique();
+            $teamNames = collect();
+
+            foreach ($managers as $manager) {
+                if (is_array($manager->team_id)) {
+                    foreach ($manager->team_id as $teamId) {
+                        $team = Team::find($teamId);
+                        if ($team) {
+                            $teamNames->push($team->name);
+                        }
+                    }
+                }
+            }
+
+            $teamNames = $teamNames->unique();
 
             if ($teamNames->isEmpty()) {
                 $teamProjectMap['Not Assigned'] = ($teamProjectMap['Not Assigned'] ?? 0) + 1;
