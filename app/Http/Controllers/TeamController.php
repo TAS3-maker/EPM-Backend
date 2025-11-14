@@ -10,76 +10,50 @@ use App\Http\Helpers\ApiResponse;
 
 class TeamController extends Controller
 {
-    public function index()
+    // public function index()
+    // {
+    //     $teams = Team::with('users')->latest()->get();
+    //     return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+    // }
+    // public function show($id)
+    // {
+    //     $team = Team::with('users')->find($id);
+
+    //     if (!$team) {
+    //         return ApiResponse::error('Team not found', [], 404);
+    //     }
+
+    //     return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
+    // }
+     public function index()
     {
-        $teams = Team::with('users')->latest()->get();
+        $teams = Team::latest()->get()->map(function($team) {
+            // Fetch users where their team_id JSON array contains this team's id and role_id = 7
+            $team->users = User::whereJsonContains('team_id', $team->id)
+                            //    ->where('role_id', 7)
+                               ->get();
+            return $team;
+        });
+
         return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
     }
-   /*  public function index()
-{
-    // 1. Fetch all teams
-    $teams = Team::latest()->get();
-
-    if ($teams->isEmpty()) {
-        return ApiResponse::success('Teams fetched successfully', []);
-    }
-
-    // 2. Collect team IDs
-    $teamIds = $teams->pluck('id')->values()->all();
-
-    // 3. Fetch users whose JSON team_id contains ANY team id
-    //    (works even if array has multiple IDs)
-    $users = User::select('id','name','email','phone_num','role_id','team_id')
-        ->where(function ($q) use ($teamIds) {
-            foreach ($teamIds as $tid) {
-                $q->orWhereJsonContains('team_id', $tid);
-            }
-        })
-        ->get();
-
-    // 4. Group users by team id
-    $usersByTeam = [];
-
-    foreach ($users as $user) {
-
-        // Ensure JSON array, ignore nulls
-        $teamArray = $user->team_id ?? [];
-
-        // Clean values (remove nulls & cast to integer)
-        $teamArray = array_values(
-            array_filter(
-                array_map(fn($val) => is_numeric($val) ? (int)$val : null, $teamArray)
-            )
-        );
-
-        foreach ($teamArray as $tid) {
-            $usersByTeam[$tid][] = $user;
-        }
-    }
-
-    // 5. Bind users into each team model
-    $teams = $teams->map(function ($team) use ($usersByTeam) {
-        $team->setRelation(
-            'users',
-            collect($usersByTeam[$team->id] ?? [])
-        );
-        return $team;
-    });
-
-    return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
-} */
-
 
     public function show($id)
     {
-        $team = Team::with('users')->find($id);
+        $team = Team::find($id);
 
         if (!$team) {
             return ApiResponse::error('Team not found', [], 404);
         }
 
+        // Fetch users dynamically
+        $team->users = User::whereJsonContains('team_id', $team->id)
+                        //    ->where('role_id', 7)
+                           ->get();
+
         return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
     }
+
 
     public function store(Request $request)
     {
