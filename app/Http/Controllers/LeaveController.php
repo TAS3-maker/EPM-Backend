@@ -151,7 +151,7 @@ class LeaveController extends Controller
     public function showmanagerLeavesForTeamemploye(Request $request)
     {
         $user = auth()->user();
-
+        $team_id = $user->team_id ?? [];
         $managerInfo = [
             'id' => $user->id,
             'name' => $user->name,
@@ -160,13 +160,25 @@ class LeaveController extends Controller
         ];
 
         if ($user->role_id == 6) {
-            $employees = User::where('team_id', $user->team_id)
-                ->where('id', '!=', $user->id) 
+            $employees = User::where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                        foreach ($team_id as $t) {
+                            if ($t !== null) {
+                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                            }
+                        }
+                })
                 ->where('role_id', 7)         
                 ->get();
         } else {
-            $employees = User::where('team_id', $user->team_id)
-                ->where('id', '!=', $user->id)
+            $employees = User::where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                        foreach ($team_id as $t) {
+                            if ($t !== null) {
+                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                            }
+                        }
+                })
                 ->get();
         }
 
