@@ -27,12 +27,12 @@ class TeamController extends Controller
     // 2. Collect team IDs
     $teamIds = $teams->pluck('id')->values()->all();
 
-    // 3. Fetch users whose JSON team_id_json contains ANY team id
+    // 3. Fetch users whose JSON team_id contains ANY team id
     //    (works even if array has multiple IDs)
-    $users = User::select('id','name','email','phone_num','role_id','team_id_json')
+    $users = User::select('id','name','email','phone_num','role_id','team_id')
         ->where(function ($q) use ($teamIds) {
             foreach ($teamIds as $tid) {
-                $q->orWhereJsonContains('team_id_json', $tid);
+                $q->orWhereJsonContains('team_id', $tid);
             }
         })
         ->get();
@@ -43,7 +43,7 @@ class TeamController extends Controller
     foreach ($users as $user) {
 
         // Ensure JSON array, ignore nulls
-        $teamArray = $user->team_id_json ?? [];
+        $teamArray = $user->team_id ?? [];
 
         // Clean values (remove nulls & cast to integer)
         $teamArray = array_values(
