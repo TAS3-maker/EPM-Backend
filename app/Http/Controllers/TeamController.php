@@ -9,11 +9,65 @@ use App\Http\Helpers\ApiResponse;
 
 class TeamController extends Controller
 {
+    // public function index()
+    // {
+    //     $teams = Team::with('users')->latest()->get();
+    //     return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+    // }
     public function index()
-    {
-        $teams = Team::with('users')->latest()->get();
-        return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+{
+    // 1. Fetch all teams
+    $teams = Team::latest()->get();
+
+    if ($teams->isEmpty()) {
+        return ApiResponse::success('Teams fetched successfully', []);
     }
+
+    // 2. Collect team IDs
+    $teamIds = $teams->pluck('id')->values()->all();
+
+    // 3. Fetch users whose JSON team_id_json contains ANY team id
+    //    (works even if array has multiple IDs)
+    $users = User::select('id','name','email','phone_num','role_id','team_id_json')
+        ->where(function ($q) use ($teamIds) {
+            foreach ($teamIds as $tid) {
+                $q->orWhereJsonContains('team_id_json', $tid);
+            }
+        })
+        ->get();
+
+    // 4. Group users by team id
+    $usersByTeam = [];
+
+    foreach ($users as $user) {
+
+        // Ensure JSON array, ignore nulls
+        $teamArray = $user->team_id_json ?? [];
+
+        // Clean values (remove nulls & cast to integer)
+        $teamArray = array_values(
+            array_filter(
+                array_map(fn($val) => is_numeric($val) ? (int)$val : null, $teamArray)
+            )
+        );
+
+        foreach ($teamArray as $tid) {
+            $usersByTeam[$tid][] = $user;
+        }
+    }
+
+    // 5. Bind users into each team model
+    $teams = $teams->map(function ($team) use ($usersByTeam) {
+        $team->setRelation(
+            'users',
+            collect($usersByTeam[$team->id] ?? [])
+        );
+        return $team;
+    });
+
+    return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+}
+
 
     public function show($id)
     {
