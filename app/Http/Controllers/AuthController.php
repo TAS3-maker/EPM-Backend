@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Tymon\JWTAuth\Facades\JWTAuth;
 use App\Http\Helpers\ApiResponse;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
@@ -115,6 +116,58 @@ public function resetPassword(Request $request)
     return ApiResponse::success('Password reset successfully.', [
         'email' => $request->email,
         'password_reset' => true
+    ]);
+}
+public function changePassword(Request $request)
+{
+    $user = auth()->user();
+     if (!$user) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Unauthenticated'
+        ], 401);
+    }
+
+    // Manual validation
+    try{
+        $validator = Validator::make($request->all(), [
+            'old_password' => 'required',
+            'new_password' => 'required|min:6|confirmed', // expects new_password_confirmation
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+    }catch (\Exception $e) {
+            return ApiResponse::error('Password change failed!', ['error' => $e->getMessage()], 500);
+    }
+    // Check old password
+    if (!Hash::check($request->old_password, $user->password)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Old password is incorrect.'
+        ], 400);
+    }
+
+    // Prevent using the same password again
+    if (Hash::check($request->new_password, $user->password)) {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'New password must be different from old password.'
+        ], 400);
+    }
+
+    // Save new password
+    $user->password = Hash::make($request->new_password);
+    $user->save();
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Password changed successfully.'
     ]);
 }
 }
