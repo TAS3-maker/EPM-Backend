@@ -208,7 +208,7 @@ public function assignProjectToManager(Request $request)
 
         $tagIds = json_decode($project->tags_activitys, true);
         $project->tags_activitys = is_array($tagIds) && !empty($tagIds)
-            ? TagsActivity::whereIn('id', $tagIds)->get(['id', 'name'])
+            ? TagsActivity::whereIn('id', $tagIds)->get(['id'])
             : collect();
         
         return $project;
