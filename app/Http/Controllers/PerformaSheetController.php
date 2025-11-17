@@ -236,8 +236,6 @@ public function addPerformaSheets(Request $request)
         }
          if (!empty($status)) {
             $query->where('status', $status);
-        } else {
-            $query->whereIn('status', ['approved', 'rejected']);
         }
 
         // Fetch sheets after all filters
