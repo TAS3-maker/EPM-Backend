@@ -36,6 +36,7 @@ Route::post('/auth/send-otp', [AuthController::class, 'sendOtp']);
 Route::post('/auth/confirm-otp', [AuthController::class, 'confirmOtp']);
 Route::post('/auth/reset-password', [AuthController::class, 'resetPassword']);
 Route::get('/check-token', [UserController::class, 'checkToken']);
+Route::middleware('jwt.auth')->post('/change-password', [AuthController::class, 'changePassword']);
 
 Route::middleware('auth:api')->group(function () {
 Route::get('/clearCache', [CacheController::class, 'clearAll']);
