@@ -234,7 +234,7 @@ public function addPerformaSheets(Request $request)
         } else {
             $query = clone $baseQuery;
         }
-        if ($status) {
+         if (!empty($status)) {
             $query->where('status', $status);
         } else {
             $query->whereIn('status', ['approved', 'rejected']);
