@@ -361,7 +361,7 @@ public function index()
 
     public function getMyProfile($id)
     {
-        $user = User::with(['role', 'team'])->find($id);
+        $user = User::with(['role'])->find($id);
 
         $teamNames = [];
         if (is_array($user->team_id) && count($user->team_id) > 0) {
