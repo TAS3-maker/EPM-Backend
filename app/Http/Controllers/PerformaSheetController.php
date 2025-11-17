@@ -1034,75 +1034,127 @@ public function getUserWeeklyPerformaSheets(Request $request){
     }
 }
 
-public function getAllUsersWithUnfilledPerformaSheets(Request $request){
+public function getAllUsersWithUnfilledPerformaSheets(Request $request)
+{
     try {
         $authUser = auth()->user();
-        $date = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
-        $date = Carbon::parse($date)->toDateString();
-        // $allUsers = User::select('id', 'name', 'email', 'tl_id', 'team_id', 'role_id')->where('role_id', 7)->get();
-       $query = User::select('users.id', 'users.name', 'users.email', 'users.tl_id', 'users.team_id', 'users.role_id')
-                     ->where('role_id', 7);
-        //if auth user is not super admin then get only current users's team members
-        if ($authUser->role_id != 1) {
-            $teamIds = $authUser->team_id ?? [];
-            if (!is_array($teamIds)) {
-                $teamIds = [];
+        $date = null;
+        $dateRange = null;
+
+        if ($request->has('date')) {
+            try {
+                $date = Carbon::parse($request->date)->toDateString();
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid date format.',
+                    'data' => []
+                ]);
+            }
+        } elseif ($request->has('start_date') && $request->has('end_date')) {
+            try {
+                $startDate = Carbon::parse($request->start_date)->toDateString();
+                $endDate = Carbon::parse($request->end_date)->toDateString();
+            } catch (\Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid start or end date format.',
+                    'data' => []
+                ]);
             }
 
-            $query->where(function ($q) use ($teamIds) {
-                foreach ($teamIds as $t) {
-                    if ($t !== null) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                    }
+            if ($startDate > $endDate) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Start date cannot be after end date.',
+                    'data' => []
+                ]);
+            }
+
+            $dateRange = [$startDate, $endDate];
+        } else {
+            $date = Carbon::today()->toDateString();
+        }
+
+        $query = User::select('users.id', 'users.name', 'users.email', 'users.tl_id', 'users.team_id', 'users.role_id')
+                     ->where('role_id', 7);
+
+        if ($authUser->role_id == 6) {
+            $query->where(function ($q) use ($authUser) {
+                foreach ($authUser->team_id as $t) {
+                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                 }
             });
         }
 
-        $allUsers = $query->with(['tl:id,name'])->get();
-
-         $submittedUserIds = PerformaSheet::all()
-            ->filter(function ($sheet) use ($date) {
-                $data = json_decode($sheet->data, true);
-                return isset($data['date']) && $data['date'] === $date;
-            })
-            ->pluck('user_id')
-            ->unique();
-
-     $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
-    ->map(function ($user) {
-        $teamName = null;
-
-        if (is_array($user->team_id) && count($user->team_id) > 0) {
-            $teamId = $user->team_id[0]; // get the single team ID
-            $team = \App\Models\Team::find($teamId);
-            $teamName = $team ? $team->name : null;
+        if ($authUser->role_id == 5) 
+        {
+            $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
+            $query->where(function ($q) use ($pmTeams) {
+                foreach ($pmTeams as $teamId) {
+                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                }
+            });
         }
 
-        return [
-            'id' => $user->id,
-            'name' => $user->name,
-            'email' => $user->email,
-            'tl_id' => $user->tl_id,
-            'tl_name' => $user->tl ? $user->tl->name : null,
-            'team_id' => $user->team_id,   // still an array
-            'team_name' => $teamName,      // single name
-        ];
-    })
-    ->values();
+        if ($authUser->role_id == 7) {
+            $query->where('id', $authUser->id);
+        }
 
-        
+        $allUsers = $query->with(['tl:id,name'])->get();
+
+        $submittedUserIds = PerformaSheet::all()->filter(function ($sheet) use ($date, $dateRange) {
+            $data = json_decode($sheet->data, true);
+            if (!isset($data['date'])) return false;
+
+            if ($date) {
+                return $data['date'] == $date;
+            }
+
+            if ($dateRange) {
+                return $data['date'] >= $dateRange[0] && $data['date'] <= $dateRange[1];
+            }
+
+            return false;
+        })
+        ->pluck('user_id')
+        ->unique();
+
+        $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
+            ->map(function ($user) {
+                $teamName = null;
+
+                if (is_array($user->team_id) && count($user->team_id) > 0) {
+                    $teamId = $user->team_id[0]; 
+                    $team = \App\Models\Team::find($teamId);
+                    $teamName = $team ? $team->name : null;
+                }
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'tl_id' => $user->tl_id,
+                    'tl_name' => $user->tl ? $user->tl->name : null,
+                    'team_id' => $user->team_id,
+                    'team_name' => $teamName,
+                ];
+            })
+            ->values();
+
         return response()->json([
             'success' => true,
-            'message' => 'Users who did not submit a timesheet fetched successfully',
-            'date' => $date,
+            'message' => 'Users without timesheet fetched successfully',
+            'date' => $date ?? $dateRange,
             'count' => $usersWithoutTimesheet->count(),
             'data' => $usersWithoutTimesheet,
-        ]); 
+        ]);
+
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
             'message' => 'Internal Server Error',
-            'error' => $e->getMessage()
+            'error' => $e->getMessage(),
         ], 500);
     }
 }
