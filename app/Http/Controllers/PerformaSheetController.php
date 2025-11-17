@@ -1041,41 +1041,45 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
         $date = null;
         $dateRange = null;
 
-        if ($request->has('date')) {
-            try {
+        try {
+            if ($request->has('date')) {
                 $date = Carbon::parse($request->date)->toDateString();
-            } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid date format.',
-                    'data' => []
-                ]);
-            }
-        } elseif ($request->has('start_date') && $request->has('end_date')) {
-            try {
-                $startDate = Carbon::parse($request->start_date)->toDateString();
-                $endDate = Carbon::parse($request->end_date)->toDateString();
-            } catch (\Exception $e) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid start or end date format.',
-                    'data' => []
-                ]);
+            } else {
+                $startDate = $request->has('start_date') ? Carbon::parse($request->start_date)->toDateString() : null;
+                $endDate = $request->has('end_date') ? Carbon::parse($request->end_date)->toDateString() : null;
+
+                if ($startDate && !$endDate) {
+                    $endDate = Carbon::today()->toDateString();
+                }
+
+                if (!$startDate && $endDate) {
+                    $startDate = '1970-01-01'; // earliest possible
+                }
+
+                if ($startDate && $endDate) {
+                    if ($startDate > $endDate) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Start date cannot be after end date.',
+                            'data' => []
+                        ]);
+                    }
+                    $dateRange = [$startDate, $endDate];
+                }
             }
 
-            if ($startDate > $endDate) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Start date cannot be after end date.',
-                    'data' => []
-                ]);
+            // Default to today if nothing provided
+            if (!$date && !$dateRange) {
+                $date = Carbon::today()->toDateString();
             }
-
-            $dateRange = [$startDate, $endDate];
-        } else {
-            $date = Carbon::today()->toDateString();
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid date format.',
+                'data' => []
+            ]);
         }
-
+        
         $query = User::select('users.id', 'users.name', 'users.email', 'users.tl_id', 'users.team_id', 'users.role_id')
                      ->where('role_id', 7);
 
