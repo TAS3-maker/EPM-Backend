@@ -363,10 +363,15 @@ public function index()
     {
         $user = User::with(['role', 'team'])->find($id);
 
+        $teamNames = [];
+        if (is_array($user->team_id) && count($user->team_id) > 0) {
+            $teams = Team::whereIn('id', $user->team_id)->get();
+            $teamNames = $teams->pluck('name')->toArray();
+        }
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'User not found'], 404);
         }
-
+        $user['team_names'] = $teamNames;
         return response()->json([
             'success' => true,
             'message' => 'Profile fetched successfully',
