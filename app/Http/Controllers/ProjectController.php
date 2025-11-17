@@ -755,6 +755,12 @@ public function assignProjectToTL(Request $request): JsonResponse
             $managerIDs = is_array($managerIDs) ? $managerIDs : [];
             $tlIDs = is_array($tlIDs) ? $tlIDs : [];
 
+            $getTeamName = function ($user) use ($teams) {
+            if (!is_array($user->team_id) || empty($user->team_id)) return null;
+                $teamId = $user->team_id[0]; //only one team allowed
+                return $teams[$teamId] ?? null;
+            };
+            
             foreach ($managerIDs as $managerId) {
                 $user = $users[$managerId] ?? null;
                 if ($user) {
@@ -763,7 +769,8 @@ public function assignProjectToTL(Request $request): JsonResponse
                         'name' => $user->name,
                         'email' => $user->email,
                         'worked_hours' => round($performaHours[$project->id][$user->id] ?? 0, 2),
-                        'department' => $teams[$user->team_id] ?? null,
+                        'department' => $getTeamName($user),
+                        // 'department' => $teams[$user->team_id] ?? null,
                     ];
                 }
             }
@@ -776,7 +783,8 @@ public function assignProjectToTL(Request $request): JsonResponse
                         'name' => $user->name,
                         'email' => $user->email,
                         'worked_hours' => round($performaHours[$project->id][$user->id] ?? 0, 2),
-                        'department' => $teams[$user->team_id] ?? null,
+                        'department' => $getTeamName($user),
+                        // 'department' => $teams[$user->team_id] ?? null,
                     ];
                 }
             }
@@ -795,7 +803,8 @@ public function assignProjectToTL(Request $request): JsonResponse
                     'name' => $user->name,
                     'email' => $user->email,
                     'worked_hours' => round($performaHours[$project->id][$user->id] ?? 0, 2),
-                    'department' => $teams[$user->team_id] ?? null,
+                    'department' => $getTeamName($user),
+                    // 'department' => $teams[$user->team_id] ?? null,
                 ];
             }
 
