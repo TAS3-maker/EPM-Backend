@@ -232,7 +232,7 @@ public function index()
 
     public function GetFullProileEmployee($id)
     {
-        $user = User::with(['team', 'role'])->find($id);
+        $user = User::with(['role'])->find($id);
 
         if (!$user) {
             return ApiResponse::error('User not found', [], 404);
