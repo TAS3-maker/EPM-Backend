@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Team as ModelTeam;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -9,6 +10,11 @@ class UserResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $teamNames = [];
+        if (is_array($this->team_id) && count($this->team_id) > 0) {
+            $teams = ModelTeam::whereIn('id', $this->team_id)->get();
+            $teamNames = $teams->pluck('name')->toArray();
+        }
         return [
             'id' => $this->id,
             'employee_id' => $this->employee_id,
@@ -21,7 +27,7 @@ class UserResource extends JsonResource
             'address' => $this->address,
             'team_id' => $this->team_id,
             'roles' => $this->role ? $this->role->name : null,
-            'team' => $this->team ? $this->team->name : null,
+            'teams' => $teamNames,
             'profile_pic' => $this->profile_pic ? asset('storage/profile_pics/' . $this->profile_pic) : null,
         ];
     }
