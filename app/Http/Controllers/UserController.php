@@ -64,8 +64,8 @@ public function store(Request $request)
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
             // 'team_id' => 'nullable|exists:teams,id',
-            'team_id' => 'nullable|array',
-            'team_id.*' => 'exists:teams,id',
+            'team_id' => 'nullable',
+            // 'team_id.*' => 'exists:teams,id',
             'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
             'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
             'address' => 'nullable|string',
@@ -79,6 +79,22 @@ public function store(Request $request)
             'tl_id.required_if' => 'Team Leader is required for employees.',
             'tl_id.exists' => 'Selected Team Leader does not exist.',
         ]);
+        $teamIds = $request->team_id;
+        if (is_string($teamIds)) {
+            $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
+        }
+        if (!is_array($teamIds)) {
+            $teamIds = [];
+        }
+         $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+        $missing = array_diff($teamIds, $existingTeams);
+
+         if (!empty($missing)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Team does not exist!'
+            ], 422);
+        }
 
         $user = User::create([
             'name' => $validatedData['name'],
@@ -87,7 +103,8 @@ public function store(Request $request)
             'phone_num' => $validatedData['phone_num'] ?? null,
             'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
             'password' => Hash::make($validatedData['password']),
-            'team_id' => $validatedData['team_id'] ?? null,
+            // 'team_id' => $validatedData['team_id'] ?? null,
+            'team_id' => $teamIds ?? null,
             'role_id' => $validatedData['role_id'],
             'tl_id' => $validatedData['tl_id'] ?? null, 
             'employee_id' => $validatedData['employee_id'] ?? null,
