@@ -24,15 +24,15 @@ class PerformaSheetController extends Controller
 {
 public function addPerformaSheets(Request $request)
 {
-    $user = auth()->user();
+    $submitting_user = auth()->user();
 
     try {
         $validatedData = $request->validate([
             'data' => 'required|array',
             'data.*.project_id' => [
                 'required',
-                Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
-                    $query->where('user_id', $user->id);
+                Rule::exists('project_user', 'project_id')->where(function ($query) use ($submitting_user) {
+                    $query->where('user_id', $submitting_user->id);
                 })
             ],
             'data.*.date' => 'required|date_format:Y-m-d',
@@ -100,13 +100,14 @@ public function addPerformaSheets(Request $request)
 
         // Create Performa Sheet
         $insertedSheet = PerformaSheet::create([
-            'user_id' => $user->id,
+            'user_id' => $submitting_user->id,
             'status' => 'pending',
             'data' => json_encode($record)
         ]);
 
         // Store sheet details for mail/report
         $sheetsWithDetails[] = [
+            'submitting_user' => $submitting_user->name,
             'project_name' => $projectName,
             'date' => $record['date'],
             'time' => $record['time'],
