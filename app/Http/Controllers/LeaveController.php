@@ -81,8 +81,8 @@ class LeaveController extends Controller
         if ($request->hasFile('documents')) {
             $file = $request->file('documents');
 
-            if (!Storage::disk('public')->exists('documents')) {
-                Storage::disk('public')->makeDirectory('documents');
+            if (!Storage::disk('public')->exists('leaves')) {
+                Storage::disk('public')->makeDirectory('leaves');
             }
 
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
