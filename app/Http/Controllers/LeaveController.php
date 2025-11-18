@@ -16,6 +16,7 @@ use App\Mail\LeaveStatusUpdateMail;
 
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ProjectAssignedMail;
+use Illuminate\Support\Facades\Storage;
 use LDAP\Result;
 
 class LeaveController extends Controller
@@ -52,6 +53,7 @@ class LeaveController extends Controller
                 }
             }
         ],
+        'documents' => 'nullable|mimes:jpg,png,pdf,docx|max:2048'
 		]);
 
 		if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
@@ -76,10 +78,24 @@ class LeaveController extends Controller
 				'hours' => $hours,
                 'halfday_period' => $halfdayPeriod,
 			]);
+        if ($request->hasFile('documents')) {
+            $file = $request->file('documents');
+
+            if (!Storage::disk('public')->exists('documents')) {
+                Storage::disk('public')->makeDirectory('documents');
+            }
+
+            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+            $file->storeAs('leaves', $filename, 'public');
+
+            $leave->documents = $filename;
+            $leave->save();
+        }
 		return response()->json([
 			'success' => true,
 			'message' => 'Leave request submitted successfully',
-			'data' => $leave
+			'data' => $leave,
+            'url' => !empty($filename) ? asset('storage/' . $filename):'',
 		]);
 	}
 
