@@ -53,7 +53,7 @@ class LeaveController extends Controller
                 }
             }
         ],
-        'documents' => 'nullable|mimes:jpg,png,pdf,docx|max:2048'
+        'documents' => 'nullable|mimes:jpg,jpeg,png,pdf,docx|max:10240'
 		]);
 
 		if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
@@ -68,7 +68,7 @@ class LeaveController extends Controller
 		}
 		$hours = ($request->leave_type === 'Short Leave') ? ($request->hours ?? null) : null;
 		$halfdayPeriod = ($request->leave_type === 'Half Day') ? strtolower($request->halfday_period) : null;
-			$leave = LeavePolicy::create([
+		$leave = LeavePolicy::create([
 				'user_id' => $user->id, 
 				'start_date' => $request->start_date,
 				'end_date' => $endDate, 
@@ -77,7 +77,7 @@ class LeaveController extends Controller
 				'status' => $request->status ?? 'Pending',
 				'hours' => $hours,
                 'halfday_period' => $halfdayPeriod,
-			]);
+		]);
         if ($request->hasFile('documents')) {
             $file = $request->file('documents');
 
