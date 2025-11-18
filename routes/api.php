@@ -112,6 +112,10 @@ Route::get('/getall-leave-forhr', [LeaveController::class, 'getallLeavesForHr'])
 Route::get('/getleaves-byemploye', [LeaveController::class, 'getLeavesByemploye']);
 Route::get('/showmanager-leavesfor-teamemploye', [LeaveController::class, 'showmanagerLeavesForTeamemploye']);
 Route::post('/approve-leave', [LeaveController::class, 'approveLeave']);
+Route::get('/storage/leaves/{file}', function ($file) {
+return response()->file(storage_path("app/public/leaves/$file"));
+});
+
 
 // App => Http => Controllers =>TaskController
 Route::post('/add-task', [TaskController::class, 'AddTasks']);
