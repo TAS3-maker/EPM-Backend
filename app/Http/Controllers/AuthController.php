@@ -20,6 +20,17 @@ class AuthController extends Controller
             'password' => 'required|min:6',
         ]);
 
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return ApiResponse::error('Invalid credentials', [], 401);
+        }
+
+        //for inactive customer check
+        if ($user->is_active == 0) {
+            return ApiResponse::error('Your account is inactive. Please contact admin.', [], 401);
+        }
+        
         $credentials = $request->only('email', 'password');
 
         if (!$token = JWTAuth::attempt($credentials)) {
