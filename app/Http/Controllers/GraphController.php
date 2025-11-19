@@ -234,6 +234,7 @@ public function GetWeeklyWorkingHourByProject()
                 'total_billable' => 0,
                 'total_non_billable' => 0,
                 'total_inhouse' => 0,
+                'total_nowork' => 0,
             ];
         }
         $result[$recordDate]['total_hours'] += $totalMinutes;
@@ -242,6 +243,8 @@ public function GetWeeklyWorkingHourByProject()
             $result[$recordDate]['total_billable'] += $totalMinutes;
         } elseif ($activityType === 'Non Billable') {
             $result[$recordDate]['total_non_billable'] += $totalMinutes;
+        } elseif ($activityType === 'No Work') {
+            $result[$recordDate]['total_nowork'] += $totalMinutes;
         } else {
             $result[$recordDate]['total_inhouse'] += $totalMinutes;
         }
@@ -251,6 +254,7 @@ public function GetWeeklyWorkingHourByProject()
         $dayData['total_billable'] = sprintf('%02d:%02d', floor($dayData['total_billable'] / 60), $dayData['total_billable'] % 60);
         $dayData['total_non_billable'] = sprintf('%02d:%02d', floor($dayData['total_non_billable'] / 60), $dayData['total_non_billable'] % 60);
         $dayData['total_inhouse'] = sprintf('%02d:%02d', floor($dayData['total_inhouse'] / 60), $dayData['total_inhouse'] % 60);
+        $dayData['total_nowork'] = sprintf('%02d:%02d', floor($dayData['total_nowork'] / 60), $dayData['total_nowork'] % 60);
     }
 
     return response()->json(array_values($result));
