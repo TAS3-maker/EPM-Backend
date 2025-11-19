@@ -37,7 +37,7 @@
         <!-- Body -->
         <div style="padding: 20px 30px;">
             <p style="font-size: 16px; margin-top: 0;">Hello Admin,</p>
-            <p style="font-size: 16px;"><strong>{{ $user->name }}</strong> has submitted the following Performa Sheets:</p>
+            <p style="font-size: 16px;"><strong>{{ $submitting_user_name }}</strong> has submitted the following Performa Sheets:</p>
 
             <!-- Table -->
             <div style="overflow-x: auto;">
