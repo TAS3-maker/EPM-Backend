@@ -30,7 +30,12 @@ public function checkToken(Request $request)
     try {
         $user = JWTAuth::parseToken()->authenticate();
         $token = $request->bearerToken();
-
+        if ($user->is_active == 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Your account is inactive. Please contact admin.'
+            ], 401);
+        }
         return response()->json([
             'success' => true,
             'message' => 'Token is valid',
