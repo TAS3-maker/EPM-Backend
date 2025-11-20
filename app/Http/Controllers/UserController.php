@@ -195,19 +195,39 @@ public function index()
                 'phone_num' => 'nullable|string|min:10|max:15|unique:users,phone_num,' . $id,
                 'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num,' . $id,
                 'address' => 'nullable|string',
-                'team_id' => 'nullable|exists:teams,id',
+                // 'team_id' => 'nullable|exists:teams,id',
+                'team_id' => 'nullable',
                 'role_id' => 'nullable|exists:roles,id',
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'password' => 'sometimes|min:6|confirmed',
+                'is_active' => 'nullable|in:0,1',
             ]);
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
         }
 
+        $teamIds = $request->team_id;
+        if (is_string($teamIds)) {
+            $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
+        }
+        if (!is_array($teamIds)) {
+            $teamIds = [];
+        }
+
+        // Check if all team IDs exist
+        $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+        $missing = array_diff($teamIds, $existingTeams);
+        if (!empty($missing)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more teams do not exist: ' . implode(',', $missing)
+            ], 422);
+        }
+        
         $tlId = null;
 
-        if (!empty($validatedData['team_id'])) {
-            $userWithRole6 = User::where('team_id', $validatedData['team_id'])
+        if (!empty($teamIds)) {
+            $userWithRole6 = User::whereJsonContains('team_id', $teamIds)
                                 ->where('role_id', 6)
                                 ->first();
 
@@ -222,9 +242,9 @@ public function index()
         $user->phone_num = $validatedData['phone_num'] ?? $user->phone_num;
         $user->emergency_phone_num = $validatedData['emergency_phone_num'] ?? $user->emergency_phone_num;
         $user->address = $validatedData['address'] ?? $user->address;
-        $user->team_id = $validatedData['team_id'] ?? $user->team_id;
+        $user->team_id = !empty($teamIds) ? ($teamIds) : $user->team_id;
         $user->role_id = $validatedData['role_id'] ?? $user->role_id;
-        if (!empty($validatedData['team_id'])) {
+        if (!empty($teamIds)) {
             $user->tl_id = $tlId;
         }
         if (isset($validatedData['password'])) {
@@ -242,6 +262,7 @@ public function index()
             $file->storeAs('profile_pics', $filename, 'public');
             $user->profile_pic = $filename;
         }
+        $user->is_active = $validatedData['is_active'] ?? 1;
 
         $user->save();
         return ApiResponse::success('User updated successfully', new UserResource($user->fresh()));
