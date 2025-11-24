@@ -534,8 +534,7 @@ public function assignProjectToTL(Request $request): JsonResponse
     public function getProjectManagerTl()
     {
         $user = auth()->user(); 
-
-        if (!$user->team_id) {
+       if ($user->role_id != 1 && !$user->team_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Team ID not found for this user.',
@@ -555,14 +554,21 @@ public function assignProjectToTL(Request $request): JsonResponse
         })
         ->select('id', 'name', 'email', 'profile_pic', 'role_id')
         ->get();
-
-        return response()->json([
-            'success' => true,
-            'message' => $employees->isEmpty() ? 'No employees found for this team.' : 'Employees fetched successfully',
-            'team_id' => $user->team_id,
-            'project_manager_id' => $user->id,
-            'employees' => $employees
-        ]);
+        if ($user->role_id != 1) {
+            return response()->json([
+                'success' => true,
+                'message' => $employees->isEmpty() ? 'No employees found for this team.' : 'Employees fetched successfully',
+                'team_id' => $user->team_id,
+                'project_manager_id' => $user->id,
+                'employees' => $employees
+            ]);
+        }else{
+            return response()->json([
+                'success' => true,
+                'message' => $employees->isEmpty() ? 'No employees found.' : 'Employees fetched successfully',
+                'employees' => $employees
+            ]);
+        }
     }
 
     public function getTlEmployee()
