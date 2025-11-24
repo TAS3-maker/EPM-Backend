@@ -261,6 +261,8 @@ public function addPerformaSheets(Request $request)
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status ?? 'pending';
             $dataArray['id'] = $sheet->id;
+            $dataArray['created_at'] = $sheet->created_at ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
+            $dataArray['updated_at'] = $sheet->updated_at ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
 
             if (!isset($structuredData[$sheet->user_id])) {
                 
