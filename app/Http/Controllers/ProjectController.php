@@ -574,31 +574,12 @@ public function assignProjectToTL(Request $request): JsonResponse
     public function getTlEmployee(Request $request)
     {
         $user = auth()->user();
-        $queryTeam = $request->team_id;
-        if (!empty($queryTeam)) {
-            $queryTeamIds = is_array($queryTeam) ? $queryTeam : explode(',', $queryTeam);
-            $queryTeamIds = array_filter(array_map('intval', $queryTeamIds));
-        } else {
-            $queryTeamIds = [];
-        }
         if ($user->role_id == 1) {
-            if (!empty($queryTeamIds)) {
                 $tls = User::where('role_id', 6)
-                    ->where(function ($q) use ($queryTeamIds) {
-                        foreach ($queryTeamIds as $teamId) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
-                        }
-                    })
-                    ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                    ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
                     ->get();
-
                 $employees = User::where('role_id', 7)
-                    ->where(function ($q) use ($queryTeamIds) {
-                        foreach ($queryTeamIds as $teamId) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
-                        }
-                    })
-                    ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                    ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
                     ->get();
 
                 return response()->json([
@@ -606,18 +587,11 @@ public function assignProjectToTL(Request $request): JsonResponse
                     'message' => ($employees->isEmpty() && $tls->isEmpty())
                         ? 'No employees found for this team.'
                         : 'Employees fetched successfully',
-                    'team_id' => $queryTeamIds,
                     'tl_id' => $tls,
                     'employees' => $employees
                 ]);
-            }
-            return response()->json([
-                'success' => false,
-                'message' => 'Please provide team ID for super admin.',
-                'data' => []
-            ]);
         } else {
-            $teamIds = $user->team_id ?? [];
+           $teamIds = $user->team_id ?? [];
             if (empty($teamIds)) {
                 return response()->json([
                     'success' => false,
