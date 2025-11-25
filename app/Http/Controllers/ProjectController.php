@@ -479,6 +479,21 @@ public function assignProjectToTL(Request $request): JsonResponse
                     } else {
                         $managers = [["id" => null, "name" => "Not Assigned to Any Manager"]];
                     }   
+                    //for TL
+                    $tlIds = json_decode($project->tl_id, true) ?? [];
+                    if (!empty($tlIds)) {
+                        $tls = User::whereIn('id', $tlIds)
+                            ->get(['id', 'name'])
+                            ->map(function ($tl) {
+                                return [
+                                    'id' => $tl->id,
+                                    'name' => $tl->name
+                                ];
+                            })
+                            ->toArray();
+                    } else {
+                        $tls = [["id" => null, "name" => "Not Assigned to Any TL"]];
+                    }
                     return [
                         'id' => $project->id,
                         'project_name' => $project->project_name,
@@ -495,6 +510,7 @@ public function assignProjectToTL(Request $request): JsonResponse
                                 'email' => $user->email,
                             ];
                         }),
+                        'tls' => $tls,
                         'project_managers' => $managers
                     ];
                 });
