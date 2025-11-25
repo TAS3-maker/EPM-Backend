@@ -571,42 +571,87 @@ public function assignProjectToTL(Request $request): JsonResponse
         }
     }
 
-    public function getTlEmployee()
+    public function getTlEmployee(Request $request)
     {
-        $user = auth()->user(); 
-        $teamIds = $user->team_id; 
-        if (empty($user->team_id)) {
+        $user = auth()->user();
+        $queryTeam = $request->team_id;
+        if (!empty($queryTeam)) {
+            $queryTeamIds = is_array($queryTeam) ? $queryTeam : explode(',', $queryTeam);
+            $queryTeamIds = array_filter(array_map('intval', $queryTeamIds));
+        } else {
+            $queryTeamIds = [];
+        }
+        if ($user->role_id == 1) {
+            if (!empty($queryTeamIds)) {
+                $tls = User::where('role_id', 6)
+                    ->where(function ($q) use ($queryTeamIds) {
+                        foreach ($queryTeamIds as $teamId) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+                        }
+                    })
+                    ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                    ->get();
+
+                $employees = User::where('role_id', 7)
+                    ->where(function ($q) use ($queryTeamIds) {
+                        foreach ($queryTeamIds as $teamId) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+                        }
+                    })
+                    ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                    ->get();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => ($employees->isEmpty() && $tls->isEmpty())
+                        ? 'No employees found for this team.'
+                        : 'Employees fetched successfully',
+                    'team_id' => $queryTeamIds,
+                    'tl_id' => $tls,
+                    'employees' => $employees
+                ]);
+            }
             return response()->json([
                 'success' => false,
-                'message' => 'Team ID not found for this user.',
+                'message' => 'Please provide team ID for super admin.',
                 'data' => []
             ]);
-        }
-
-        // $employees = User::where('id', '!=', $user->id)
-        //     ->where([   ['team_id', '=', $user->team_id],    ['role_id', '=', 7], ])
-        //     ->select('id', 'name', 'email', 'profile_pic', 'role_id')
-        //     ->get();
-
-        $employees = User::where('id', '!=', $user->id)->where('role_id', 7)
-        ->where(function ($q) use ($teamIds) {
-        foreach ($teamIds as $teamId) {
-            if ($teamId !== null) {
-                $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+        } else {
+            $teamIds = $user->team_id ?? [];
+            if (empty($teamIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Team ID not found for this user.',
+                    'data' => []
+                ]);
             }
-        }
-    })->select('id', 'name', 'email', 'profile_pic', 'role_id')
+            $tls = User::where('role_id', 6)
+                ->where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $teamId) {
+                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+                }
+            })
+            ->select('id', 'name', 'email', 'profile_pic', 'role_id')
             ->get();
-        
-        return response()->json([
-            'success' => true,
-            'message' => $employees->isEmpty() ? 'No employees found for this team.' : 'Employees fetched successfully',
-            'team_id' => $user->team_id,
-            'tl_id' => $user->id,
-            'employees' => $employees
-        ]);
-    }
+            $employees = User::where('id', '!=', $user->id)->where('role_id', 7)
+                ->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        if ($teamId !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+                        }
+                    }
+                })->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                ->get();
 
+            return response()->json([
+                'success' => true,
+                'message' => $employees->isEmpty() ? 'No employees found for this team.' : 'Employees fetched successfully',
+                'team_id' => $teamIds,
+                'tl_id' => $tls,
+                'employees' => $employees
+            ]);
+        }
+    }
 
     public function removeProjectManagers(Request $request)
     {
