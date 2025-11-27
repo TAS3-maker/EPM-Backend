@@ -161,5 +161,6 @@ Route::put('/updateaccessoryassign/{id}', [AccessoryController::class, 'updateac
 Route::delete('/deleteaccessoryassign/{id}', [AccessoryController::class, 'deleteaccessoryassign']);
 //Route::get('/tagsactivity', [TagsActivityController::class, 'index']);
 // Route::get('/countaccessory', [AccessoryController::class, 'countaccessory']);
+Route::get('/get-permissions', [PermissionController::class, 'getPermissions']);
 });
 });
