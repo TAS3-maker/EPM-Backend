@@ -19,6 +19,7 @@ use App\Http\Controllers\TagActivityController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\CacheController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\PermissionController;
 
 
 
