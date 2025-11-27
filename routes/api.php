@@ -163,5 +163,7 @@ Route::delete('/deleteaccessoryassign/{id}', [AccessoryController::class, 'delet
 //Route::get('/tagsactivity', [TagsActivityController::class, 'index']);
 // Route::get('/countaccessory', [AccessoryController::class, 'countaccessory']);
 Route::get('/get-permissions', [PermissionController::class, 'getPermissions']);
+Route::post('/update-permissions', [PermissionController::class, 'store']);
+Route::delete('/delete-all-permissions/{id}', [PermissionController::class, 'destroy']);
 });
 });
