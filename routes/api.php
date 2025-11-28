@@ -20,6 +20,12 @@ use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\CacheController;
 use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ClientMasterController;
+use App\Http\Controllers\CommunicationTypeController;
+use App\Http\Controllers\ProjectAccountController;
+use App\Http\Controllers\ProjectMasterController;
+use App\Http\Controllers\ProjectRelationController;
+use App\Http\Controllers\ProjectSourceController;
 
 
 
@@ -165,5 +171,11 @@ Route::delete('/deleteaccessoryassign/{id}', [AccessoryController::class, 'delet
 Route::get('/get-permissions', [PermissionController::class, 'getPermissions']);
 Route::post('/update-permissions', [PermissionController::class, 'store']);
 Route::delete('/delete-all-permissions/{id}', [PermissionController::class, 'destroy']);
+Route::apiResource('clients-master', ClientMasterController::class);
+Route::apiResource('projects-master', ProjectMasterController::class);
+Route::apiResource('communication-type', CommunicationTypeController::class);
+Route::apiResource('project-accounts', ProjectAccountController::class);
+Route::apiResource('project-sources', ProjectSourceController::class);
+Route::apiResource('project-relations', ProjectRelationController::class);
 });
 });
