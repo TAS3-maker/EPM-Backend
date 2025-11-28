@@ -4,46 +4,65 @@ namespace App\Http\Controllers;
 
 use App\Models\ProjectMaster;
 use App\Http\Resources\ProjectMasterResource;
+use App\Http\Resources\ProjectRelationResource;
+use App\Models\ProjectRelation;
 use Illuminate\Http\Request;
 
 class ProjectMasterController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         return ProjectMasterResource::collection(ProjectMaster::all());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
             'project_name' => 'required|string|max:255',
+            'client_id' => 'required|integer',
+            'communication_id' => 'required|integer',
+            'source_id' => 'required|integer',
+            'account_id' => 'required|integer',
         ]);
+        try {
+            //for project
+            $project = ProjectMaster::create([
+                'project_name' => $request->project_name,
+            ]);
+            //for relations
+            $relation = ProjectRelation::create([
+                'client_id' => $request->client_id,
+                'project_id' => $project->id,
+                'communication_id' => $request->communication_id,
+                'source_id' => $request->source_id,
+                'account_id' => $request->account_id,
+            ]);
 
-        $project = ProjectMaster::create([
-            'project_name' => $request->project_name,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Project created successfully',
+                'data' => [
+                    'project' => new ProjectMasterResource($project),
+                    'relation' => new ProjectRelationResource($relation)
+                ]
+            ], 201);
 
+        } catch (\Exception $e) {
+            return response()->json([
+            'success' => false,
+            'message' => 'Project creation failed',
+            'error' => $e->getMessage()
+        ], 500);
+        }
         return new ProjectMasterResource($project);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(string $id)
     {
         $project = ProjectMaster::findOrFail($id);
         return new ProjectMasterResource($project);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $request->validate([
@@ -59,9 +78,6 @@ class ProjectMasterController extends Controller
         return new ProjectMasterResource($project);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(string $id)
     {
         $project = ProjectMaster::findOrFail($id);

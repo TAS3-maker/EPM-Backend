@@ -8,17 +8,11 @@ use Illuminate\Http\Request;
 
 class ClientMasterController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index()
     {
         return ClientMasterResource::collection(ClientMaster::all());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -32,18 +26,12 @@ class ClientMasterController extends Controller
         return new ClientMasterResource($client);
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show($id)
     {
         $client = ClientMaster::findOrFail($id);
         return new ClientMasterResource($client);
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, string $id)
     {
         $request->validate([
@@ -59,9 +47,6 @@ class ClientMasterController extends Controller
         return new ClientMasterResource($client);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
         $client = ClientMaster::findOrFail($id);
