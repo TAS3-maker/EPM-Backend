@@ -11,20 +11,43 @@ use Illuminate\Http\Request;
 class PermissionController extends Controller
 {
     // Get permissions by user
-    public function getPermissions()
+ public function getPermissions()
     {
-        try{
+        try {
             $user = auth()->user();
             $user_id = $user->id;
-            $permission = array();
+
             $permission = Permission::where('user_id', $user_id)->first();
+
+            if (!$permission) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Permissions not found',
+                ], 404);
+            }
+
+            $permissionArray = $permission->toArray();
+
+            $permissionsAssoc = collect($permissionArray)
+                ->except(['id', 'user_id', 'created_at', 'updated_at'])
+                ->all();
+
             return response()->json([
-                'success' => true,
-                'message' => 'Fetched all permissions',
-                'data' => $permission,
+                "success" => true,
+                "message" => "Fetched all permissions",
+                "id" => $permission->id,
+                "user_id" => $permission->user_id,
+                "permissions" => [
+                    $permissionsAssoc
+                ],
+                "created_at" => $permission->created_at,
+                "updated_at" => $permission->updated_at
             ]);
+
         } catch (\Exception $e) {
-            return ApiResponse::error('Internal Server Error!', ['error' => $e->getMessage()], 500);
+            return ApiResponse::error('Internal Server Error!', [
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
     public function store(Request $request)
