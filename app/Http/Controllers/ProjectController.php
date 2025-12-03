@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\JsonResponse;
 use LDAP\Result;
 use App\Mail\ProjectAssignedToTLMail;
+use App\Models\Task;
 
 
 class ProjectController extends Controller
@@ -276,7 +277,21 @@ public function getemployeeProjects()
                     $tagIds = $project->tags_activitys ? json_decode($project->tags_activitys, true) : [];
 
                     $tags = TagsActivity::whereIn('id', $tagIds)->get(['id', 'name']);
-
+                    $assignedTasks = Task::where('project_id', $project->id)
+                        ->with('projectManager:id,name')
+                        ->get()
+                        ->map(function ($task) {
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
                     return [
                         'id' => $project->id,
                         'project_name' => $project->project_name,
@@ -293,7 +308,8 @@ public function getemployeeProjects()
                             'assigned_at' => $project->pivot->created_at
                                 ? Carbon::parse($project->pivot->created_at)->toDateString()
                                 : 'Not Assigned'
-                        ]
+                        ],
+                        'assigned_tasks' => $assignedTasks,
                     ];
                 });
 
