@@ -103,8 +103,8 @@ public function assignProjectToManager(Request $request)
     foreach ($newlyAssignedIds as $managerId) {
         $manager = User::find($managerId);
         if ($manager && $manager->email) {
-            $mail = (new ProjectAssignedMail($manager, $project, $assigner))
-                ->replyTo($assigner->email, $assigner->name);
+            // $mail = (new ProjectAssignedMail($manager, $project, $assigner))
+            //     ->replyTo($assigner->email, $assigner->name);
 
             //Mail::to($manager->email)->send($mail);
         }
