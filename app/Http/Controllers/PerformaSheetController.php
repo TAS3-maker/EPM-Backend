@@ -130,7 +130,7 @@ public function addPerformaSheets(Request $request)
 
     // Send email (currently commented)
     foreach ($users as $user) {
-         Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user, $submitting_user_name));
+         // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user, $submitting_user_name));
     }
 
     return response()->json([
