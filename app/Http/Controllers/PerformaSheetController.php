@@ -1130,7 +1130,8 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
         ->unique();
         
 $leave_query = LeavePolicy::with('user:id,name')
-                ->whereIn('leave_type', ['Full Leave', 'Multiple Days Leave']);
+                ->whereIn('leave_type', ['Full Leave', 'Multiple Days Leave'])
+     ->whereIn('status', ['Approved']);
 
             if (!empty($date)) {
                 $leave_query->whereDate('start_date', '<=', $date)
