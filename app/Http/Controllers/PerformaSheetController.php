@@ -18,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use App\Models\LeavePolicy;
 
 
 class PerformaSheetController extends Controller
@@ -1127,8 +1128,28 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
         })
         ->pluck('user_id')
         ->unique();
+        
+$leave_query = LeavePolicy::with('user:id,name')
+                ->whereIn('leave_type', ['Full Leave', 'Multiple Days Leave']);
+
+            if (!empty($date)) {
+                $leave_query->whereDate('start_date', '<=', $date)
+                    ->whereDate('end_date', '>=', $date);
+            }
+
+            if (!empty($dateRange)) {
+                [$rangeStart, $rangeEnd] = $dateRange;
+
+                $leave_query->where(function ($q) use ($rangeStart, $rangeEnd) {
+                    $q->whereDate('start_date', '<=', $rangeEnd)
+                        ->whereDate('end_date', '>=', $rangeStart);
+                });
+            }
+
+            $on_leave_user_Ids = $leave_query->pluck('user_id');
 
         $usersWithoutTimesheet = $allUsers->whereNotIn('id', $submittedUserIds->toArray())
+            ->whereNotIn('id', $on_leave_user_Ids->toArray())
             ->map(function ($user) {
                 $teamName = null;
 
