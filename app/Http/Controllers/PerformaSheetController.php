@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Models\LeavePolicy;
-
+use App\Models\Team;
 
 class PerformaSheetController extends Controller
 {
@@ -1254,4 +1254,127 @@ public function getMissingUserPerformaSheets(Request $request)
     }
 }   
 
+
+public function TeamWiseWeeklyWorkingHours(Request $request)
+{
+    try {
+
+        $selectedDate = $request->date ? Carbon::parse($request->date) : Carbon::today();
+        $startOfWeek = $selectedDate->copy()->startOfWeek();
+        $endOfWeek = $selectedDate->copy()->endOfWeek();
+
+        // Expected office time (8:30 = 510 minutes)
+        $dailyExpectedMinutes = (8 * 60) + 30; // 510 minutes
+        $weeklyExpectedMinutesPerUser = $dailyExpectedMinutes * 7;
+
+        // Leave type minutes
+        $leaveMinutesMap = [
+            "Full Leave"          => $dailyExpectedMinutes,
+            "Multiple Days Leave" => $dailyExpectedMinutes,
+            "Half Day"            => intval($dailyExpectedMinutes / 2),
+            "Short Leave"         => 120
+        ];
+
+        $teams = Team::latest()->get();
+        $finalData = [];
+
+        foreach ($teams as $team) {
+
+            $users = User::whereJsonContains('team_id', $team->id)->get();
+            $teamUserCount = $users->count();
+
+            // Expected team weekly hours
+            $expectedTeamMinutes = $teamUserCount * $weeklyExpectedMinutesPerUser;
+
+            $leaveTeamMinutes = 0;
+            $totalTeamLeaves = 0;
+
+            foreach ($users as $user) {
+
+                $userLeaves = LeavePolicy::where('user_id', $user->id)
+                    ->whereIn('leave_type', [
+                        'Full Leave',
+                        'Multiple Days Leave',
+                        'Half Day',
+                        'Short Leave'
+                    ])
+                    ->whereIn('status', [
+                        'Approved',
+                        'Pending'
+                    ])
+                    ->whereDate('start_date', '<=', $endOfWeek)
+                    ->whereDate('end_date', '>=', $startOfWeek)
+                    ->get();
+
+                // -------------------------------
+                // LEAVE COUNT CALCULATION
+                // -------------------------------
+                foreach ($userLeaves as $leave) {
+
+                    $type = $leave->leave_type;
+
+                    $leaveStart = Carbon::parse($leave->start_date);
+                    $leaveEnd = Carbon::parse($leave->end_date);
+
+                    // Intersect leave with selected week
+                    $from = $leaveStart->greaterThan($startOfWeek) ? $leaveStart : $startOfWeek;
+                    $to   = $leaveEnd->lessThan($endOfWeek) ? $leaveEnd : $endOfWeek;
+
+                    $days = $from->diffInDays($to) + 1;
+
+                    if ($type === "Multiple Days Leave") {
+
+                        // Count each day
+                        $totalTeamLeaves += $days;
+                        $leaveTeamMinutes += $leaveMinutesMap[$type] * $days;
+
+                    } elseif (
+                        $type === "Full Leave" ||
+                        $type === "Half Day" ||
+                        $type === "Short Leave"
+                    ) {
+
+                        $totalTeamLeaves += 1;
+                        $leaveTeamMinutes += $leaveMinutesMap[$type];
+                    }
+                }
+            }
+
+            // Total team hours = expected - leave hours
+            $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
+
+            // Convert minutes to time 00:00
+            $toTime = function ($minutes) {
+                $h = floor($minutes / 60);
+                $m = $minutes % 60;
+                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+            };
+
+            $finalData[] = [
+                "teamName"          => $team->team_name ?? $team->name,
+                "totalTeamMembers"  => $teamUserCount,
+                "expectedTeamHours" => $toTime($expectedTeamMinutes),
+                "totalTeamHours"    => $toTime($totalTeamHoursMinutes),
+                "totalTeamLeaves"   => $totalTeamLeaves,        
+                "leaveHours"        => $toTime($leaveTeamMinutes)
+            ];
+        }
+
+        return response()->json([
+            "success" => true,
+            "message" => "Team-wise and department-wise working hours overview",
+            "data"    => $finalData
+        ]);
+
+    } catch (\Exception $e) {
+
+        return response()->json([
+            "success" => false,
+            "message" => "Server Error",
+            "error"   => $e->getMessage(),
+            "line"    => $e->getLine()
+        ], 500);
+    }
+}
+    
 }
