@@ -1254,18 +1254,17 @@ public function getMissingUserPerformaSheets(Request $request)
     }
 }   
 
-
-public function TeamWiseWeeklyWorkingHours(Request $request)
+public function TeamWiseDailyWorkingHours(Request $request)
 {
     try {
 
+        // 1️⃣ SELECTED DATE OR TODAY
         $selectedDate = $request->date ? Carbon::parse($request->date) : Carbon::today();
-        $startOfWeek = $selectedDate->copy()->startOfWeek();
-        $endOfWeek = $selectedDate->copy()->endOfWeek();
+        $startOfDay = $selectedDate->copy()->startOfDay();
+        $endOfDay   = $selectedDate->copy()->endOfDay();
 
-        // Expected office time (8:30 = 510 minutes)
+        // 2️⃣ Expected office time per day (8:30 = 510 minutes)
         $dailyExpectedMinutes = (8 * 60) + 30; // 510 minutes
-        $weeklyExpectedMinutesPerUser = $dailyExpectedMinutes * 7;
 
         // Leave type minutes
         $leaveMinutesMap = [
@@ -1283,11 +1282,11 @@ public function TeamWiseWeeklyWorkingHours(Request $request)
             $users = User::whereJsonContains('team_id', $team->id)->get();
             $teamUserCount = $users->count();
 
-            // Expected team weekly hours
-            $expectedTeamMinutes = $teamUserCount * $weeklyExpectedMinutesPerUser;
+            // Expected daily hours for the whole team
+            $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
 
             $leaveTeamMinutes = 0;
-            $totalTeamLeaves = 0;
+            $totalTeamLeaves  = 0;
 
             foreach ($users as $user) {
 
@@ -1298,52 +1297,31 @@ public function TeamWiseWeeklyWorkingHours(Request $request)
                         'Half Day',
                         'Short Leave'
                     ])
-                    ->whereIn('status', [
-                        'Approved',
-                        'Pending'
-                    ])
-                    ->whereDate('start_date', '<=', $endOfWeek)
-                    ->whereDate('end_date', '>=', $startOfWeek)
+                    ->whereIn('status', ['Approved', 'Pending'])
                     ->get();
 
-                // -------------------------------
-                // LEAVE COUNT CALCULATION
-                // -------------------------------
                 foreach ($userLeaves as $leave) {
 
                     $type = $leave->leave_type;
+                    $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
+                    $leaveEnd   = Carbon::parse($leave->end_date)->endOfDay();
 
-                    $leaveStart = Carbon::parse($leave->start_date);
-                    $leaveEnd = Carbon::parse($leave->end_date);
+                    // 3️⃣ CHECK IF SELECTED DATE FALLS INSIDE LEAVE RANGE
+                    if ($selectedDate->between($leaveStart, $leaveEnd)) {
 
-                    // Intersect leave with selected week
-                    $from = $leaveStart->greaterThan($startOfWeek) ? $leaveStart : $startOfWeek;
-                    $to   = $leaveEnd->lessThan($endOfWeek) ? $leaveEnd : $endOfWeek;
-
-                    $days = $from->diffInDays($to) + 1;
-
-                    if ($type === "Multiple Days Leave") {
-
-                        // Count each day
-                        $totalTeamLeaves += $days;
-                        $leaveTeamMinutes += $leaveMinutesMap[$type] * $days;
-
-                    } elseif (
-                        $type === "Full Leave" ||
-                        $type === "Half Day" ||
-                        $type === "Short Leave"
-                    ) {
-
+                        // 4️⃣ COUNT LEAVE FOR ONLY THAT DAY
                         $totalTeamLeaves += 1;
+
+                        // Deduct hours
                         $leaveTeamMinutes += $leaveMinutesMap[$type];
                     }
                 }
             }
 
-            // Total team hours = expected - leave hours
+            // Total team working minutes = expected - leave deductions
             $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
 
-            // Convert minutes to time 00:00
+            // Helper: Convert minutes → HH:MM
             $toTime = function ($minutes) {
                 $h = floor($minutes / 60);
                 $m = $minutes % 60;
@@ -1353,16 +1331,17 @@ public function TeamWiseWeeklyWorkingHours(Request $request)
             $finalData[] = [
                 "teamName"          => $team->team_name ?? $team->name,
                 "totalTeamMembers"  => $teamUserCount,
-                "expectedTeamHours" => $toTime($expectedTeamMinutes),
-                "totalTeamHours"    => $toTime($totalTeamHoursMinutes),
-                "totalTeamLeaves"   => $totalTeamLeaves,        
-                "leaveHours"        => $toTime($leaveTeamMinutes)
+                "expectedHours"     => $toTime($expectedTeamMinutes),
+                "totalHours"        => $toTime($totalTeamHoursMinutes),
+                "totalTeamLeaves"   => $totalTeamLeaves,
+                "leaveHours"        => $toTime($leaveTeamMinutes),
+                "selectedDate"      => $selectedDate->format("Y-m-d")
             ];
         }
 
         return response()->json([
             "success" => true,
-            "message" => "Team-wise and department-wise working hours overview",
+            "message" => "Team-wise daily working hours overview",
             "data"    => $finalData
         ]);
 
@@ -1376,5 +1355,6 @@ public function TeamWiseWeeklyWorkingHours(Request $request)
         ], 500);
     }
 }
+
     
 }
