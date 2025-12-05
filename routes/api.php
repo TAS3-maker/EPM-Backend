@@ -112,8 +112,8 @@ Route::get('/get-weekly-performa-sheet', [PerformaSheetController::class, 'getUs
 Route::get('/get-allusers-unfilled-performa-sheet', [PerformaSheetController::class, 'getAllUsersWithUnfilledPerformaSheets']);
 Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 'getMissingUserPerformaSheets']);
 
-    Route::get('/team-wise-weekly-working-hours', [PerformaSheetController::class, 'TeamWiseWeeklyWorkingHours']);
-
+Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
+    
 // App => Http => Controllers =>LeaveController
 Route::post('/add-leave', [LeaveController::class, 'Addleave']);
 Route::get('/getall-leave-forhr', [LeaveController::class, 'getallLeavesForHr']);
