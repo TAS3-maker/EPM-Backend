@@ -130,11 +130,8 @@ public function addPerformaSheets(Request $request)
         $query->whereIn('name', ['Super Admin', 'Billing Manager']);
     })->get();
 
-    
-    $submitting_user_test = auth()->user();
-    $submitting_user_test_name = $submitting_user->name;
     foreach ($users as $user) {
-         Mail::to('backend@techarchsoftwares.com')->send(new EmployeePerformaSheet($sheetsWithDetails, $user, $submitting_user_test_name));
+         Mail::to('backend@techarchsoftwares.com')->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
     }
 
     return response()->json([
