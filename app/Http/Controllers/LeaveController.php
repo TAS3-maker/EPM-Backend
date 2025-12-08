@@ -339,9 +339,9 @@ class LeaveController extends Controller
         $user = User::find($leave->user_id);
 
         if ($user && $user->email) {
-            Mail::to($user->email)->send(
-                new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
-            );
+            // Mail::to($user->email)->send(
+            //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
+            // );
         }
 
         return response()->json([
