@@ -291,7 +291,7 @@ class LeaveController extends Controller
 
                 if ($tlUser && $tlUser->email) {
                     $mail = new ProjectAssignedMail($project, $employee, auth()->user());
-                    // Mail::to($tlUser->email)->send($mail);
+                    Mail::to($tlUser->email)->send($mail);
                 }
             }
         } catch (\Exception $e) {
@@ -339,9 +339,9 @@ class LeaveController extends Controller
         $user = User::find($leave->user_id);
 
         if ($user && $user->email) {
-            // Mail::to($user->email)->send(
-            //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
-            // );
+            Mail::to($user->email)->send(
+                new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
+            );
             
         }
 
