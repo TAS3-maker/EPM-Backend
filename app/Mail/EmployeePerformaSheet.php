@@ -22,7 +22,7 @@ class EmployeePerformaSheet extends Mailable
     public $submitting_user_employee_id;
 
 
-    public function __construct($sheets, $user, $submitting_user_name)
+    public function __construct($sheets, $user, $submitting_user_name,$submitting_user_employee_id)
     {
         $this->sheets = $sheets;
         $this->user = $user;
