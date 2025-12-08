@@ -28,7 +28,7 @@ public function addPerformaSheets(Request $request)
     $submitting_user = auth()->user();
     
     $submitting_user_name = $submitting_user->name;
-    // $submitting_user_employee_id = $submitting_user->employee_id;
+    $submitting_user_employee_id = $submitting_user->employee_id;
 
     try {
         $validatedData = $request->validate([
@@ -131,7 +131,7 @@ public function addPerformaSheets(Request $request)
     })->get();
 
     foreach ($users as $user) {
-         Mail::to('backend@techarchsoftwares.com')->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name));
+         Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name,$submitting_user_employee_id));
     }
 
     return response()->json([
