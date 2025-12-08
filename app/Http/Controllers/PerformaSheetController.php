@@ -28,6 +28,11 @@ public function addPerformaSheets(Request $request)
     $submitting_user = auth()->user();
     $submitting_user_name = $submitting_user->name;
     $submitting_user_employee_id = $submitting_user->employee_id;
+    Mail::raw('Mail sent successfully', function ($message) {
+    $message->to('backend@techarchsoftwares.com')
+            ->subject('Simple Mail');
+});
+return;
 
     try {
         $validatedData = $request->validate([
