@@ -510,12 +510,12 @@ public function index()
                     $roleName = $data['roles'];
                     $teamName = $data['team'] ?? null;
 
-                    // Mail::to($data['email'])->send(new SendEmployeeCredentials(
-                    //     $data['email'],
-                    //     $data['password'] ?? 'password123',
-                    //     $roleName,
-                    //     $teamName
-                    // ));
+                    Mail::to($data['email'])->send(new SendEmployeeCredentials(
+                        $data['email'],
+                        $data['password'] ?? 'password123',
+                        $roleName,
+                        $teamName
+                    ));
                 } catch (\Exception $mailError) {
                     \Log::error('Email failed: ' . $data['email'] . ' - ' . $mailError->getMessage());
                 }
