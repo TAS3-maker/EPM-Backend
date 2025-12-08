@@ -20,21 +20,21 @@ class EmployeePerformaSheet extends Mailable
     public $user;
     public $submitting_user_name;
     public $submitting_user_employee_id;
-    public $submitting_date_for_mail;
+    public $submitting_date;
 
 
-    public function __construct($sheets, $user, $submitting_user_name,$submitting_user_employee_id,$submitting_date_for_mail)
+    public function __construct($sheets, $user, $submitting_user_name,$submitting_user_employee_id,$submitting_date)
     {
         $this->sheets = $sheets;
         $this->user = $user;
         $this->submitting_user_name = $submitting_user_name;
         $this->submitting_user_employee_id = $submitting_user_employee_id;
-        $this->$submitting_date_for_mail = $submitting_date_for_mail;
+        $this->$submitting_date = $submitting_date;
     }
 
     public function build()
     {
-        return $this->subject(sprintf('DRS/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->$submitting_date_for_mail))
+        return $this->subject(sprintf('DRS/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->$submitting_date))
             ->view('emails.employeeperformasheet');
 
     }
