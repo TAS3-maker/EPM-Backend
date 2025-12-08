@@ -26,7 +26,7 @@ class PerformaSheetController extends Controller
 public function addPerformaSheets(Request $request)
 {
     $submitting_user = auth()->user();
-
+ $submitting_user_name = $submitting_user->name;
     try {
         $validatedData = $request->validate([
             'data' => 'required|array',
@@ -128,7 +128,7 @@ public function addPerformaSheets(Request $request)
     })->get();
 
     foreach ($users as $user) {
-         Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user));
+         Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name));
     }
 
     return response()->json([
