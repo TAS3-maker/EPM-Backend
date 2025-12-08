@@ -342,6 +342,7 @@ class LeaveController extends Controller
             // Mail::to($user->email)->send(
             //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
             // );
+            
         }
 
         return response()->json([
