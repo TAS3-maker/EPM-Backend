@@ -18,13 +18,13 @@ class EmployeePerformaSheet extends Mailable
      */
     public $sheets;
     public $user;
-    // public $submitting_user_name;
+    public $submitting_user_name;
 
     public function __construct($sheets, $user)
     {
         $this->sheets = $sheets;
         $this->user = $user;
-        // $this->submitting_user_name = $submitting_user_name;
+        $this->submitting_user_name = $submitting_user_name;
     }
 
     public function build()
