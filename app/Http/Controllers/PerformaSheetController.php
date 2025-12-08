@@ -26,9 +26,6 @@ class PerformaSheetController extends Controller
 public function addPerformaSheets(Request $request)
 {
     $submitting_user = auth()->user();
-    
-    // $submitting_user_name = $submitting_user->name;
-    // $submitting_user_employee_id = $submitting_user->employee_id;
 
     try {
         $validatedData = $request->validate([
