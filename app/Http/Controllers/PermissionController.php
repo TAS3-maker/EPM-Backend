@@ -16,6 +16,7 @@ class PermissionController extends Controller
         try {
             $user = auth()->user();
             $user_id = $user->id;
+            $user_role_id = $user->role_id;
 
             $permission = Permission::where('user_id', $user_id)->first();
 
@@ -31,8 +32,23 @@ class PermissionController extends Controller
             $permissionsAssoc = collect($permissionArray)
                 ->except(['id', 'user_id', 'created_at', 'updated_at'])
                 ->all();
+             if ($user_role_id === 1) {
 
-            return response()->json([
+                $permission_of_all_users = Permission::where('user_id', '!=', 1)->get();
+                return response()->json([
+                    "success" => true,
+                    "message" => "Fetched all permissions",
+                    "id" => $permission->id,
+                    "user_id" => $permission->user_id,
+                    "permissions" => [
+                        $permissionsAssoc
+                    ],
+                    "permissions_of_all_users" => $permission_of_all_users,
+                    "created_at" => $permission->created_at,
+                    "updated_at" => $permission->updated_at
+                ]);
+                } else {
+                return response()->json([
                 "success" => true,
                 "message" => "Fetched all permissions",
                 "id" => $permission->id,
@@ -42,7 +58,8 @@ class PermissionController extends Controller
                 ],
                 "created_at" => $permission->created_at,
                 "updated_at" => $permission->updated_at
-            ]);
+                ]);
+         }
 
         } catch (\Exception $e) {
             return ApiResponse::error('Internal Server Error!', [
