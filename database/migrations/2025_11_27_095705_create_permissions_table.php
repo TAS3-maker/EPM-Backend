@@ -21,6 +21,7 @@ return new class extends Migration
             $enumValues = ['0','1','2','3'];
 
             $table->enum('dashboard', $enumValues)->nullable();
+            $table->enum('permissions', $enumValues)->nullable();
             $table->enum('employee_management', $enumValues)->nullable();
             $table->enum('roles', $enumValues)->nullable();
             $table->enum('department', $enumValues)->nullable();
