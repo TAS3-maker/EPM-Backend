@@ -124,6 +124,7 @@ class LeaveController extends Controller
                 'status' => $leave->status,
                 'hours' => $leave->hours,
                 'halfday_period' => $leave->halfday_period,
+                'documents' => $leave->documents,
                 'created_at' => $leave->created_at,
                 'updated_at' => $leave->updated_at
             ];
@@ -225,6 +226,7 @@ class LeaveController extends Controller
                 'status' => $leave->status,
                 'hours' => $leave->hours,
                 'halfday_period' => $leave->halfday_period,
+                'documents' => $leave->documents,
                 'created_at' => $leave->created_at,
                 'updated_at' => $leave->updated_at
             ];
