@@ -36,7 +36,7 @@
 
         <!-- Body -->
         <div style="padding: 20px 30px;">
-            <p style="font-size: 16px; margin-top: 0;">Hello Admin,</p>
+            <!-- <p style="font-size: 16px; margin-top: 0;">Hello Admin,</p> -->
             <p style="font-size: 16px;"><strong>{{ $submitting_user_name }}</strong> has submitted the following Performa Sheets:</p>
 
             <!-- Table -->
@@ -71,7 +71,7 @@
                 </table>
             </div>
 
-            <p style="margin-top: 30px; font-size: 16px;">Thanks,<br>The Team</p>
+            <p style="margin-top: 30px; font-size: 16px;">Thanks,<br>TAS-EPM</p>
         </div>
     </div>
 </body>
