@@ -114,6 +114,7 @@ Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 
 
     
 Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
+Route::get('/get-all-pending-performa-sheets', [PerformaSheetController::class, 'getAllPendingPerformaSheets']);
     
 // App => Http => Controllers =>LeaveController
 Route::post('/add-leave', [LeaveController::class, 'Addleave']);
