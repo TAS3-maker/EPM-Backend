@@ -106,7 +106,7 @@ public function assignProjectToManager(Request $request)
             $mail = (new ProjectAssignedMail($manager, $project, $assigner))
                 ->replyTo($assigner->email, $assigner->name);
 
-            Mail::to($manager->email)->send($mail);
+            // Mail::to($manager->email)->send($mail);
         }
     }
 
@@ -380,7 +380,7 @@ public function assignProjectToTL(Request $request): JsonResponse
             $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
                 ->replyTo($assigner->email, $assigner->name);
 
-            Mail::to($tl->email)->send($mail);
+            // Mail::to($tl->email)->send($mail);
         }
     }
 
