@@ -7,59 +7,101 @@ use App\Http\Helpers\ApiResponse;
 use App\Http\Resources\PermissionResource;
 use App\Models\Permission;
 use Illuminate\Http\Request;
+use App\Models\User;
 
 class PermissionController extends Controller
 {
-    // Get permissions by user
- public function getPermissions()
+   public function getPermissions()
     {
         try {
-            $user = auth()->user();
-            $user_id = $user->id;
-            $user_role_id = $user->role_id;
+            $authUser = auth()->user();
+            $authUserPermission = Permission::where('user_id', $authUser->id)->first();
 
-            $permission = Permission::where('user_id', $user_id)->first();
-
-            if (!$permission) {
+            if (!$authUserPermission) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Permissions not found',
                 ], 404);
             }
-
-            $permissionArray = $permission->toArray();
-
-            $permissionsAssoc = collect($permissionArray)
+            $permissionsAssoc = collect($authUserPermission->toArray())
                 ->except(['id', 'user_id', 'created_at', 'updated_at'])
                 ->all();
-             if ($user_role_id === 1) {
 
-                $permission_of_all_users = Permission::where('user_id', '!=', 1)->get();
+            if ($authUser->role_id == 1) {
+
+                $predefined_permission = [
+                    "dashboard" => "0",
+                    "permissions" => null,
+                    "employee_management" => "0",
+                    "roles" => "0",
+                    "department" => "0",
+                    "team" => "0",
+                    "clients" => "0",
+                    "projects" => "0",
+                    "assigned_projects_inside_projects_assigned" => "0",
+                    "unassigned_projects_inside_projects_assigned" => "0",
+                    "performance_sheets" => "0",
+                    "pending_sheets_inside_performance_sheets" => "0",
+                    "manage_sheets_inside_performance_sheets" => "0",
+                    "unfilled_sheets_inside_performance_sheets" => "0",
+                    "manage_leaves" => "0",
+                    "activity_tags" => "0",
+                    "leaves" => "0",
+                    "teams" => "0",
+                    "leave_management" => "0",
+                    "project_management" => "0",
+                    "assigned_projects_inside_project_management" => "0",
+                    "unassigned_projects_inside_project_management" => "0",
+                    "performance_sheet" => "0",
+                    "performance_history" => "0",
+                    "projects_assigned" => "0",
+                ];
+
+                $allUsers = User::where('id', '!=', 1)->get();
+                $final_data = [];
+
+                foreach ($allUsers as $singleUser) {
+
+                    $perm = Permission::where('user_id', $singleUser->id)->first();
+
+                    if ($perm) {
+                        $final_data[] = [
+                            "user_id" => $singleUser->id,
+                            "permission" => collect($perm)->except([
+                                'id',
+                                'user_id',
+                                'created_at',
+                                'updated_at'
+                            ])->toArray()
+                        ];
+                    } else {
+                        $final_data[] = [
+                            "user_id" => $singleUser->id,
+                            "permission" => $predefined_permission
+                        ];
+                    }
+                }
+
                 return response()->json([
                     "success" => true,
                     "message" => "Fetched all permissions",
-                    "id" => $permission->id,
-                    "user_id" => $permission->user_id,
-                    "permissions" => [
-                        $permissionsAssoc
-                    ],
-                    "permissions_of_all_users" => $permission_of_all_users,
-                    "created_at" => $permission->created_at,
-                    "updated_at" => $permission->updated_at
+                    "id" => $authUserPermission->id,
+                    "user_id" => $authUserPermission->user_id,
+                    "permissions" => [$permissionsAssoc],
+                    "permissions_of_users" => $final_data,
+                    "created_at" => $authUserPermission->created_at,
+                    "updated_at" => $authUserPermission->updated_at
                 ]);
-                } else {
-                return response()->json([
+            }
+            return response()->json([
                 "success" => true,
                 "message" => "Fetched all permissions",
-                "id" => $permission->id,
-                "user_id" => $permission->user_id,
-                "permissions" => [
-                    $permissionsAssoc
-                ],
-                "created_at" => $permission->created_at,
-                "updated_at" => $permission->updated_at
-                ]);
-         }
+                "id" => $authUserPermission->id,
+                "user_id" => $authUserPermission->user_id,
+                "permissions" => [$permissionsAssoc],
+                "created_at" => $authUserPermission->created_at,
+                "updated_at" => $authUserPermission->updated_at
+            ]);
 
         } catch (\Exception $e) {
             return ApiResponse::error('Internal Server Error!', [
