@@ -1006,6 +1006,8 @@ public function getAllPendingPerformaSheets(Request $request)
     }
 
     $query->where('status', 'pending');
+    
+    $query->orderBy('id', 'DESC');
 
     $sheets = $query->get();
 
