@@ -31,7 +31,7 @@ class PermissionController extends Controller
 
                 $predefined_permission = [
                     "dashboard" => "0",
-                    "permissions" => null,
+                    "permission" => "0",
                     "employee_management" => "0",
                     "roles" => "0",
                     "department" => "0",
