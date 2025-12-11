@@ -67,7 +67,8 @@ class PermissionController extends Controller
                     if ($perm) {
                         $final_data[] = [
                             "user_id" => $singleUser->id,
-                            "permission" => collect($perm)->except([
+                            "user_name" =>$singleUser->name,
+                            "permissions" => collect($perm)->except([
                                 'id',
                                 'user_id',
                                 'created_at',
@@ -77,7 +78,8 @@ class PermissionController extends Controller
                     } else {
                         $final_data[] = [
                             "user_id" => $singleUser->id,
-                            "permission" => $predefined_permission
+                            "user_name" =>$singleUser->name,
+                            "permissions" => $predefined_permission
                         ];
                     }
                 }
