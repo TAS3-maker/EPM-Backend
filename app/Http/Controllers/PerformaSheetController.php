@@ -1276,6 +1276,7 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
                     $userResult[] = [
                         "user_id" => $user->id,
                         "name" => $user->name,
+                        "email" => $user->email,
                         "tl_id" => $user->tl_id ?? null,
                         "tl_name" => $user->tl ? $user->tl->name : null,
                         "team_id" => $user->team_id ?? [],
