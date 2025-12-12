@@ -1411,6 +1411,7 @@ public function getMissingUserPerformaSheets(Request $request)
                 $teamUserCount = $users->count();
                 $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
 
+                
                 $leaveTeamMinutes = 0;
                 $totalTeamLeaves = 0;
 
