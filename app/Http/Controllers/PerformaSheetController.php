@@ -1406,7 +1406,7 @@ public function getMissingUserPerformaSheets(Request $request)
 
                 $users = User::whereJsonContains('team_id', $team->id)
                     ->where('is_active', true)
-                    ->whereIn('role_id', [6, 7])
+                    ->whereIn('role_id', [7])
                     ->get();
                 $teamUserCount = $users->count();
                 $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
