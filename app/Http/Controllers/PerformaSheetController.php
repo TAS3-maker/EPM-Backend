@@ -1156,142 +1156,152 @@ public function getUserWeeklyPerformaSheets(Request $request){
 }
 
 public function getAllUsersWithUnfilledPerformaSheets(Request $request)
-{
-    try {
-        $authUser = auth()->user();
+    {
+        try {
+            $authUser = auth()->user();
+            if ($request->has('date')) {
+                $start = $end = Carbon::parse($request->date)->toDateString();
+            } else {
+                $start = $request->start_date
+                    ? Carbon::parse($request->start_date)->toDateString()
+                    : Carbon::today()->toDateString();
 
-        // -------------------------------------------
-        // 1. PARSE DATES
-        // -------------------------------------------
-        if ($request->has('date')) {
-            $start = $end = Carbon::parse($request->date)->toDateString();
-        } else {
-            $start = $request->start_date
-                ? Carbon::parse($request->start_date)->toDateString()
-                : Carbon::today()->toDateString();
+                $end = $request->end_date
+                    ? Carbon::parse($request->end_date)->toDateString()
+                    : $start;
 
-            $end = $request->end_date
-                ? Carbon::parse($request->end_date)->toDateString()
-                : $start;
-
-            if ($start > $end) {
-                return response()->json([
-                    "success" => false,
-                    "message" => "Start date cannot be after end date"
-                ]);
-            }
-        }
-
-        $dates = [];
-        $current = Carbon::parse($start);
-
-        while ($current->toDateString() <= $end) {
-
-            // skip Saturday (6) and Sunday (0)
-            if (!in_array($current->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY])) {
-                $dates[] = $current->toDateString();
+                if ($start > $end) {
+                    return response()->json([
+                        "success" => false,
+                        "message" => "Start date cannot be after end date"
+                    ]);
+                }
             }
 
-            $current->addDay();
-        }
+            $dates = [];
+            $current = Carbon::parse($start);
 
-        $query = User::where("role_id", 7);
+            while ($current->toDateString() <= $end) {
 
-        if ($authUser->role_id == 6) { // TL
-            $query->where(function ($q) use ($authUser) {
-                foreach ($authUser->team_id as $t) {
-                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                // skip Saturday (6) and Sunday (0)
+                if (!in_array($current->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY])) {
+                    $dates[] = $current->toDateString();
                 }
-            });
-        }
 
-        if ($authUser->role_id == 5) { // PM
-            $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
-            $query->where(function ($q) use ($pmTeams) {
-                foreach ($pmTeams as $teamId) {
-                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                $current->addDay();
+            }
+
+            $query = User::where("role_id", 7);
+
+            if ($authUser->role_id == 6) { // TL
+                $query->where(function ($q) use ($authUser) {
+                    foreach ($authUser->team_id as $t) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    }
+                });
+            }
+
+            if ($authUser->role_id == 5) { // PM
+                $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
+                $query->where(function ($q) use ($pmTeams) {
+                    foreach ($pmTeams as $teamId) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                    }
+                });
+            }
+
+            if ($authUser->role_id == 7) { // Normal user
+                $query->where("id", $authUser->id);
+            }
+
+            $users = $query->get();
+            $submissions = PerformaSheet::select("user_id", "data")->get()
+                ->map(function ($sheet) {
+                    $d = json_decode($sheet->data, true);
+                    return isset($d["date"])
+                        ? ["user_id" => $sheet->user_id, "date" => $d["date"]]
+                        : null;
+                })
+                ->filter()
+                ->groupBy("user_id");
+
+            $leaves = LeavePolicy::whereIn("leave_type", ["Full Leave", "Multiple Days Leave"])
+                ->where("status", "Approved")
+                ->get()
+                ->groupBy("user_id");
+
+            $missingDates = [];
+            $userResult = [];
+
+            foreach ($users as $user) {
+                $teamName = null;
+
+                    if (is_array($user->team_id) && count($user->team_id) > 0) {
+                    $teamId = $user->team_id[0]; 
+                    $team = \App\Models\Team::find($teamId);
+                    $teamName = $team ? $team->name : null;
                 }
-            });
-        }
+                $userMissing = [];
 
-        if ($authUser->role_id == 7) { // Normal user
-            $query->where("id", $authUser->id);
-        }
+                foreach ($dates as $date) {
 
-        $users = $query->get();
-        $submissions = PerformaSheet::select("user_id", "data")->get()
-            ->map(function ($sheet) {
-                $d = json_decode($sheet->data, true);
-                return isset($d["date"])
-                    ? ["user_id" => $sheet->user_id, "date" => $d["date"]]
-                    : null;
-            })
-            ->filter()
-            ->groupBy("user_id");
+                    $hasSubmitted = isset($submissions[$user->id]) &&
+                        $submissions[$user->id]->contains("date", $date);
 
-        $leaves = LeavePolicy::whereIn("leave_type", ["Full Leave", "Multiple Days Leave"])
-            ->where("status", "Approved")
-            ->get()
-            ->groupBy("user_id");
+                    if ($hasSubmitted)
+                        continue;
 
-        $missingDates = [];
-        $userResult = [];
+                    $onLeave = false;
 
-        foreach ($users as $user) {
-            $userMissing = [];
-
-            foreach ($dates as $date) {
-
-                $hasSubmitted = isset($submissions[$user->id]) &&
-                    $submissions[$user->id]->contains("date", $date);
-
-                if ($hasSubmitted) continue;
-
-                $onLeave = false;
-
-                if (isset($leaves[$user->id])) {
-                    foreach ($leaves[$user->id] as $leave) {
-                        if ($leave->start_date <= $date && $leave->end_date >= $date) {
-                            $onLeave = true;
-                            break;
+                    if (isset($leaves[$user->id])) {
+                        foreach ($leaves[$user->id] as $leave) {
+                            if ($leave->start_date <= $date && $leave->end_date >= $date) {
+                                $onLeave = true;
+                                break;
+                            }
                         }
+                    }
+
+                    if ($onLeave)
+                        continue;
+
+                    $userMissing[] = $date;
+
+                    if (!in_array($date, $missingDates)) {
+                        $missingDates[] = $date;
                     }
                 }
 
-                if ($onLeave) continue;
-
-                $userMissing[] = $date;
-
-                if (!in_array($date, $missingDates)) {
-                    $missingDates[] = $date;
+                if (!empty($userMissing)) {
+                    $userResult[] = [
+                        "user_id" => $user->id,
+                        "name" => $user->name,
+                        "tl_id" => $user->tl_id ?? null,
+                        "tl_name" => $user->tl ? $user->tl->name : null,
+                        "team_id" => $user->team_id ?? [],
+                        "team_name" => $teamName,
+                        "missing_on" => $userMissing
+                    ];
                 }
             }
 
-            if (!empty($userMissing)) {
-                $userResult[] = [
-                    "user_id" => $user->id,
-                    "name"    => $user->name,
-                    "missing_on" => $userMissing
-                ];
-            }
+            return response()->json([
+                "success" => true,
+                "message" => "Users who did not submit timesheet",
+                "missing_dates" => $missingDates,
+                "count" => count($userResult),
+                "data" => $userResult
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                "success" => false,
+                "message" => "Internal Server Error",
+                "error" => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            "success"       => true,
-            "message"       => "Users who did not submit timesheet",
-            "missing_dates" => $missingDates,
-            "count"         => count($userResult),
-            "data"          => $userResult
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            "success" => false,
-            "message" => "Internal Server Error",
-            "error"   => $e->getMessage()
-        ], 500);
     }
-}
+
 public function getMissingUserPerformaSheets(Request $request)
 {
     try {
