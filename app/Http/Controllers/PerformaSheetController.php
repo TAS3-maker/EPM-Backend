@@ -1191,7 +1191,7 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
                 $current->addDay();
             }
 
-            $query = User::where("role_id", 7);
+            $query = User::where("role_id", 7)->where("is_active", 1);
 
             if ($authUser->role_id == 6) { // TL
                 $query->where(function ($q) use ($authUser) {
