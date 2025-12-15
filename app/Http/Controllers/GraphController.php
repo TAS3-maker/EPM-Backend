@@ -207,7 +207,16 @@ public function GetWeeklyWorkingHourByProject()
                 ->toArray();
 
             $dataQuery->whereIn('user_id', $userIds);
-        } elseif ($user->role_id == 7) {
+        }elseif ($user->role_id == 1 || $user->role_id == 2 || $user->role_id == 3 || $user->role_id == 4) {
+
+            $userIds_ofallusers = User::where('is_active', true)
+                ->whereIn('role_id', [7])
+                ->pluck('id')
+                ->toArray();
+            $dataQuery->whereIn('user_id', $userIds_ofallusers);
+            // return $userIds_ofallusers;
+
+        }elseif ($user->role_id == 7) {
         $dataQuery->where('user_id', $user->id);
     } elseif (!in_array($user->role_id, [1, 2, 3, 4])) {
         $dataQuery->where('user_id', $user->id);
