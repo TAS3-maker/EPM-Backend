@@ -194,7 +194,20 @@ public function GetWeeklyWorkingHourByProject()
         ->select('id', 'data', 'status', 'user_id')
         ->where('status', 'approved');
 
-    if ($user->role_id == 7) {
+     if ($user->role_id == 6 || $user->role_id == 5) {
+
+            $userIds = User::where('is_active', true)
+                ->whereIn('role_id', [7])
+                ->where(function ($q) use ($user) {
+                    foreach ($user->team_id as $teamId) {
+                        $q->orWhereJsonContains('team_id', $teamId);
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $dataQuery->whereIn('user_id', $userIds);
+        } elseif ($user->role_id == 7) {
         $dataQuery->where('user_id', $user->id);
     } elseif (!in_array($user->role_id, [1, 2, 3, 4])) {
         $dataQuery->where('user_id', $user->id);
