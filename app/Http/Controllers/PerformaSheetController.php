@@ -1184,10 +1184,10 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
             while ($current->toDateString() <= $end) {
 
                 // skip Saturday (6) and Sunday (0)
-                if (!in_array($current->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY])) {
-                    $dates[] = $current->toDateString();
-                }
-
+                // if (!in_array($current->dayOfWeek, [Carbon::SATURDAY, Carbon::SUNDAY])) {
+                //     $dates[] = $current->toDateString();
+                // }
+                $dates[] = $current->toDateString();
                 $current->addDay();
             }
 
