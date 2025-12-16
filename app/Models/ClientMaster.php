@@ -10,5 +10,7 @@ class ClientMaster extends Model
 
     protected $fillable = [
         'client_name',
+        'client_email',
+        'client_number',
     ];
 }

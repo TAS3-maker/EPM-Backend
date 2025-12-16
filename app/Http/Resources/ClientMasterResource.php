@@ -12,6 +12,8 @@ class ClientMasterResource extends JsonResource
         return [
             'id' => $this->id,
             'client_name' => $this->client_name,
+            'client_email' => $this->client_email,
+            'client_number' => $this->client_number,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
