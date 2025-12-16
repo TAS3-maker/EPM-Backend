@@ -95,7 +95,7 @@ public function update(Request $request, $id)
         'client_number'   => 'nullable|numeric|digits_between:10,15|unique:clients,client_number,' . $id,
        // 'project_type'    => 'nullable|string|in:fixed,hourly',
         'communication'   => 'nullable|string',
-        'hire_on_id'      => 'nullable|string|max:255|unique:clients,hire_on_id,' . $id,
+        'hire_on_id'      => 'nullable|string|max:255',
         'company_name'    => 'nullable|string|max:255|unique:clients,company_name,' . $id,
         'company_address' => 'nullable|string|max:255',
     ];
