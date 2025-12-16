@@ -172,6 +172,7 @@ Route::middleware('auth:api')->group(function () {
         //Route::get('/tagsactivity', [TagsActivityController::class, 'index']);
 // Route::get('/countaccessory', [AccessoryController::class, 'countaccessory']);
         Route::get('/get-permissions', [PermissionController::class, 'getPermissions']);
+        Route::get('/get-permissions-allusers', [PermissionController::class, 'getPermissionsAllUsers']);
         Route::post('/update-permissions', [PermissionController::class, 'store']);
         Route::delete('/delete-all-permissions/{id}', [PermissionController::class, 'destroy']);
         // Route::apiResource('clients-master', ClientMasterController::class);

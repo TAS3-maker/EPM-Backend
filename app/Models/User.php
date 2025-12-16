@@ -127,4 +127,8 @@ public function assigns() {
     {
         return $this->belongsTo(User::class, 'tl_id');
     }
+    public function permission()
+    {
+        return $this->hasOne(Permission::class);
+    }
 }

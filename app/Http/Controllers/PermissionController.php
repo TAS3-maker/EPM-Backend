@@ -11,7 +11,7 @@ use App\Models\User;
 
 class PermissionController extends Controller
 {
-   public function getPermissions()
+    public function getPermissions()
     {
         try {
             $authUser = auth()->user();
@@ -27,6 +27,25 @@ class PermissionController extends Controller
                 ->except(['id', 'user_id', 'created_at', 'updated_at'])
                 ->all();
 
+            return response()->json([
+                "success" => true,
+                "message" => "Fetched all permissions",
+                "id" => $authUserPermission->id,
+                "user_id" => $authUserPermission->user_id,
+                "permissions" => [$permissionsAssoc],
+                "created_at" => $authUserPermission->created_at,
+                "updated_at" => $authUserPermission->updated_at
+            ]);
+        } catch (\Exception $e) {
+            return ApiResponse::error('Internal Server Error!', [
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function getPermissionsAllUsers()
+    {
+        try {
+            $authUser = auth()->user();
             if ($authUser->role_id == 1) {
 
                 $predefined_permission = [
@@ -57,60 +76,46 @@ class PermissionController extends Controller
                     "projects_assigned" => "0",
                 ];
 
-                $allUsers = User::where('id', '!=', 1)->get();
-                $final_data = [];
+                $users = User::with('permission')
+                    ->where('id', '!=', 1)
+                    ->get();
 
-                foreach ($allUsers as $singleUser) {
+                $final_data = $users->map(function ($user) use ($predefined_permission) {
 
-                    $perm = Permission::where('user_id', $singleUser->id)->first();
+                    $permissions = $user->permission
+                        ? collect($user->permission->toArray())->except([
+                            'id',
+                            'user_id',
+                            'created_at',
+                            'updated_at'
+                        ])->toArray()
+                        : $predefined_permission;
 
-                    if ($perm) {
-                        $final_data[] = [
-                            "user_id" => $singleUser->id,
-                            "user_name" =>$singleUser->name,
-                            "permissions" => collect($perm)->except([
-                                'id',
-                                'user_id',
-                                'created_at',
-                                'updated_at'
-                            ])->toArray()
-                        ];
-                    } else {
-                        $final_data[] = [
-                            "user_id" => $singleUser->id,
-                            "user_name" =>$singleUser->name,
-                            "permissions" => $predefined_permission
-                        ];
-                    }
-                }
+                    return [
+                        "user_id" => $user->id,
+                        "user_name" => $user->name,
+                        "permissions" => $permissions
+                    ];
+                });
 
                 return response()->json([
                     "success" => true,
-                    "message" => "Fetched all permissions",
-                    "id" => $authUserPermission->id,
-                    "user_id" => $authUserPermission->user_id,
-                    "permissions" => [$permissionsAssoc],
+                    "message" => "Fetched all users permissions",
                     "permissions_of_users" => $final_data,
-                    "created_at" => $authUserPermission->created_at,
-                    "updated_at" => $authUserPermission->updated_at
                 ]);
             }
             return response()->json([
                 "success" => true,
-                "message" => "Fetched all permissions",
-                "id" => $authUserPermission->id,
-                "user_id" => $authUserPermission->user_id,
-                "permissions" => [$permissionsAssoc],
-                "created_at" => $authUserPermission->created_at,
-                "updated_at" => $authUserPermission->updated_at
+                "message" => "You do not have permissions to access",
+                "permissions_of_users" => []
             ]);
-
         } catch (\Exception $e) {
             return ApiResponse::error('Internal Server Error!', [
                 'error' => $e->getMessage()
             ], 500);
         }
     }
+
     public function store(Request $request)
     {
         $data = $request->all();
