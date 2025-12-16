@@ -58,11 +58,20 @@ class ClientMasterController extends Controller
 
     public function destroy($id)
     {
-        $client = ClientMasterResource::findOrFail($id);
+        $client = ClientMaster::find($id);
+
+        if (!$client) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client not found'
+            ], 200);
+        }
+
         $client->delete();
 
         return response()->json([
-            'message' => 'Client deleted successfully',
+            'success' => true,
+            'message' => 'Client deleted successfully'
         ], 200);
     }
 }
