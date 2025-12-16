@@ -12,6 +12,7 @@ class CommunicationTypeResource extends JsonResource
         return [
             'id' => $this->id,
             'medium' => $this->medium,
+            'medium_details' => $this->medium_details,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

@@ -17,10 +17,12 @@ class CommunicationTypeController extends Controller
     {
         $request->validate([
             'medium' => 'required|string|max:255',
+            'medium_details' => 'required|string|max:255',
         ]);
 
         $medium = CommunicationType::create([
             'medium' => $request->medium,
+            'medium_details' => $request->medium_details,
         ]);
 
         return new CommunicationTypeResource($medium);
@@ -36,10 +38,14 @@ class CommunicationTypeController extends Controller
     {
         $request->validate([
             'medium' => 'required|string|max:255',
+            'medium_details' => 'required|string|max:255',
         ]);
 
         $medium = CommunicationType::findOrFail($id);
-        $medium->update(['medium' => $request->medium]);
+        $medium->update([
+            'medium' => $request->medium,
+            'medium_details' => $request->medium_details,
+        ]);
 
         return new CommunicationTypeResource($medium);
     }

@@ -10,5 +10,6 @@ class CommunicationType extends Model
 
     protected $fillable = [
         'medium',
+        'medium_details',
     ];
 }
