@@ -86,14 +86,14 @@ class PermissionController extends Controller
                         ? collect($user->permission->toArray())->except([
                             'id',
                             'user_id',
-                            'created_at',
-                            'updated_at'
                         ])->toArray()
                         : $predefined_permission;
 
                     return [
                         "user_id" => $user->id,
                         "user_name" => $user->name,
+                        "user_email" => $user->email,
+                        "user_employee_id" => $user->employee_id,
                         "permissions" => $permissions
                     ];
                 });
