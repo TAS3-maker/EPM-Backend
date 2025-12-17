@@ -26,7 +26,7 @@ use App\Http\Controllers\ProjectAccountController;
 use App\Http\Controllers\ProjectMasterController;
 use App\Http\Controllers\ProjectRelationController;
 use App\Http\Controllers\ProjectSourceController;
-
+use App\Http\Controllers\NoteController;
 
 
 
@@ -187,5 +187,8 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/clients-master-add', [ClientMasterController::class, 'store']);
         Route::put('/clients-master-update/{id}', [ClientMasterController::class, 'update']);
         Route::delete('/clients-master-delete/{id}', [ClientMasterController::class, 'destroy']);
+
+        //notes
+        Route::apiResource('notes', NoteController::class);
     });
 });
