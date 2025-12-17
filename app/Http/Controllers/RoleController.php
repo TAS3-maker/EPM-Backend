@@ -30,7 +30,8 @@ class RoleController extends Controller
     {
         try {
             $validatedData = $request->validate([
-                'name' => 'required|string|max:255|unique:roles'
+                'name' => 'required|string|max:255|unique:roles',
+                'roles_permissions' =>'nullable',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -38,6 +39,7 @@ class RoleController extends Controller
 
         $role = Role::create([
             'name' => $request->name,
+            'roles_permissions' => $request->roles_permissions,
         ]);
 
         return ApiResponse::success('Role created successfully', $role, 201);
@@ -53,7 +55,8 @@ class RoleController extends Controller
 
         try {
             $validatedData = $request->validate([
-                'name' => 'required|string|max:255|unique:roles,name,' . $id
+                'name' => 'required|string|max:255|unique:roles,name,' . $id,
+                'roles_permissions' =>'nullable',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -61,6 +64,7 @@ class RoleController extends Controller
 
         $role->update([
             'name' => $request->name,
+            'roles_permissions' => $request->roles_permissions,
         ]);
 
         return ApiResponse::success('Role updated successfully', $role);
