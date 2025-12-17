@@ -6,7 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Role;
 use App\Http\Helpers\ApiResponse;
 use App\Http\Resources\RoleResource;
-
+use App\Models\User;
+use App\Models\Permission;
+use Illuminate\Support\Facades\DB;
 class RoleController extends Controller
 {
     public function index()
@@ -31,7 +33,7 @@ class RoleController extends Controller
         try {
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:roles',
-                'roles_permissions' =>'nullable',
+                'roles_permissions' => 'nullable',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -45,30 +47,30 @@ class RoleController extends Controller
         return ApiResponse::success('Role created successfully', $role, 201);
     }
 
-    public function update(Request $request, $id)
-    {
-        $role = Role::find($id);
+    // public function update(Request $request, $id)
+    // {
+    //     $role = Role::find($id);
 
-        if (!$role) {
-            return ApiResponse::error('Role not found', [], 404);
-        }
+    //     if (!$role) {
+    //         return ApiResponse::error('Role not found', [], 404);
+    //     }
 
-        try {
-            $validatedData = $request->validate([
-                'name' => 'required|string|max:255|unique:roles,name,' . $id,
-                'roles_permissions' =>'nullable',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return ApiResponse::error('Validation Error', $e->errors(), 422);
-        }
+    //     try {
+    //         $validatedData = $request->validate([
+    //             'name' => 'required|string|max:255|unique:roles,name,' . $id,
+    //             'roles_permissions' =>'nullable',
+    //         ]);
+    //     } catch (\Illuminate\Validation\ValidationException $e) {
+    //         return ApiResponse::error('Validation Error', $e->errors(), 422);
+    //     }
 
-        $role->update([
-            'name' => $request->name,
-            'roles_permissions' => $request->roles_permissions,
-        ]);
+    //     $role->update([
+    //         'name' => $request->name,
+    //         'roles_permissions' => $request->roles_permissions,
+    //     ]);
 
-        return ApiResponse::success('Role updated successfully', $role);
-    }
+    //     return ApiResponse::success('Role updated successfully', $role);
+    // }
 
     // public function destroy($id)
     // {
@@ -83,17 +85,115 @@ class RoleController extends Controller
     // }
 
 
-    public function destroy($id)
+
+    public function update(Request $request, $id)
 {
     $role = Role::find($id);
     if (!$role) {
         return ApiResponse::error('Role not found', [], 404);
     }
-    if ($role->users()->exists()) {
-        return ApiResponse::error('Cannot delete: Role is assigned to users.', [], 400);
+    try {
+        $validatedData = $request->validate([
+            'name' => 'required|string|max:255|unique:roles,name,' . $id,
+            'roles_permissions' => 'nullable',
+        ]);
+    } catch (\Illuminate\Validation\ValidationException $e) {
+        return ApiResponse::error('Validation Error', $e->errors(), 422);
     }
-    $role->delete();
-    return ApiResponse::success('Role deleted successfully');
+    DB::beginTransaction();
+    try {
+        // ================= UPDATE ROLE =================
+        $role->update([
+            'name' => $request->name,
+            'roles_permissions' => $request->roles_permissions,
+        ]);
+        if (!$request->roles_permissions) {
+            DB::commit();
+            return ApiResponse::success('Role updated successfully', $role);
+        }
+        $newPermissions = $request->roles_permissions;
+        // ================= USERS WITH THIS ROLE =================
+        $users = User::where('role_id', $role->id)->get();
+        // ================= PERMISSION COLUMNS =================
+        $permissionColumns = [
+            'dashboard',
+            'permission',
+            'permissions',
+            'employee_management',
+            'roles',
+            'department',
+            'team',
+            'clients',
+            'projects',
+            'assigned_projects_inside_projects_assigned',
+            'unassigned_projects_inside_projects_assigned',
+            'performance_sheets',
+            'pending_sheets_inside_performance_sheets',
+            'manage_sheets_inside_performance_sheets',
+            'unfilled_sheets_inside_performance_sheets',
+            'manage_leaves',
+            'activity_tags',
+            'leaves',
+            'teams',
+            'leave_management',
+            'project_management',
+            'assigned_projects_inside_project_management',
+            'unassigned_projects_inside_project_management',
+            'performance_sheet',
+            'performance_history',
+            'projects_assigned',
+        ];
+        // ================= UPDATE PERMISSIONS =================
+        foreach ($users as $user) {
+            $permission = Permission::where('user_id', $user->id)->first();
+            if (!$permission) {
+                continue;
+            }
+            $updateData = [];
+            foreach ($permissionColumns as $column) {
+                $existing = (int) $permission->$column;
+                $new = (int) ($newPermissions[$column] ?? 0);
+                // RULE 1: Existing 2 always stays 2
+                if ($existing === 2) {
+                    $final = 2;
+                }
+                // RULE 2 & 3: Existing 1
+                elseif ($existing === 1) {
+                    $final = ($new === 0) ? 1 : $new;
+                }
+                // RULE 4: Existing 0
+                else {
+                    $final = $new;
+                }
+                // ENUM-safe value
+                $updateData[$column] = (string) $final;
+            }
+            $permission->update($updateData);
+        }
+        DB::commit();
+        return ApiResponse::success('Role updated successfully', $role);
+    } catch (\Exception $e) {
+        DB::rollBack();
+        \Log::error('Role update error: ' . $e->getMessage());
+        return ApiResponse::error(
+            'An unexpected error occurred.',
+            ['general' => $e->getMessage()],
+            500
+        );
+    }
 }
+
+    public function destroy($id)
+    {
+        $role = Role::find($id);
+        if (!$role) {
+            return ApiResponse::error('Role not found', [], 404);
+        }
+        if ($role->users()->exists()) {
+            return ApiResponse::error('Cannot delete: Role is assigned to users.', [], 400);
+        }
+        $role->delete();
+        return ApiResponse::success('Role deleted successfully');
+    }
 
 }

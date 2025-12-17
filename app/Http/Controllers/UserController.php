@@ -14,63 +14,142 @@ use App\Mail\SendEmployeeCredentials;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
- use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 use Tymon\JWTAuth\Exceptions\JWTException;
-
+use App\Models\Permission;
 class UserController extends Controller
 {
-    
-public function checkToken(Request $request)
-{
-    try {
-        $user = JWTAuth::parseToken()->authenticate();
-        $token = $request->bearerToken();
-        if ($user->is_active == 0) {
+
+    public function checkToken(Request $request)
+    {
+        try {
+            $user = JWTAuth::parseToken()->authenticate();
+            $token = $request->bearerToken();
+            if ($user->is_active == 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Your account is inactive. Please contact admin.'
+                ], 401);
+            }
+            return response()->json([
+                'success' => true,
+                'message' => 'Token is valid',
+                'user' => $user,
+                'token' => $token
+            ]);
+        } catch (TokenExpiredException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Your account is inactive. Please contact admin.'
+                'message' => 'Token has expired. Please log in again.'
+            ], 401);
+        } catch (TokenInvalidException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token is invalid. Please log in again.'
+            ], 401);
+        } catch (JWTException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token is missing or not provided.'
             ], 401);
         }
-        return response()->json([
-            'success' => true,
-            'message' => 'Token is valid',
-            'user' => $user,
-            'token' => $token
-        ]);
-    } catch (TokenExpiredException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Token has expired. Please log in again.'
-        ], 401);
-    } catch (TokenInvalidException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Token is invalid. Please log in again.'
-        ], 401);
-    } catch (JWTException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Token is missing or not provided.'
-        ], 401);
     }
-}
 
-public function store(Request $request)
+    // public function store(Request $request)
+    // {
+    //     try {
+    //         // Validation
+    //         $validatedData = $request->validate([
+    //             'name' => 'required|string|max:255',
+    //             'email' => 'required|email|unique:users',
+    //             'password' => 'required|min:6',
+    //             // 'team_id' => 'nullable|exists:teams,id',
+    //             'team_id' => 'nullable',
+    //             // 'team_id.*' => 'exists:teams,id',
+    //             'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
+    //             'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
+    //             'address' => 'nullable|string',
+    //             'role_id' => 'required|exists:roles,id',
+    //             'tl_id' => 'required_if:role_id,7|nullable|exists:users,id',
+    //             'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+    //             'employee_id' => 'required|string|unique:users,employee_id',
+    //         ], [
+    //             'employee_id.required' => 'Employee ID is required.',
+    //             'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
+    //             'tl_id.required_if' => 'Team Leader is required for employees.',
+    //             'tl_id.exists' => 'Selected Team Leader does not exist.',
+    //         ]);
+    //         $teamIds = $request->team_id;
+    //         if (is_string($teamIds)) {
+    //             $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
+    //         }
+    //         if (!is_array($teamIds)) {
+    //             $teamIds = [];
+    //         }
+    //         $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+    //         $missing = array_diff($teamIds, $existingTeams);
+
+    //         if (!empty($missing)) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Team does not exist!'
+    //             ], 422);
+    //         }
+
+    //         $user = User::create([
+    //             'name' => $validatedData['name'],
+    //             'email' => $validatedData['email'],
+    //             'address' => $validatedData['address'] ?? null,
+    //             'phone_num' => $validatedData['phone_num'] ?? null,
+    //             'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
+    //             'password' => Hash::make($validatedData['password']),
+    //             // 'team_id' => $validatedData['team_id'] ?? null,
+    //             'team_id' => $teamIds ?? null,
+    //             'role_id' => $validatedData['role_id'],
+    //             'tl_id' => $validatedData['tl_id'] ?? null,
+    //             'employee_id' => $validatedData['employee_id'] ?? null,
+    //         ]);
+
+    //         if ($request->hasFile('profile_pic')) {
+    //             $file = $request->file('profile_pic');
+
+    //             if (!Storage::disk('public')->exists('profile_pics')) {
+    //                 Storage::disk('public')->makeDirectory('profile_pics');
+    //             }
+
+    //             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+    //             $file->storeAs('profile_pics', $filename, 'public');
+
+    //             $user->profile_pic = $filename;
+    //             $user->save();
+    //         }
+    //         $role_id = $request->role_id;
+
+    //         return ApiResponse::success('User created successfully', new UserResource($user), 201);
+
+    //     } catch (ValidationException $e) {
+    //         return ApiResponse::error('Validation failed', $e->errors(), 422);
+    //     } catch (\Exception $e) {
+    //         \Log::error('Error creating user: ' . $e->getMessage());
+    //         return ApiResponse::error('An unexpected error occurred.', ['general' => $e->getMessage()], 500);
+    //     }
+    // }
+
+    
+    public function store(Request $request)
 {
     try {
-        // Validation
+        // ================= VALIDATION =================
         $validatedData = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users',
             'password' => 'required|min:6',
-            // 'team_id' => 'nullable|exists:teams,id',
             'team_id' => 'nullable',
-            // 'team_id.*' => 'exists:teams,id',
             'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
             'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
             'address' => 'nullable|string',
@@ -84,6 +163,7 @@ public function store(Request $request)
             'tl_id.required_if' => 'Team Leader is required for employees.',
             'tl_id.exists' => 'Selected Team Leader does not exist.',
         ]);
+        // ================= TEAM LOGIC =================
         $teamIds = $request->team_id;
         if (is_string($teamIds)) {
             $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
@@ -91,63 +171,104 @@ public function store(Request $request)
         if (!is_array($teamIds)) {
             $teamIds = [];
         }
-         $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+        $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
         $missing = array_diff($teamIds, $existingTeams);
-
-         if (!empty($missing)) {
+        if (!empty($missing)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Team does not exist!'
             ], 422);
         }
-
+        // ================= USER CREATE =================
         $user = User::create([
             'name' => $validatedData['name'],
             'email' => $validatedData['email'],
             'address' => $validatedData['address'] ?? null,
-            'phone_num' => $validatedData['phone_num'] ?? null,
+            'phone_num' => $validatedData['phone_num'],
             'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
             'password' => Hash::make($validatedData['password']),
-            // 'team_id' => $validatedData['team_id'] ?? null,
-            'team_id' => $teamIds ?? null,
+            'team_id' => $teamIds,
             'role_id' => $validatedData['role_id'],
-            'tl_id' => $validatedData['tl_id'] ?? null, 
-            'employee_id' => $validatedData['employee_id'] ?? null,
+            'tl_id' => $validatedData['tl_id'] ?? null,
+            'employee_id' => $validatedData['employee_id'],
         ]);
-
+        // ================= PROFILE PIC =================
         if ($request->hasFile('profile_pic')) {
             $file = $request->file('profile_pic');
-
             if (!Storage::disk('public')->exists('profile_pics')) {
                 Storage::disk('public')->makeDirectory('profile_pics');
             }
-
             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
             $file->storeAs('profile_pics', $filename, 'public');
-
             $user->profile_pic = $filename;
             $user->save();
         }
-
-        return ApiResponse::success('User created successfully', new UserResource($user), 201);
-
+        // ================= PERMISSIONS INSERT =================
+        $role = Role::find($validatedData['role_id']);
+        if ($role && $role->roles_permissions) {
+            $rolePermissions = json_decode($role->roles_permissions, true);
+            Permission::create([
+                'user_id' => $user->id,
+                'dashboard' => $rolePermissions['dashboard'] ?? 0,
+                'permission' => $rolePermissions['permission'] ?? 0,
+                'employee_management' => $rolePermissions['employee_management'] ?? 0,
+                'roles' => $rolePermissions['roles'] ?? 0,
+                'department' => $rolePermissions['department'] ?? 0,
+                'team' => $rolePermissions['team'] ?? 0,
+                'clients' => $rolePermissions['clients'] ?? 0,
+                'projects' => $rolePermissions['projects'] ?? 0,
+                'assigned_projects_inside_projects_assigned' =>
+                    $rolePermissions['assigned_projects_inside_projects_assigned'] ?? 0,
+                'unassigned_projects_inside_projects_assigned' =>
+                    $rolePermissions['unassigned_projects_inside_projects_assigned'] ?? 0,
+                'performance_sheets' => $rolePermissions['performance_sheets'] ?? 0,
+                'pending_sheets_inside_performance_sheets' =>
+                    $rolePermissions['pending_sheets_inside_performance_sheets'] ?? 0,
+                'manage_sheets_inside_performance_sheets' =>
+                    $rolePermissions['manage_sheets_inside_performance_sheets'] ?? 0,
+                'unfilled_sheets_inside_performance_sheets' =>
+                    $rolePermissions['unfilled_sheets_inside_performance_sheets'] ?? 0,
+                'manage_leaves' => $rolePermissions['manage_leaves'] ?? 0,
+                'activity_tags' => $rolePermissions['activity_tags'] ?? 0,
+                'leaves' => $rolePermissions['leaves'] ?? 0,
+                'teams' => $rolePermissions['teams'] ?? 0,
+                'leave_management' => $rolePermissions['leave_management'] ?? 0,
+                'project_management' => $rolePermissions['project_management'] ?? 0,
+                'assigned_projects_inside_project_management' =>
+                    $rolePermissions['assigned_projects_inside_project_management'] ?? 0,
+                'unassigned_projects_inside_project_management' =>
+                    $rolePermissions['unassigned_projects_inside_project_management'] ?? 0,
+                'performance_sheet' => $rolePermissions['performance_sheet'] ?? 0,
+                'performance_history' => $rolePermissions['performance_history'] ?? 0,
+                'projects_assigned' => $rolePermissions['projects_assigned'] ?? 0,
+            ]);
+        }
+        return ApiResponse::success(
+            'User created successfully',
+            new UserResource($user),
+            201
+        );
     } catch (ValidationException $e) {
         return ApiResponse::error('Validation failed', $e->errors(), 422);
     } catch (\Exception $e) {
         \Log::error('Error creating user: ' . $e->getMessage());
-        return ApiResponse::error('An unexpected error occurred.', ['general' => $e->getMessage()], 500);
+        return ApiResponse::error(
+            'An unexpected error occurred.',
+            ['general' => $e->getMessage()],
+            500
+        );
     }
 }
-
-public function index()
-{
+    
+    public function index()
+    {
         $users = User::with('role')->orderBy('id', 'desc')->get();
         return ApiResponse::success('Users fetched successfully', UserResource::collection($users));
     }
 
     public function projectManger()
     {
-        $users = User::where('role_id',5)->get();
+        $users = User::where('role_id', 5)->get();
         return ApiResponse::success('Project Manger fetched successfully', UserResource::collection($users));
     }
 
@@ -223,13 +344,13 @@ public function index()
                 'message' => 'One or more teams do not exist: ' . implode(',', $missing)
             ], 422);
         }
-        
+
         $tlId = null;
 
         if (!empty($teamIds)) {
             $userWithRole6 = User::whereJsonContains('team_id', $teamIds)
-                                ->where('role_id', 6)
-                                ->first();
+                ->where('role_id', 6)
+                ->first();
 
             if ($userWithRole6) {
                 $tlId = $userWithRole6->id;
@@ -314,16 +435,18 @@ public function index()
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
-                if (!isset($entry['activity_type'], $entry['time'])) continue;
+                if (!isset($entry['activity_type'], $entry['time']))
+                    continue;
 
                 $activityType = $entry['activity_type'];
                 $projectId = $entry['project_id'] ?? null; // treat null as Inhouse
                 $time = $entry['time'];
 
                 $timeParts = explode(':', $time);
-                if (count($timeParts) !== 2) continue;
+                if (count($timeParts) !== 2)
+                    continue;
 
-                $minutes = ((int)$timeParts[0] * 60) + (int)$timeParts[1];
+                $minutes = ((int) $timeParts[0] * 60) + (int) $timeParts[1];
 
                 // Grouping by project_id and activity_type
                 if (!isset($activityData[$projectId])) {
@@ -381,7 +504,7 @@ public function index()
 
     public function getUserCountByTeam()
     {
-        $teams = Team::all(); 
+        $teams = Team::all();
         $users = User::whereNotNull('team_id')->get();
 
         $teamUserMap = [];
@@ -444,20 +567,20 @@ public function index()
         $skippedDetails = [];
 
         $rolesMap = [
-            'Super Admin'         => 1,
-            'Admin'               => 2,
-            'HR'                  => 3,
-            'Billing Manager'     => 4,
-            'Project Manager'     => 5,
-            'TL'                  => 6,
-            'Team'                => 7,
+            'Super Admin' => 1,
+            'Admin' => 2,
+            'HR' => 3,
+            'Billing Manager' => 4,
+            'Project Manager' => 5,
+            'TL' => 6,
+            'Team' => 7,
         ];
 
         $teamsMap = [
-            'Frontend development'    => 1,
-            'Backend development'     => 2,
-            'SEO'                     => 3,
-            'Business Development'    => 4,
+            'Frontend development' => 1,
+            'Backend development' => 2,
+            'SEO' => 3,
+            'Business Development' => 4,
         ];
 
         foreach ($users as $data) {
@@ -468,7 +591,7 @@ public function index()
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Invalid role: ' . $data['roles']];
                     continue;
                 }
-            $teamId = $teamsMap[$data['team']] ?? null;
+                $teamId = $teamsMap[$data['team']] ?? null;
                 if (User::where('email', $data['email'])->exists()) {
                     $skipped++;
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Email already exists'];
@@ -479,8 +602,10 @@ public function index()
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Phone number already exists'];
                     continue;
                 }
-                if (!empty($data['emergency_phone_num']) &&
-                    User::where('emergency_phone_num', $data['emergency_phone_num'])->exists()) {
+                if (
+                    !empty($data['emergency_phone_num']) &&
+                    User::where('emergency_phone_num', $data['emergency_phone_num'])->exists()
+                ) {
                     $skipped++;
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Emergency phone already exists'];
                     continue;
@@ -488,8 +613,8 @@ public function index()
                 $tlId = null;
                 if (!empty($teamId)) {
                     $existingTl = User::where('team_id', $teamId)
-                                    ->where('role_id', 6)
-                                    ->first();
+                        ->where('role_id', 6)
+                        ->first();
                     if ($existingTl) {
                         $tlId = $existingTl->id;
                     }
@@ -532,58 +657,58 @@ public function index()
             'skipped_count' => $skipped,
             'skipped_details' => $skippedDetails,
         ]);
-}
-public function get_all_tl(Request $request)
-{
-    try {
-        $request->validate([
-            'team_id' => 'required|integer'
-        ]);
+    }
+    public function get_all_tl(Request $request)
+    {
+        try {
+            $request->validate([
+                'team_id' => 'required|integer'
+            ]);
 
-        $teamId = intval($request->team_id);
-        $teamIds = [$teamId];
+            $teamId = intval($request->team_id);
+            $teamIds = [$teamId];
 
-        $tls = \App\Models\User::where('role_id', 6)
-            ->where(function ($q) use ($teamIds) {
-                foreach ($teamIds as $t) {
-                    if ($t !== null) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+            $tls = \App\Models\User::where('role_id', 6)
+                ->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
                     }
-                }
-            })
-            ->get();
-        if ($tls->isEmpty()) {
+                })
+                ->get();
+            if ($tls->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No Team Leaders found for this team.',
+                    'data' => []
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Team Leaders fetched successfully',
+                'data' => $tls
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'No Team Leaders found for this team.',
-                'data' => []
-            ], 404);
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Team Leaders fetched successfully',
-            'data' => $tls
-        ]);
-
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Validation error',
-            'errors' => $e->errors()
-        ], 422);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Something went wrong',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
-public function DeleteProfilepic(Request $request)
-{
-     $user = $request->user();
+    public function DeleteProfilepic(Request $request)
+    {
+        $user = $request->user();
 
         if (!$user->profile_pic || $user->profile_pic === 'demo-image.png') {
             return response()->json([
@@ -604,36 +729,36 @@ public function DeleteProfilepic(Request $request)
             'message' => 'Profile picture reset to default image.',
             'profile_pic' => asset('storage/profile_pics/demo-image.png')
         ]);
-}
-
-public function getTeamMembers()
-{
-    $currentUser = auth()->user();
-    if (!$currentUser) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Current user not found',
-            'data' => []
-        ], 404);
     }
 
-    $tlId = $currentUser->id;
+    public function getTeamMembers()
+    {
+        $currentUser = auth()->user();
+        if (!$currentUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Current user not found',
+                'data' => []
+            ], 404);
+        }
 
-    $teamMembers = User::where('tl_id', $tlId)->get();
-    if ($teamMembers->isEmpty()) {
+        $tlId = $currentUser->id;
+
+        $teamMembers = User::where('tl_id', $tlId)->get();
+        if ($teamMembers->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No team members found for this Team Leader.',
+                'data' => []
+            ], 404);
+        }
+
         return response()->json([
-            'success' => false,
-            'message' => 'No team members found for this Team Leader.',
-            'data' => []
-        ], 404);
+            'success' => true,
+            'message' => 'Team members fetched successfully',
+            'data' => $teamMembers
+        ]);
     }
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Team members fetched successfully',
-        'data' => $teamMembers
-    ]);
-}
 
 
 }
