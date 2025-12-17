@@ -12,7 +12,7 @@ class RoleResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'roles_permissions' => json_decode($this->roles_permissions),
+            'roles_permissions' => $this->roles_permissions,
             'created_at' => $this->created_at->format('Y-m-d H:i:s'),
             'updated_at' => $this->updated_at->format('Y-m-d H:i:s')
         ];
