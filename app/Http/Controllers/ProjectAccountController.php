@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\ProjectAccount;
 use App\Http\Resources\ProjectAccountResource;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Numeric;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Auth;
 
 class ProjectAccountController extends Controller
 {
@@ -13,44 +16,111 @@ class ProjectAccountController extends Controller
         return ProjectAccountResource::collection(ProjectAccount::all());
     }
 
+
     public function store(Request $request)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
+            'source_id' => 'required|integer|exists:project_source,id',
             'account_name' => 'required|string|max:255',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 200);
+        }
 
         $account = ProjectAccount::create([
             'account_name' => $request->account_name,
+            'source_id' => $request->source_id,
         ]);
 
-        return new ProjectAccountResource($account);
+        return response()->json([
+            'success' => true,
+            'message' => 'Project account created successfully',
+            'data' => new ProjectAccountResource($account)
+        ], 200);
     }
+
 
     public function show($id)
     {
-        $account = ProjectAccount::findOrFail($id);
-        return new ProjectAccountResource($account);
+        $account = ProjectAccount::find($id);
+
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found',
+                'data' => null
+            ], 200); // keep 200 if frontend expects it
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Account fetched successfully',
+            'data' => new ProjectAccountResource($account)
+        ], 200);
     }
+
 
     public function update(Request $request, $id)
     {
-        $request->validate([
+        $validator = Validator::make($request->all(), [
+            'source_id' => 'required|integer|exists:project_source,id',
             'account_name' => 'required|string|max:255',
         ]);
 
-        $account = ProjectAccount::findOrFail($id);
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first(),
+                'errors' => $validator->errors(),
+            ], 200);
+        }
+
+        $account = ProjectAccount::find($id);
+
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found',
+                'data' => null
+            ], 200);
+        }
+
         $account->update([
+            'source_id' => $request->source_id,
             'account_name' => $request->account_name,
         ]);
 
-        return new ProjectAccountResource($account);
+        return response()->json([
+            'success' => true,
+            'message' => 'Account updated successfully',
+            'data' => new ProjectAccountResource($account)
+        ], 200);
     }
+
 
     public function destroy($id)
     {
-        $account = ProjectAccount::findOrFail($id);
+        $account = ProjectAccount::find($id);
+
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found',
+                'data' => null
+            ], 200);
+        }
+
         $account->delete();
 
-        return response()->json(['message' => 'Project account deleted successfully']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Project account deleted successfully'
+        ], 200);
     }
+
 }

@@ -14,6 +14,7 @@ class PermissionResource extends JsonResource
             'id' => $this->id,
             'user_id' => $this->user_id,
             'dashboard' => $this->dashboard,
+            'permission' => $this->permission,
             'employee_management' => $this->employee_management,
             'roles' => $this->roles,
             'department' => $this->department,

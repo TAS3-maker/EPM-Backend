@@ -30,9 +30,23 @@ class CommunicationTypeController extends Controller
 
     public function show($id)
     {
-        $medium = CommunicationType::findOrFail($id);
-        return new CommunicationTypeResource($medium);
+        $medium = CommunicationType::find($id);
+
+        if (!$medium) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Communication type not found',
+                'data' => null
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Communication type fetched successfully',
+            'data' => new CommunicationTypeResource($medium)
+        ], 200);
     }
+
 
     public function update(Request $request, $id)
     {
@@ -41,20 +55,46 @@ class CommunicationTypeController extends Controller
             'medium_details' => 'required|string|max:255',
         ]);
 
-        $medium = CommunicationType::findOrFail($id);
+        $medium = CommunicationType::find($id);
+
+        if (!$medium) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Communication type not found',
+                'data' => null
+            ], 200);
+        }
+
         $medium->update([
             'medium' => $request->medium,
             'medium_details' => $request->medium_details,
         ]);
 
-        return new CommunicationTypeResource($medium);
+        return response()->json([
+            'success' => true,
+            'message' => 'Communication type updated successfully',
+            'data' => new CommunicationTypeResource($medium)
+        ], 200);
     }
 
     public function destroy($id)
     {
-        $medium = CommunicationType::findOrFail($id);
+        $medium = CommunicationType::find($id);
+
+        if (!$medium) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Communication type not found',
+                'data' => null
+            ], 200);
+        }
+
         $medium->delete();
 
-        return response()->json(['message' => 'Communication type deleted successfully']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Communication type deleted successfully'
+        ], 200);
     }
+
 }

@@ -28,9 +28,23 @@ class ProjectSourceController extends Controller
 
     public function show($id)
     {
-        $source = ProjectSource::findOrFail($id);
-        return new ProjectSourceResource($source);
+        $source = ProjectSource::find($id);
+
+        if (!$source) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project source not found',
+                'data' => null
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project source fetched successfully',
+            'data' => new ProjectSourceResource($source)
+        ], 200);
     }
+
 
     public function update(Request $request, $id)
     {
@@ -38,19 +52,46 @@ class ProjectSourceController extends Controller
             'source_name' => 'required|string|max:255',
         ]);
 
-        $source = ProjectSource::findOrFail($id);
+        $source = ProjectSource::find($id);
+
+        if (!$source) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project source not found',
+                'data' => null
+            ], 200);
+        }
+
         $source->update([
             'source_name' => $request->source_name,
         ]);
 
-        return new ProjectSourceResource($source);
+        return response()->json([
+            'success' => true,
+            'message' => 'Project source updated successfully',
+            'data' => new ProjectSourceResource($source)
+        ], 200);
     }
+
 
     public function destroy($id)
     {
-        $source = ProjectSource::findOrFail($id);
+        $source = ProjectSource::find($id);
+
+        if (!$source) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project source not found',
+                'data' => null
+            ], 200);
+        }
+
         $source->delete();
 
-        return response()->json(['message' => 'Project source deleted successfully']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Project source deleted successfully'
+        ], 200);
     }
+
 }

@@ -12,6 +12,7 @@ class Permission extends Model
     protected $fillable = [
         'user_id',
         'dashboard',
+        'permission',
         'employee_management',
         'roles',
         'department',

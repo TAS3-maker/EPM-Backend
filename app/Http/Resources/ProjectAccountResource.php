@@ -11,6 +11,7 @@ class ProjectAccountResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'source_id' => $this->source_id,
             'account_name' => $this->account_name,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
