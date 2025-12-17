@@ -24,125 +24,125 @@ use App\Models\Team;
 
 class PerformaSheetController extends Controller
 {
-public function addPerformaSheets(Request $request)
-{
-    $submitting_user = auth()->user();
- $submitting_user_name = $submitting_user->name;
-    $submitting_user_employee_id = $submitting_user->employee_id;
-    try {
-        $validatedData = $request->validate([
-            'data' => 'required|array',
-            'data.*.project_id' => [
-                'required',
-                Rule::exists('project_user', 'project_id')->where(function ($query) use ($submitting_user) {
-                    $query->where('user_id', $submitting_user->id);
-                })
-            ],
-            'data.*.date' => 'required|date_format:Y-m-d',
-            'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-            'data.*.work_type' => 'required|string|max:255',
-            'data.*.activity_type' => 'required|string|max:255',
-            'data.*.narration' => 'nullable|string',
-            'data.*.project_type' => 'required|string|max:255',
-            'data.*.project_type_status' => 'required|string|max:255',
-        ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
+    public function addPerformaSheets(Request $request)
+    {
+        $submitting_user = auth()->user();
+        $submitting_user_name = $submitting_user->name;
+        $submitting_user_employee_id = $submitting_user->employee_id;
+        try {
+            $validatedData = $request->validate([
+                'data' => 'required|array',
+                'data.*.project_id' => [
+                    'required',
+                    Rule::exists('project_user', 'project_id')->where(function ($query) use ($submitting_user) {
+                        $query->where('user_id', $submitting_user->id);
+                    })
+                ],
+                'data.*.date' => 'required|date_format:Y-m-d',
+                'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+                'data.*.work_type' => 'required|string|max:255',
+                'data.*.activity_type' => 'required|string|max:255',
+                'data.*.narration' => 'nullable|string',
+                'data.*.project_type' => 'required|string|max:255',
+                'data.*.project_type_status' => 'required|string|max:255',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed!',
+                'errors' => $e->errors()
+            ], 422);
+        }
+
+        $inserted = [];
+        $sheetsWithDetails = [];
+
+        foreach ($validatedData['data'] as $record) {
+            $project = Project::find($record['project_id']);
+            $projectName = $project ? $project->project_name : "Unknown Project";
+
+            /**
+             * Force every record to be Billable
+             * - If user selected Non Billable, convert to Billable
+             * - If project is hourly, keep Billable
+             * - Basically: Non Billable can never go to DB
+             */
+            if (
+                !isset($record['activity_type']) ||
+                strtolower($record['activity_type']) === 'non billable' ||
+                strtolower($record['activity_type']) === 'non-billable'
+            ) {
+                $record['activity_type'] = 'Billable';
+            }
+
+            if ($project && $project->billing_type === 'hourly') {
+                $record['activity_type'] = 'Billable';
+            }
+
+            // Check if project has tasks
+            $tasks = Task::where('project_id', $record['project_id'])->get();
+
+            if ($tasks->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "No tasks found for project '{$projectName}'. Please create at least one task to proceed."
+                ], 400);
+            }
+
+            // Check for valid (active) task
+            $validStatusTask = $tasks->first(function ($task) {
+                return in_array(strtolower($task->status), ['to do', 'in progress']);
+            });
+
+            if (!$validStatusTask) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
+                ], 400);
+            }
+
+            // Create Performa Sheet
+            $insertedSheet = PerformaSheet::create([
+                'user_id' => $submitting_user->id,
+                'status' => 'pending',
+                'data' => json_encode($record)
+            ]);
+
+            // Store sheet details for mail/report
+            $sheetsWithDetails[] = [
+                'submitting_user' => $submitting_user->name,
+                'project_name' => $projectName,
+                'date' => $record['date'],
+                'time' => $record['time'],
+                'work_type' => $record['work_type'],
+                'activity_type' => $record['activity_type'],
+                'narration' => $record['narration'],
+                'project_type' => $record['project_type'],
+                'project_type_status' => $record['project_type_status'],
+            ];
+
+            $inserted[] = $insertedSheet;
+        }
+
+        // Get users with higher roles (Super Admin / Billing Manager)
+        $users = User::whereHas('role', function ($query) {
+            $query->whereIn('name', ['Super Admin', 'Billing Manager']);
+        })->get();
+
+        $submitting_date_for_mail = $record['date'];
+
+        foreach ($users as $user) {
+            // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
+        }
+
         return response()->json([
-            'success' => false,
-            'message' => 'Validation failed!',
-            'errors' => $e->errors()
-        ], 422);
-    }
-
-    $inserted = [];
-    $sheetsWithDetails = [];
-
-    foreach ($validatedData['data'] as $record) {
-        $project = Project::find($record['project_id']);
-        $projectName = $project ? $project->project_name : "Unknown Project";
-
-        /**
-         * Force every record to be Billable
-         * - If user selected Non Billable, convert to Billable
-         * - If project is hourly, keep Billable
-         * - Basically: Non Billable can never go to DB
-         */
-        if (
-            !isset($record['activity_type']) ||
-            strtolower($record['activity_type']) === 'non billable' ||
-            strtolower($record['activity_type']) === 'non-billable'
-        ) {
-            $record['activity_type'] = 'Billable';
-        }
-
-        if ($project && $project->billing_type === 'hourly') {
-            $record['activity_type'] = 'Billable';
-        }
-
-        // Check if project has tasks
-        $tasks = Task::where('project_id', $record['project_id'])->get();
-
-        if ($tasks->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => "No tasks found for project '{$projectName}'. Please create at least one task to proceed."
-            ], 400);
-        }
-
-        // Check for valid (active) task
-        $validStatusTask = $tasks->first(function ($task) {
-            return in_array(strtolower($task->status), ['to do', 'in progress']);
-        });
-
-        if (!$validStatusTask) {
-            return response()->json([
-                'success' => false,
-                'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
-            ], 400);
-        }
-
-        // Create Performa Sheet
-        $insertedSheet = PerformaSheet::create([
-            'user_id' => $submitting_user->id,
-            'status' => 'pending',
-            'data' => json_encode($record)
+            'success' => true,
+            'message' => count($inserted) . ' Performa Sheets added successfully',
         ]);
-
-        // Store sheet details for mail/report
-        $sheetsWithDetails[] = [
-            'submitting_user' => $submitting_user->name,
-            'project_name' => $projectName,
-            'date' => $record['date'],
-            'time' => $record['time'],
-            'work_type' => $record['work_type'],
-            'activity_type' => $record['activity_type'],
-            'narration' => $record['narration'],
-            'project_type' => $record['project_type'],
-            'project_type_status' => $record['project_type_status'],
-        ];
-
-        $inserted[] = $insertedSheet;
     }
 
-    // Get users with higher roles (Super Admin / Billing Manager)
-    $users = User::whereHas('role', function ($query) {
-        $query->whereIn('name', ['Super Admin', 'Billing Manager']);
-    })->get();
 
-    $submitting_date_for_mail = $record['date'];
-    
-    foreach ($users as $user) {
-         // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
-    }
-
-    return response()->json([
-        'success' => true,
-        'message' => count($inserted) . ' Performa Sheets added successfully',
-    ]);
-}
-
-
-	public function getUserPerformaSheets()
+    public function getUserPerformaSheets()
     {
         $user = auth()->user();
 
@@ -194,16 +194,16 @@ public function addPerformaSheets(Request $request)
 
     public function getAllPerformaSheets(Request $request)
     {
-        $user = $request->user(); 
+        $user = $request->user();
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
-        if($request->has('status')) $status = $request->status;
-        
+        if ($request->has('status'))
+            $status = $request->status;
+
         $baseQuery = PerformaSheet::with('user:id,name');
         if ($role_id == 1 || $role_id == 4) {
             $query = clone $baseQuery;
-        }
-        else if ($role_id == 7) { 
+        } else if ($role_id == 7) {
             $query = clone $baseQuery;
             $query->where('user_id', $user->id);
         } else if ($role_id == 6) {
@@ -239,9 +239,9 @@ public function addPerformaSheets(Request $request)
         } else {
             $query = clone $baseQuery;
         }
-         if (!empty($status)) {
+        if (!empty($status)) {
             $query->where('status', $status);
-        }else {
+        } else {
             $query->whereIn('status', ['approved', 'rejected']);
         }
 
@@ -251,7 +251,7 @@ public function addPerformaSheets(Request $request)
         foreach ($sheets as $sheet) {
             $dataArray = json_decode($sheet->data, true);
             if (!is_array($dataArray)) {
-                continue; 
+                continue;
             }
             $projectId = $dataArray['project_id'] ?? null;
             $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
@@ -268,7 +268,7 @@ public function addPerformaSheets(Request $request)
             $dataArray['updated_at'] = $sheet->updated_at ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
 
             if (!isset($structuredData[$sheet->user_id])) {
-                
+
                 $structuredData[$sheet->user_id] = [
                     'user_id' => $sheet->user_id,
                     'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
@@ -313,7 +313,7 @@ public function addPerformaSheets(Request $request)
             $activityType = $originalData['activity_type'];
 
             list($hours, $minutes) = explode(':', $originalData['time']);
-            $timeInHours = (int)$hours + ((int)$minutes / 60);
+            $timeInHours = (int) $hours + ((int) $minutes / 60);
 
             $project = Project::find($projectId);
             if (!$project) {
@@ -325,7 +325,7 @@ public function addPerformaSheets(Request $request)
                 continue;
             }
 
-            $isHourly = $project->billing_type === 'hourly'; 
+            $isHourly = $project->billing_type === 'hourly';
 
             if ($isHourly) {
                 $billableHoursValue = $timeInHours;
@@ -416,124 +416,125 @@ public function addPerformaSheets(Request $request)
 
     public function SinkPerformaAPI(Request $request)
     {
-            $request->validate([
-                'project_id' => 'required|integer',
-            ]);
+        $request->validate([
+            'project_id' => 'required|integer',
+        ]);
 
-            $projectId = $request->project_id;
+        $projectId = $request->project_id;
 
-            // 1. Get all task statuses
-            $statuses = DB::table('tasks')
-                ->where('project_id', $projectId)
-                ->pluck('status');
+        // 1. Get all task statuses
+        $statuses = DB::table('tasks')
+            ->where('project_id', $projectId)
+            ->pluck('status');
 
-            // 2. Check if all tasks are "Completed"
-            $allTasksCompleted = !$statuses->contains(function ($status) {
-                return strtolower($status) !== 'completed';
-            });
+        // 2. Check if all tasks are "Completed"
+        $allTasksCompleted = !$statuses->contains(function ($status) {
+            return strtolower($status) !== 'completed';
+        });
 
-            if (!$allTasksCompleted) {
-                return response()->json([
-                    'success' => true,
-                    'message' => 'All tasks are not completed',
-                    'all_completed' => false,
-                    'remaining_hours' => 0
-                ]);
-            }
-
-            // 3. Get project details
-            $project = DB::table('projects')->where('id', $projectId)->first();
-
-            if (!$project) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Project not found'
-                ], 404);
-            }
-
-            $totalHours = (float) $project->total_hours;
-            $workingHours = (float) $project->total_working_hours;
-            $remainingHours = max(0, $totalHours - $workingHours);
-
-            // 4. Get all Non Billable entries for this project from performa_sheets
-            $entries = PerformaSheet::where('status', 'approved')->get()->filter(function ($entry) use ($projectId) {
-                $data = json_decode($entry->data, true);
-                return isset($data['project_id'], $data['activity_type']) &&
-                    $data['project_id'] == $projectId &&
-                    $data['activity_type'] == 'Non Billable';
-            });
-
-            $converted = [];
-            $remaining = $remainingHours;
-
-            foreach ($entries as $entry) {
-                $data = json_decode($entry->data, true);
-                $entryHours = timeToFloat($data['time']); // helper to convert HH:MM to float
-                if ($remaining <= 0) break;
-
-                if ($entryHours <= $remaining) {
-                    // Fully convert to Billable
-                    // $data['activity_type'] = 'Billable';
-                    $data['message'] = 'Converted from Non Billable to Billable via Sync';
-                    $entry->data = json_encode($data);
-                    $entry->save();
-
-                    $converted[] = $entry;
-                    $remaining -= $entryHours;
-                    $workingHours += $entryHours;
-                } else {
-                    // Partially convert: update existing with Billable, create new with leftover Non Billable
-                    $billableTime = floatToTime($remaining);
-                    $nonBillableTime = floatToTime($entryHours - $remaining);
-
-                    // Update current entry
-                    $data['time'] = $billableTime;
-                    // $data['activity_type'] = 'Billable';
-                    $data['message'] = 'Partially converted to Billable via Sync';
-                    $entry->data = json_encode($data);
-                    $entry->save();
-
-                    $workingHours += $remaining;
-
-                    // Create new Non Billable entry with leftover
-                    //code changed to billable
-                    $newData = $data;
-                    // $newData['activity_type'] = 'Billable';
-                    $newData['time'] = $nonBillableTime;
-                    $newData['message'] = 'Remaining Billable after partial conversion';
-
-                    $newEntry = PerformaSheet::create([
-                        'user_id' => $entry->user_id,
-                        'data' => json_encode($newData),
-                        'status' => 'approved', 
-                    ]);
-
-                    $converted[] = $entry;
-                    $converted[] = $newEntry;
-
-                    $remaining = 0;
-                }
-            }
-
-            // Update project total_working_hours
-            DB::table('projects')->where('id', $projectId)->update([
-                'total_working_hours' => $workingHours
-            ]);
-
+        if (!$allTasksCompleted) {
             return response()->json([
                 'success' => true,
-                'message' => 'Billable entries converted based on remaining hours',
-                'converted' => $converted,
-                'updated_total_working_hours' => $workingHours,
-                'remaining_after_conversion' => max(0, $totalHours - $workingHours),
+                'message' => 'All tasks are not completed',
+                'all_completed' => false,
+                'remaining_hours' => 0
             ]);
+        }
+
+        // 3. Get project details
+        $project = DB::table('projects')->where('id', $projectId)->first();
+
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found'
+            ], 404);
+        }
+
+        $totalHours = (float) $project->total_hours;
+        $workingHours = (float) $project->total_working_hours;
+        $remainingHours = max(0, $totalHours - $workingHours);
+
+        // 4. Get all Non Billable entries for this project from performa_sheets
+        $entries = PerformaSheet::where('status', 'approved')->get()->filter(function ($entry) use ($projectId) {
+            $data = json_decode($entry->data, true);
+            return isset($data['project_id'], $data['activity_type']) &&
+                $data['project_id'] == $projectId &&
+                $data['activity_type'] == 'Non Billable';
+        });
+
+        $converted = [];
+        $remaining = $remainingHours;
+
+        foreach ($entries as $entry) {
+            $data = json_decode($entry->data, true);
+            $entryHours = timeToFloat($data['time']); // helper to convert HH:MM to float
+            if ($remaining <= 0)
+                break;
+
+            if ($entryHours <= $remaining) {
+                // Fully convert to Billable
+                // $data['activity_type'] = 'Billable';
+                $data['message'] = 'Converted from Non Billable to Billable via Sync';
+                $entry->data = json_encode($data);
+                $entry->save();
+
+                $converted[] = $entry;
+                $remaining -= $entryHours;
+                $workingHours += $entryHours;
+            } else {
+                // Partially convert: update existing with Billable, create new with leftover Non Billable
+                $billableTime = floatToTime($remaining);
+                $nonBillableTime = floatToTime($entryHours - $remaining);
+
+                // Update current entry
+                $data['time'] = $billableTime;
+                // $data['activity_type'] = 'Billable';
+                $data['message'] = 'Partially converted to Billable via Sync';
+                $entry->data = json_encode($data);
+                $entry->save();
+
+                $workingHours += $remaining;
+
+                // Create new Non Billable entry with leftover
+                //code changed to billable
+                $newData = $data;
+                // $newData['activity_type'] = 'Billable';
+                $newData['time'] = $nonBillableTime;
+                $newData['message'] = 'Remaining Billable after partial conversion';
+
+                $newEntry = PerformaSheet::create([
+                    'user_id' => $entry->user_id,
+                    'data' => json_encode($newData),
+                    'status' => 'approved',
+                ]);
+
+                $converted[] = $entry;
+                $converted[] = $newEntry;
+
+                $remaining = 0;
+            }
+        }
+
+        // Update project total_working_hours
+        DB::table('projects')->where('id', $projectId)->update([
+            'total_working_hours' => $workingHours
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Billable entries converted based on remaining hours',
+            'converted' => $converted,
+            'updated_total_working_hours' => $workingHours,
+            'remaining_after_conversion' => max(0, $totalHours - $workingHours),
+        ]);
     }
 
     // Helper: convert "HH:MM" to float (like "01:30" => 1.5)
     private function convertTimeToFloat($time)
     {
         [$hours, $minutes] = explode(':', $time);
-        return (int)$hours + ((int)$minutes / 60);
+        return (int) $hours + ((int) $minutes / 60);
     }
 
     // Helper: convert float back to "HH:MM"
@@ -544,54 +545,54 @@ public function addPerformaSheets(Request $request)
         return str_pad($hours, 2, '0', STR_PAD_LEFT) . ':' . str_pad($minutes, 2, '0', STR_PAD_LEFT);
     }
 
-	public function getPerformaManagerEmp()
-	{
-		$projectManager = auth()->user(); 
-		$teamId = $projectManager->team_id; 
-		$sheets = PerformaSheet::with(['user:id,name,team_id'])
-					->whereHas('user', function ($query) use ($teamId) {
-						$query->where('team_id', $teamId);
-					})
-					->get();
-		$structuredData = [];
-		foreach ($sheets as $sheet) {
-        $dataArray = json_decode($sheet->data, true);
-        if (!is_array($dataArray)) {
-            continue; 
+    public function getPerformaManagerEmp()
+    {
+        $projectManager = auth()->user();
+        $teamId = $projectManager->team_id;
+        $sheets = PerformaSheet::with(['user:id,name,team_id'])
+            ->whereHas('user', function ($query) use ($teamId) {
+                $query->where('team_id', $teamId);
+            })
+            ->get();
+        $structuredData = [];
+        foreach ($sheets as $sheet) {
+            $dataArray = json_decode($sheet->data, true);
+            if (!is_array($dataArray)) {
+                continue;
+            }
+            $projectId = $dataArray['project_id'] ?? null;
+            $date = $dataArray['date'] ?? '0000-00-00';
+            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $projectName = $project->project_name ?? 'No Project Found';
+            $clientName = $project->client->name ?? 'No Client Found';
+            $deadline = $project->deadline ?? 'No Deadline Set';
+
+            $tagActivityIds = [];
+
+            if ($project && is_array($project->tags_activitys)) {
+                $tagActivityIds = $project->tags_activitys;
+            } elseif ($project && is_string($project->tags_activitys)) {
+                $tagActivityIds = json_decode($project->tags_activitys, true) ?? [];
+            }
+
+            // Fetch tag activity names from database
+            $tagActivityNames = [];
+            if (!empty($tagActivityIds)) {
+                $tagActivityNames = TagsActivity::whereIn('id', $tagActivityIds)->pluck('name')->toArray();
+            }
+
+            $dataArray['project_name'] = $projectName;
+            $dataArray['client_name'] = $clientName;
+            $dataArray['deadline'] = $deadline;
+            $dataArray['status'] = $sheet->status ?? 'pending';
+            $dataArray['user_id'] = $sheet->user->id;
+            $dataArray['user_name'] = $sheet->user->name;
+            $dataArray['performa_sheet_id'] = $sheet->id;
+            $dataArray['tag_activity_ids'] = $tagActivityIds;
+            $dataArray['tag_activity_names'] = $tagActivityNames;
+
+            $structuredData[] = $dataArray;
         }
-        $projectId = $dataArray['project_id'] ?? null;
-        $date = $dataArray['date'] ?? '0000-00-00'; 
-        $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
-        $projectName = $project->project_name ?? 'No Project Found';
-        $clientName = $project->client->name ?? 'No Client Found';
-        $deadline = $project->deadline ?? 'No Deadline Set';
-      
-        $tagActivityIds = [];
-
-        if ($project && is_array($project->tags_activitys)) {
-            $tagActivityIds = $project->tags_activitys;
-        } elseif ($project && is_string($project->tags_activitys)) {
-            $tagActivityIds = json_decode($project->tags_activitys, true) ?? [];
-        }
-
-        // Fetch tag activity names from database
-        $tagActivityNames = [];
-        if (!empty($tagActivityIds)) {
-            $tagActivityNames = TagsActivity::whereIn('id', $tagActivityIds)->pluck('name')->toArray();
-        }
-
-        $dataArray['project_name'] = $projectName;
-        $dataArray['client_name'] = $clientName;
-        $dataArray['deadline'] = $deadline;
-        $dataArray['status'] = $sheet->status ?? 'pending';
-        $dataArray['user_id'] = $sheet->user->id;
-        $dataArray['user_name'] = $sheet->user->name;
-        $dataArray['performa_sheet_id'] = $sheet->id;
-        $dataArray['tag_activity_ids'] = $tagActivityIds;
-        $dataArray['tag_activity_names'] = $tagActivityNames;
-
-        $structuredData[] = $dataArray;
-		}
         // echo "<pre>";
         // print_r($structuredData);
         // echo "</pre>";
@@ -599,563 +600,566 @@ public function addPerformaSheets(Request $request)
 
 
         $structuredData = collect($structuredData)->sortByDesc('date')->values()->toArray();
-		return response()->json([
-        'success' => true,
-        'message' => 'Performa Sheets fetched successfully',
-        'project_manager_id' => $projectManager->id,
-        'team_id' => $teamId,
-        'data' => $structuredData
-		]);
-	}
-
-
-public function editPerformaSheets(Request $request)
-{
-    $user = auth()->user();
-
-    try {
-        $validatedData = $request->validate([
-            'id' => 'required|exists:performa_sheets,id',
-            'data' => 'required|array',
-            'data.project_id' => [
-                'required',
-                Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-            ],
-            'data.date' => 'required|date_format:Y-m-d',
-            'data.time' => 'required|date_format:H:i',
-            'data.work_type' => 'required|string|max:255',
-            'data.activity_type' => 'required|string|max:255',
-            'data.narration' => 'nullable|string',
-            'data.project_type' => 'required|string|max:255',
-            'data.project_type_status' => 'required|string|max:255',
-            'data.tags_activitys' => 'nullable|array',
-            'data.tags_activitys.*' => 'integer|exists:tagsactivity,id',
-        ]);
-
-        $projectId = $validatedData['data']['project_id'];
-        $project = Project::find($projectId);
-        $projectName = $project ? $project->name : "Unknown Project";
-
-        $tasks = Task::where('project_id', $projectId)->get();
-
-        if ($tasks->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => "No task exists for the selected project: {$projectName}"
-            ], 402);
-        }
-
-        $allowedStatuses = ['to do', 'in progress'];
-        $validTaskExists = $tasks->contains(function ($task) use ($allowedStatuses) {
-            return in_array(strtolower($task->status), $allowedStatuses);
-        });
-
-        if (!$validTaskExists) {
-            return response()->json([
-                'success' => false,
-                'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
-            ], 402);
-        }
-
-        $performaSheet = PerformaSheet::where('id', $validatedData['id'])
-            ->where('user_id', $user->id)
-            ->first();
-
-        if (!$performaSheet) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Performa Sheet not found or you do not have permission to edit it.'
-            ], 404);
-        }
-
-        $oldData = json_decode($performaSheet->data, true);
-        $oldStatus = $performaSheet->status;
-        $newData = $validatedData['data'];
-
-        $isChanged = $oldData != $newData;
-
-        if ($isChanged) {
-            if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
-                $performaSheet->status = 'Pending';
-            }
-
-            $performaSheet->data = json_encode($newData);
-            $performaSheet->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Performa Sheet updated successfully',
-                'status' => $performaSheet->status,
-                'data' => $performaSheet
-            ]);
-        } else {
-            return response()->json([
-                'success' => true,
-                'message' => 'No changes detected.',
-                'status' => $oldStatus,
-                'data' => $performaSheet
-            ]);
-        }
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Internal Server Error',
-            'error' => $e->getMessage()
-        ], 500);
-    }
-}
-
-
-
-public function deletePerformaSheets(Request $request)
-{
-    $userId = auth()->id(); 
-    $sheetId = $request->input('sheet_id'); 
-    if (!$sheetId) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Sheet ID is required.',
-        ], 400);
-    }
-    $sheet = PerformaSheet::where('id', $sheetId)
-        ->where('user_id', $userId)
-        ->first();
-    if (!$sheet) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Sheet not found or not owned by you.',
-        ], 404);
-    }
-    if ($sheet->status === 'approved') {
-        return response()->json([
-            'success' => false,
-            'message' => 'You can only delete rejected sheets.',
-        ], 403);
-    }
-    if ($sheet->status === 'rejected') {
-        $sheet->delete();
-
         return response()->json([
             'success' => true,
-            'message' => 'Performa sheet deleted successfully.',
+            'message' => 'Performa Sheets fetched successfully',
+            'project_manager_id' => $projectManager->id,
+            'team_id' => $teamId,
+            'data' => $structuredData
         ]);
     }
-    return response()->json([
-        'success' => false,
-        'message' => 'Only rejected sheets can be deleted.',
-    ], 403);
-}
 
 
-public function approveRejectPerformaSheets(Request $request)
-{
-    $request->validate([
-        'ids' => 'required',
-        'status' => 'required|string|in:approved,rejected'
-    ]);
+    public function editPerformaSheets(Request $request)
+    {
+        $user = auth()->user();
 
-    $ids = is_array($request->ids) ? $request->ids : [$request->ids];
-    $performaSheets = PerformaSheet::whereIn('id', $ids)->get();
+        try {
+            $validatedData = $request->validate([
+                'id' => 'required|exists:performa_sheets,id',
+                'data' => 'required|array',
+                'data.project_id' => [
+                    'required',
+                    Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
+                        $query->where('user_id', $user->id);
+                    })
+                ],
+                'data.date' => 'required|date_format:Y-m-d',
+                'data.time' => 'required|date_format:H:i',
+                'data.work_type' => 'required|string|max:255',
+                'data.activity_type' => 'required|string|max:255',
+                'data.narration' => 'nullable|string',
+                'data.project_type' => 'required|string|max:255',
+                'data.project_type_status' => 'required|string|max:255',
+                'data.tags_activitys' => 'nullable|array',
+                'data.tags_activitys.*' => 'integer|exists:tagsactivity,id',
+            ]);
 
-    if ($performaSheets->isEmpty()) {
-        return response()->json(['message' => 'Invalid performa sheet ID(s).'], 404);
+            $projectId = $validatedData['data']['project_id'];
+            $project = Project::find($projectId);
+            $projectName = $project ? $project->name : "Unknown Project";
+
+            $tasks = Task::where('project_id', $projectId)->get();
+
+            if ($tasks->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "No task exists for the selected project: {$projectName}"
+                ], 402);
+            }
+
+            $allowedStatuses = ['to do', 'in progress'];
+            $validTaskExists = $tasks->contains(function ($task) use ($allowedStatuses) {
+                return in_array(strtolower($task->status), $allowedStatuses);
+            });
+
+            if (!$validTaskExists) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
+                ], 402);
+            }
+
+            $performaSheet = PerformaSheet::where('id', $validatedData['id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$performaSheet) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Performa Sheet not found or you do not have permission to edit it.'
+                ], 404);
+            }
+
+            $oldData = json_decode($performaSheet->data, true);
+            $oldStatus = $performaSheet->status;
+            $newData = $validatedData['data'];
+
+            $isChanged = $oldData != $newData;
+
+            if ($isChanged) {
+                if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
+                    $performaSheet->status = 'Pending';
+                }
+
+                $performaSheet->data = json_encode($newData);
+                $performaSheet->save();
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Performa Sheet updated successfully',
+                    'status' => $performaSheet->status,
+                    'data' => $performaSheet
+                ]);
+            } else {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No changes detected.',
+                    'status' => $oldStatus,
+                    'data' => $performaSheet
+                ]);
+            }
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    $results = [];
-    foreach ($performaSheets as $performa) {
-        $originalData = json_decode($performa->data, true);
-        $oldStatus = $performa->status; 
-        
-        // === CASE 1: Reject flow with reverse approved ===
-        if ($request->status === 'rejected') {
 
-            if ($oldStatus === 'approved') {
-                $project = Project::find($originalData['project_id']);
 
-                if ($project && !empty($originalData['time'])) {
-                    try {
-                        $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
-                        $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
+    public function deletePerformaSheets(Request $request)
+    {
+        $userId = auth()->id();
+        $sheetId = $request->input('sheet_id');
+        if (!$sheetId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sheet ID is required.',
+            ], 400);
+        }
+        $sheet = PerformaSheet::where('id', $sheetId)
+            ->where('user_id', $userId)
+            ->first();
+        if (!$sheet) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sheet not found or not owned by you.',
+            ], 404);
+        }
+        if ($sheet->status === 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'You can only delete rejected sheets.',
+            ], 403);
+        }
+        if ($sheet->status === 'rejected') {
+            $sheet->delete();
 
-                        if ($submittedHours > 0) {
-                            $project->total_working_hours = max(0, $project->total_working_hours - $submittedHours);
-                            $project->remaining_hours = ($project->remaining_hours ?? 0) + $submittedHours;
+            return response()->json([
+                'success' => true,
+                'message' => 'Performa sheet deleted successfully.',
+            ]);
+        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Only rejected sheets can be deleted.',
+        ], 403);
+    }
 
-                            if (isset($project->total_hours)) {
-                                $project->total_hours = ($project->total_hours ?? 0) + $submittedHours;
+
+    public function approveRejectPerformaSheets(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required',
+            'status' => 'required|string|in:approved,rejected'
+        ]);
+
+        $ids = is_array($request->ids) ? $request->ids : [$request->ids];
+        $performaSheets = PerformaSheet::whereIn('id', $ids)->get();
+
+        if ($performaSheets->isEmpty()) {
+            return response()->json(['message' => 'Invalid performa sheet ID(s).'], 404);
+        }
+
+        $results = [];
+        foreach ($performaSheets as $performa) {
+            $originalData = json_decode($performa->data, true);
+            $oldStatus = $performa->status;
+
+            // === CASE 1: Reject flow with reverse approved ===
+            if ($request->status === 'rejected') {
+
+                if ($oldStatus === 'approved') {
+                    $project = Project::find($originalData['project_id']);
+
+                    if ($project && !empty($originalData['time'])) {
+                        try {
+                            $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
+                            $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
+
+                            if ($submittedHours > 0) {
+                                $project->total_working_hours = max(0, $project->total_working_hours - $submittedHours);
+                                $project->remaining_hours = ($project->remaining_hours ?? 0) + $submittedHours;
+
+                                if (isset($project->total_hours)) {
+                                    $project->total_hours = ($project->total_hours ?? 0) + $submittedHours;
+                                }
+
+                                $project->save();
                             }
-
-                            $project->save();
+                        } catch (\Exception $e) {
                         }
-                    } catch (\Exception $e) {
                     }
                 }
-            }
-            $performa->status = 'rejected';
-            $performa->save();
-
-            $results[] = [
-                'performa_id' => $performa->id,
-                'status' => 'rejected',
-                'note' => 'Status updated to rejected' . ($oldStatus === 'approved' ? ' and project hours reversed' : '')
-            ];
-            continue; 
-        }
-
-        // === CASE 2: Inhouse approved ===
-         
-        // if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
-        if ((strtolower($originalData['activity_type']) == 'inhouse' || strtolower($originalData['activity_type']) == 'in-house' ) && $request->status === 'approved') {
-            // $originalData['activity_type'] = 'inhouse';
-            $performa->status = 'approved';
-            $performa->data = json_encode($originalData);
-            $performa->save();
-
-            $results[] = [
-                'performa_id' => $performa->id,
-                'status' => 'approved',
-                'note' => 'Inhouse activity approved as inhouse (no billable/non-billable change)'
-            ];
-            continue;
-        }
-
-        // === Get project for approved cases ===
-        $project = Project::find($originalData['project_id']);
-        if (!$project) {
-            $results[] = [
-                'performa_id' => $performa->id,
-                'status' => 'skipped',
-                'note' => 'Project not found'
-            ];
-            continue;
-        }
-        if (strtolower($project->project_type) === 'fixed') {
-            $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
-            $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
-
-            if (strtolower($originalData['activity_type']) === 'non billable') {
-                $performa->data = json_encode($originalData);
-                $performa->status = 'approved';
+                $performa->status = 'rejected';
                 $performa->save();
 
-                $project->total_working_hours += (float) $submittedHours;
-                $project->save();
+                $results[] = [
+                    'performa_id' => $performa->id,
+                    'status' => 'rejected',
+                    'note' => 'Status updated to rejected' . ($oldStatus === 'approved' ? ' and project hours reversed' : '')
+                ];
+                continue;
+            }
+
+            // === CASE 2: Inhouse approved ===
+
+            // if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
+            if ((strtolower($originalData['activity_type']) == 'inhouse' || strtolower($originalData['activity_type']) == 'in-house') && $request->status === 'approved') {
+                // $originalData['activity_type'] = 'inhouse';
+                $performa->status = 'approved';
+                $performa->data = json_encode($originalData);
+                $performa->save();
 
                 $results[] = [
                     'performa_id' => $performa->id,
                     'status' => 'approved',
-                    'note' => 'Non Billable entry for fixed project - added to total working hours only'
+                    'note' => 'Inhouse activity approved as inhouse (no billable/non-billable change)'
                 ];
-            } else {
-                $remainingHours = (float) ($project->remaining_hours ?? 0);
-                $total = max(0, $remainingHours - $submittedHours);
+                continue;
+            }
 
-                if ($submittedHours <= $remainingHours) {
-                    $billableHours = $submittedHours;
-                    $extraHours = 0;
-                } else {
-                    $billableHours = $remainingHours;
-                    $extraHours = $submittedHours - $remainingHours;
-                }
+            // === Get project for approved cases ===
+            $project = Project::find($originalData['project_id']);
+            if (!$project) {
+                $results[] = [
+                    'performa_id' => $performa->id,
+                    'status' => 'skipped',
+                    'note' => 'Project not found'
+                ];
+                continue;
+            }
+            if (strtolower($project->project_type) === 'fixed') {
+                $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
+                $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
 
-                $formatTime = function ($hours) {
-                    return sprintf('%02d:%02d', floor($hours), round(($hours - floor($hours)) * 60));
-                };
-
-                if ($billableHours > 0) {
-                    $billableData = $originalData;
-                    $billableData['time'] = $formatTime($billableHours);
-                    // $billableData['activity_type'] = 'Billable';
-                    $billableData['message'] = 'Billable - within remaining hours';
-                    $performa->data = json_encode($billableData);
+                if (strtolower($originalData['activity_type']) === 'non billable') {
+                    $performa->data = json_encode($originalData);
                     $performa->status = 'approved';
                     $performa->save();
-                    $project->remaining_hours = $total;
+
+                    $project->total_working_hours += (float) $submittedHours;
+                    $project->save();
+
                     $results[] = [
                         'performa_id' => $performa->id,
                         'status' => 'approved',
-                        'note' => 'Billable portion updated based on remaining hours'
+                        'note' => 'Non Billable entry for fixed project - added to total working hours only'
                     ];
-                }
-                // if ($extraHours > 0) {
-                //     $nonBillableData = $originalData;
-                //     $nonBillableData['time'] = $formatTime($extraHours);
-                //     $nonBillableData['activity_type'] = 'Non Billable';
-                //     $nonBillableData['message'] = 'Non Billable - extra time beyond remaining hours';
-                //     $newPerforma = new PerformaSheet();
-                //     $newPerforma->user_id = $performa->user_id;
-                //     $newPerforma->status = 'approved';
-                //     $newPerforma->data = json_encode($nonBillableData);
-                //     $newPerforma->save();
-                //     $results[] = [
-                //         'performa_id' => $newPerforma->id,
-                //         'status' => 'approved',
-                //         'note' => 'New non-billable entry created for extra hours'
-                //     ];
-                // }
-                if ($extraHours > 0 && $remainingHours == 0) {
-                // Update existing performa sheet instead of creating new
-                $originalData['time'] = $formatTime($submittedHours);  // full submitted hours
-                // $originalData['activity_type'] = 'Billable';
-                $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
-                $performa->data = json_encode($originalData);
-                $performa->status = 'approved';
-                $performa->save();
+                } else {
+                    $remainingHours = (float) ($project->remaining_hours ?? 0);
+                    $total = max(0, $remainingHours - $submittedHours);
 
-                $results[] = [
-                    'performa_id' => $performa->id,
-                    'status' => 'approved',
-                    'note' => 'Existing performa updated to billable as remaining hours are finished'
-                ];
-            } elseif ($extraHours > 0) {
-                // Existing logic for when remainingHours > 0 and extraHours exist
-                $nonBillableData = $originalData;
-                $nonBillableData['time'] = $formatTime($extraHours);
-                // $nonBillableData['activity_type'] = 'Billable';
-                $nonBillableData['message'] = 'Billable - extra time beyond remaining hours';
-                $newPerforma = new PerformaSheet();
-                $newPerforma->user_id = $performa->user_id;
-                $newPerforma->status = 'approved';
-                $newPerforma->data = json_encode($nonBillableData);
-                $newPerforma->save();
-                $results[] = [
-                    'performa_id' => $newPerforma->id,
-                    'status' => 'approved',
-                    'note' => 'New billable entry created for extra hours'
-                ];
-            }
-
-                $project->total_working_hours += (float) $submittedHours;
-                $project->save();
-            }
-            continue;
-        }
-        $originalData['message'] = $originalData['activity_type'] === 'non billable'
-            ? 'Non Billable - approved'
-            : 'Billable - approved';
-        $performa->status = 'approved';
-        $performa->data = json_encode($originalData);
-        $performa->save();
-        $results[] = [
-            'performa_id' => $performa->id,
-            'status' => 'approved',
-            'note' => 'Performa updated with activity type'
-        ];
-    }
-    return response()->json([
-        'message' => 'Performa sheets processed successfully.',
-        'results' => $results
-    ]);
-}
-
-public function getAllPendingPerformaSheets(Request $request)
-{
-    $user = $request->user();
-    $role_id = $user->role_id;
-    $team_id = $user->team_id ?? [];
-
-    // Force all sheets to pending
-    $status = 'pending';
-
-    $baseQuery = PerformaSheet::with('user:id,name');
-
-    if ($role_id == 1 || $role_id == 4) {
-        $query = clone $baseQuery;
-
-    } else if ($role_id == 7) {
-        $query = clone $baseQuery;
-        $query->where('user_id', $user->id);
-
-    } else if ($role_id == 6) {
-        $teamMemberIds = User::where('role_id', 7)
-            ->where('id', '!=', $user->id)
-            ->where(function ($q) use ($team_id) {
-                foreach ($team_id as $t) {
-                    if ($t !== null) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    if ($submittedHours <= $remainingHours) {
+                        $billableHours = $submittedHours;
+                        $extraHours = 0;
+                    } else {
+                        $billableHours = $remainingHours;
+                        $extraHours = $submittedHours - $remainingHours;
                     }
-                }
-            })
-            ->pluck('id')
-            ->toArray();
 
-        $query = clone $baseQuery;
-        $query->whereIn('user_id', $teamMemberIds);
+                    $formatTime = function ($hours) {
+                        return sprintf('%02d:%02d', floor($hours), round(($hours - floor($hours)) * 60));
+                    };
 
-    } else if ($role_id == 5 && $team_id) {
-        $teamMemberIds = User::where('role_id', 7)
-            ->where('id', '!=', $user->id)
-            ->where(function ($q) use ($team_id) {
-                foreach ($team_id as $t) {
-                    if ($t !== null) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    if ($billableHours > 0) {
+                        $billableData = $originalData;
+                        $billableData['time'] = $formatTime($billableHours);
+                        // $billableData['activity_type'] = 'Billable';
+                        $billableData['message'] = 'Billable - within remaining hours';
+                        $performa->data = json_encode($billableData);
+                        $performa->status = 'approved';
+                        $performa->save();
+                        $project->remaining_hours = $total;
+                        $results[] = [
+                            'performa_id' => $performa->id,
+                            'status' => 'approved',
+                            'note' => 'Billable portion updated based on remaining hours'
+                        ];
                     }
+                    // if ($extraHours > 0) {
+                    //     $nonBillableData = $originalData;
+                    //     $nonBillableData['time'] = $formatTime($extraHours);
+                    //     $nonBillableData['activity_type'] = 'Non Billable';
+                    //     $nonBillableData['message'] = 'Non Billable - extra time beyond remaining hours';
+                    //     $newPerforma = new PerformaSheet();
+                    //     $newPerforma->user_id = $performa->user_id;
+                    //     $newPerforma->status = 'approved';
+                    //     $newPerforma->data = json_encode($nonBillableData);
+                    //     $newPerforma->save();
+                    //     $results[] = [
+                    //         'performa_id' => $newPerforma->id,
+                    //         'status' => 'approved',
+                    //         'note' => 'New non-billable entry created for extra hours'
+                    //     ];
+                    // }
+                    if ($extraHours > 0 && $remainingHours == 0) {
+                        // Update existing performa sheet instead of creating new
+                        $originalData['time'] = $formatTime($submittedHours);  // full submitted hours
+                        // $originalData['activity_type'] = 'Billable';
+                        $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
+                        $performa->data = json_encode($originalData);
+                        $performa->status = 'approved';
+                        $performa->save();
+
+                        $results[] = [
+                            'performa_id' => $performa->id,
+                            'status' => 'approved',
+                            'note' => 'Existing performa updated to billable as remaining hours are finished'
+                        ];
+                    } elseif ($extraHours > 0) {
+                        // Existing logic for when remainingHours > 0 and extraHours exist
+                        $nonBillableData = $originalData;
+                        $nonBillableData['time'] = $formatTime($extraHours);
+                        // $nonBillableData['activity_type'] = 'Billable';
+                        $nonBillableData['message'] = 'Billable - extra time beyond remaining hours';
+                        $newPerforma = new PerformaSheet();
+                        $newPerforma->user_id = $performa->user_id;
+                        $newPerforma->status = 'approved';
+                        $newPerforma->data = json_encode($nonBillableData);
+                        $newPerforma->save();
+                        $results[] = [
+                            'performa_id' => $newPerforma->id,
+                            'status' => 'approved',
+                            'note' => 'New billable entry created for extra hours'
+                        ];
+                    }
+
+                    $project->total_working_hours += (float) $submittedHours;
+                    $project->save();
                 }
-            })
-            ->pluck('id')
-            ->toArray();
-
-        $query = clone $baseQuery;
-        $query->whereIn('user_id', $teamMemberIds);
-
-    } else {
-        $query = clone $baseQuery;
-    }
-
-    $query->where('status', 'pending');
-    
-    $query->orderBy('id', 'DESC');
-
-    $sheets = $query->get();
-
-    $structuredData = [];
-
-    foreach ($sheets as $sheet) {
-        $dataArray = json_decode($sheet->data, true);
-
-        if (!is_array($dataArray)) {
-            continue;
-        }
-
-        $projectId = $dataArray['project_id'] ?? null;
-        $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
-
-        $projectName = $project->project_name ?? 'No Project Found';
-        $clientName  = $project->client->name ?? 'No Client Found';
-        $deadline    = $project->deadline ?? 'No Deadline Set';
-
-        // Remove unwanted keys
-        unset($dataArray['user_id'], $dataArray['user_name']);
-
-        // Inject meta values
-        $dataArray['project_name'] = $projectName;
-        $dataArray['client_name']  = $clientName;
-        $dataArray['deadline']     = $deadline;
-        $dataArray['status']       = $sheet->status;
-        $dataArray['id']           = $sheet->id;
-
-        $dataArray['created_at'] = $sheet->created_at
-            ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
-
-        $dataArray['updated_at'] = $sheet->updated_at
-            ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
-
-        // Group by user
-        if (!isset($structuredData[$sheet->user_id])) {
-            $structuredData[$sheet->user_id] = [
-                'user_id'   => $sheet->user_id,
-                'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
-                'sheets'    => []
+                continue;
+            }
+            $originalData['message'] = $originalData['activity_type'] === 'non billable'
+                ? 'Non Billable - approved'
+                : 'Billable - approved';
+            $performa->status = 'approved';
+            $performa->data = json_encode($originalData);
+            $performa->save();
+            $results[] = [
+                'performa_id' => $performa->id,
+                'status' => 'approved',
+                'note' => 'Performa updated with activity type'
             ];
         }
-
-        $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
+        return response()->json([
+            'message' => 'Performa sheets processed successfully.',
+            'results' => $results
+        ]);
     }
 
-    $structuredData = array_values($structuredData);
+    public function getAllPendingPerformaSheets(Request $request)
+    {
+        $user = $request->user();
+        $role_id = $user->role_id;
+        $team_id = $user->team_id ?? [];
 
-    return response()->json([
-        'success' => true,
-        'message' => 'All pending Performa Sheets fetched successfully',
-        'data' => $structuredData
-    ]);
-}
-    
-public function getUserWeeklyPerformaSheets(Request $request){
-    $user = auth()->user();
-    try{
-        $weeklyTotals = [];
+        // Force all sheets to pending
+        $status = 'pending';
 
-        $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+        $baseQuery = PerformaSheet::with('user:id,name');
 
-        $startOfWeek = $selectedDate->copy()->startOfWeek();
-        $endOfWeek = $selectedDate->copy()->endOfWeek();
-        $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+        if ($role_id == 1 || $role_id == 4) {
+            $query = clone $baseQuery;
 
-        $sheets = PerformaSheet::with('user:id,name')
-            ->where('user_id', $user->id)
-            ->get()
-            ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
-                $data = json_decode($sheet->data, true);
-                if (!$data || !isset($data['date'])) return false;
+        } else if ($role_id == 7) {
+            $query = clone $baseQuery;
+            $query->where('user_id', $user->id);
 
-                $date = $data['date'];
-                return $date >= $startOfWeek->toDateString() &&
-                    $date <= $endOfWeek->toDateString();
-            })
-            ->values();
+        } else if ($role_id == 6) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
 
-        // Initialize weekly totals
-        foreach ($period as $day) {
-            $carbonDay = Carbon::instance($day);
-            $weeklyTotals[$carbonDay->toDateString()] = [
-                'dayname' => $carbonDay->format('D'),
-                'totalHours' => '00:00',
-                'totalBillableHours' => '00:00',
-                'totalNonBillableHours' => '00:00'
-            ];
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else if ($role_id == 5 && $team_id) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else {
+            $query = clone $baseQuery;
         }
 
-        $timeToMinutes = function ($time) {
-            [$hours, $minutes] = explode(':', $time);
-            return intval($hours) * 60 + intval($minutes);
-        };
+        $query->where('status', 'pending');
 
-        $minutesToTime = function ($minutes) {
-            $h = floor($minutes / 60);
-            $m = $minutes % 60;
-            return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
-        };
+        $query->orderBy('id', 'DESC');
 
-        $totalsInMinutes = [];
-        $billableInMinutes = [];
-        $nonBillableInMinutes = [];
+        $sheets = $query->get();
+
+        $structuredData = [];
 
         foreach ($sheets as $sheet) {
-            $data = json_decode($sheet->data, true);
-            if (!$data || !isset($data['date'], $data['time'], $data['activity_type'])) continue;
+            $dataArray = json_decode($sheet->data, true);
 
-            $date = $data['date'];
-            $time = $data['time'];
-            $activityType = strtolower($data['activity_type']); // to handle case variations
-            $minutes = $timeToMinutes($time);
-
-            // Total
-            $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
-
-            // Billable / Non-Billable
-            if ($activityType === 'billable') {
-                $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
-            } else {
-                $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+            if (!is_array($dataArray)) {
+                continue;
             }
+
+            $projectId = $dataArray['project_id'] ?? null;
+            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+
+            $projectName = $project->project_name ?? 'No Project Found';
+            $clientName = $project->client->name ?? 'No Client Found';
+            $deadline = $project->deadline ?? 'No Deadline Set';
+
+            // Remove unwanted keys
+            unset($dataArray['user_id'], $dataArray['user_name']);
+
+            // Inject meta values
+            $dataArray['project_name'] = $projectName;
+            $dataArray['client_name'] = $clientName;
+            $dataArray['deadline'] = $deadline;
+            $dataArray['status'] = $sheet->status;
+            $dataArray['id'] = $sheet->id;
+
+            $dataArray['created_at'] = $sheet->created_at
+                ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
+
+            $dataArray['updated_at'] = $sheet->updated_at
+                ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
+
+            // Group by user
+            if (!isset($structuredData[$sheet->user_id])) {
+                $structuredData[$sheet->user_id] = [
+                    'user_id' => $sheet->user_id,
+                    'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+                    'sheets' => []
+                ];
+            }
+
+            $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
         }
 
-        // Assign to weekly totals
-        foreach ($weeklyTotals as $date => &$totals) {
-            $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
-            $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
-            $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
-        }
+        $structuredData = array_values($structuredData);
 
         return response()->json([
             'success' => true,
-            'message' => 'Weekly Performa Sheets fetched successfully',
-            'data' => $weeklyTotals
+            'message' => 'All pending Performa Sheets fetched successfully',
+            'data' => $structuredData
         ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Internal Server Error',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}
 
-public function getAllUsersWithUnfilledPerformaSheets(Request $request)
+    public function getUserWeeklyPerformaSheets(Request $request)
+    {
+        $user = auth()->user();
+        try {
+            $weeklyTotals = [];
+
+            $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+
+            $startOfWeek = $selectedDate->copy()->startOfWeek();
+            $endOfWeek = $selectedDate->copy()->endOfWeek();
+            $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+
+            $sheets = PerformaSheet::with('user:id,name')
+                ->where('user_id', $user->id)
+                ->get()
+                ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+                    $data = json_decode($sheet->data, true);
+                    if (!$data || !isset($data['date']))
+                        return false;
+
+                    $date = $data['date'];
+                    return $date >= $startOfWeek->toDateString() &&
+                        $date <= $endOfWeek->toDateString();
+                })
+                ->values();
+
+            // Initialize weekly totals
+            foreach ($period as $day) {
+                $carbonDay = Carbon::instance($day);
+                $weeklyTotals[$carbonDay->toDateString()] = [
+                    'dayname' => $carbonDay->format('D'),
+                    'totalHours' => '00:00',
+                    'totalBillableHours' => '00:00',
+                    'totalNonBillableHours' => '00:00'
+                ];
+            }
+
+            $timeToMinutes = function ($time) {
+                [$hours, $minutes] = explode(':', $time);
+                return intval($hours) * 60 + intval($minutes);
+            };
+
+            $minutesToTime = function ($minutes) {
+                $h = floor($minutes / 60);
+                $m = $minutes % 60;
+                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+            };
+
+            $totalsInMinutes = [];
+            $billableInMinutes = [];
+            $nonBillableInMinutes = [];
+
+            foreach ($sheets as $sheet) {
+                $data = json_decode($sheet->data, true);
+                if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+                    continue;
+
+                $date = $data['date'];
+                $time = $data['time'];
+                $activityType = strtolower($data['activity_type']); // to handle case variations
+                $minutes = $timeToMinutes($time);
+
+                // Total
+                $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+
+                // Billable / Non-Billable
+                if ($activityType === 'billable') {
+                    $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+                } else {
+                    $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+                }
+            }
+
+            // Assign to weekly totals
+            foreach ($weeklyTotals as $date => &$totals) {
+                $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+                $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+                $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Weekly Performa Sheets fetched successfully',
+                'data' => $weeklyTotals
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getAllUsersWithUnfilledPerformaSheets(Request $request)
     {
         try {
             $authUser = auth()->user();
@@ -1236,8 +1240,8 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
             foreach ($users as $user) {
                 $teamName = null;
 
-                    if (is_array($user->team_id) && count($user->team_id) > 0) {
-                    $teamId = $user->team_id[0]; 
+                if (is_array($user->team_id) && count($user->team_id) > 0) {
+                    $teamId = $user->team_id[0];
                     $team = \App\Models\Team::find($teamId);
                     $teamName = $team ? $team->name : null;
                 }
@@ -1303,72 +1307,75 @@ public function getAllUsersWithUnfilledPerformaSheets(Request $request)
         }
     }
 
-public function getMissingUserPerformaSheets(Request $request)
-{
-    try {
-        $user = User::find($request->user_id);
+    public function getMissingUserPerformaSheets(Request $request)
+    {
+        try {
+            $user = User::find($request->user_id);
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found'
-            ], 404);
-        }
-
-        if (!$user->created_at) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User joining date not set'
-            ], 400);
-        }
-
-        $startDate = Carbon::parse($user->created_at)->startOfDay();
-        $endDate = Carbon::now()->startOfDay();
-
-        $allDates = collect();
-        $current = $startDate->copy();
-
-        while ($current->lte($endDate)) {
-            if ($current->isWeekday()) {
-                $allDates->push($current->toDateString());
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found'
+                ], 404);
             }
-            $current->addDay();
+
+            if (!$user->created_at) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User joining date not set'
+                ], 400);
+            }
+            if ($request->start_date && $request->end_date) {
+                $startDate = Carbon::parse($request->start_date);
+                $endDate = Carbon::parse($request->end_date);
+            } else {
+                $startDate = Carbon::parse($user->created_at)->startOfDay();
+                $endDate = Carbon::now()->startOfDay();
+            }
+            $allDates = collect();
+            $current = $startDate->copy();
+
+            while ($current->lte($endDate)) {
+                if ($current->isWeekday()) {
+                    $allDates->push($current->toDateString());
+                }
+                $current->addDay();
+            }
+
+            $submittedDates = PerformaSheet::where('user_id', $user->id)
+                ->get()
+                ->map(function ($sheet) {
+                    $data = json_decode($sheet->data, true);
+                    return isset($data['date']) ? $data['date'] : null;
+                })
+                ->filter()
+                ->unique()
+                ->values();
+
+            $missingDates = $allDates->diff($submittedDates)->values();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Missing timesheet dates fetched successfully',
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'created_date' => $user->created_at,
+                ],
+                'total_missing_days' => $missingDates->count(),
+                'data' => $missingDates
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $submittedDates = PerformaSheet::where('user_id', $user->id)
-            ->get()
-            ->map(function ($sheet) {
-                $data = json_decode($sheet->data, true);
-                return isset($data['date']) ? $data['date'] : null;
-            })
-            ->filter()
-            ->unique()
-            ->values();
-
-        $missingDates = $allDates->diff($submittedDates)->values();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Missing timesheet dates fetched successfully',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'created_date' => $user->created_at,
-            ],
-            'total_missing_days' => $missingDates->count(),
-            'data' => $missingDates
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Internal Server Error',
-            'error' => $e->getMessage()
-        ], 500);
     }
-}   
 
- public function TeamWiseDailyWorkingHours(Request $request)
+    public function TeamWiseDailyWorkingHours(Request $request)
     {
         try {
             $selectedDate = $request->date ? Carbon::parse($request->date) : Carbon::today();
@@ -1411,7 +1418,7 @@ public function getMissingUserPerformaSheets(Request $request)
                 $teamUserCount = $users->count();
                 $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
 
-                
+
                 $leaveTeamMinutes = 0;
                 $totalTeamLeaves = 0;
 
@@ -1473,5 +1480,5 @@ public function getMissingUserPerformaSheets(Request $request)
             ], 500);
         }
     }
-    
+
 }

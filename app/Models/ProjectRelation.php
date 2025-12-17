@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\CommunicationType;
 
 class ProjectRelation extends Model
 {
@@ -14,8 +15,11 @@ class ProjectRelation extends Model
         'communication_id',
         'source_id',
         'account_id',
+        'sales_person_id',
     ];
-
+    protected $casts = [
+        'communication_id' => 'array',
+    ];
     public function client()
     {
         return $this->belongsTo(\App\Models\ClientMaster::class, 'client_id');
@@ -26,11 +30,17 @@ class ProjectRelation extends Model
         return $this->belongsTo(\App\Models\ProjectMaster::class, 'project_id');
     }
 
-    public function communication()
+    // public function communication()
+    // {
+    //     return $this->belongsTo(\App\Models\CommunicationType::class, 'communication_id');
+    // }
+    public function communications()
     {
-        return $this->belongsTo(\App\Models\CommunicationType::class, 'communication_id');
+        return CommunicationType::whereIn(
+            'id',
+            $this->communication_id ?? []
+        )->get();
     }
-
     public function source()
     {
         return $this->belongsTo(\App\Models\ProjectSource::class, 'source_id');
