@@ -40,6 +40,7 @@ class PerformaSheetController extends Controller
                 ],
                 'data.*.date' => 'required|date_format:Y-m-d',
                 'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
+                'data.*.task_id'=>'nullable|integer',
                 'data.*.work_type' => 'required|string|max:255',
                 'data.*.activity_type' => 'required|string|max:255',
                 'data.*.narration' => 'nullable|string',
@@ -112,6 +113,7 @@ class PerformaSheetController extends Controller
             $sheetsWithDetails[] = [
                 'submitting_user' => $submitting_user->name,
                 'project_name' => $projectName,
+                'task_id' => $record['task_id'],
                 'date' => $record['date'],
                 'time' => $record['time'],
                 'work_type' => $record['work_type'],
@@ -1408,7 +1410,11 @@ class PerformaSheetController extends Controller
 
 
             $finalData = [];
-
+            $toTime = function ($minutes) {
+                $h = floor($minutes / 60);
+                $m = $minutes % 60;
+                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+            };
             foreach ($teams as $team) {
 
                 $users = User::whereJsonContains('team_id', $team->id)
@@ -1489,11 +1495,6 @@ class PerformaSheetController extends Controller
                     ];
                 }
                 $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
-                $toTime = function ($minutes) {
-                    $h = floor($minutes / 60);
-                    $m = $minutes % 60;
-                    return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
-                };
 
                 $finalData[] = [
                     "teamName" => $team->team_name ?? $team->name,
