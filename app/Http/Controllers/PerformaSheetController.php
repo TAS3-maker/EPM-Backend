@@ -1421,8 +1421,15 @@ class PerformaSheetController extends Controller
 
                 $leaveTeamMinutes = 0;
                 $totalTeamLeaves = 0;
+                $teamMembers = [];
+                $baseMinutes = $dailyExpectedMinutes; 
 
                 foreach ($users as $user) {
+                    $availability = "Available";
+                    $leaveType = null;
+                    $leaveMinutes = 0;
+                    $expectedMinutes = $baseMinutes;
+                    $actualMinutes = $baseMinutes;
 
                     $userLeaves = LeavePolicy::where('user_id', $user->id)
                         ->whereIn('leave_type', [
@@ -1441,10 +1448,45 @@ class PerformaSheetController extends Controller
                         $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
 
                         if ($selectedDate->between($leaveStart, $leaveEnd)) {
+                            $leaveType = $leave->leave_type;
+                            $availability = "On Leave";
+                            $leaveMinutes = $leaveMinutesMap[$leaveType];
+
+                            switch ($leaveType) {
+
+                                case 'Full Leave':
+                                case 'Multiple Days Leave':
+                                    $availability = "On Leave";
+                                    $expectedMinutes = 0;
+                                    $actualMinutes = 0;
+                                    break;
+
+                                case 'Half Day':
+                                    $availability = "On Leave";
+                                    $expectedMinutes = intval($baseMinutes / 2);
+                                    $actualMinutes = intval($baseMinutes / 2);
+                                    break;
+
+                                case 'Short Leave':
+                                    $availability = "On Leave";
+                                    $expectedMinutes = $baseMinutes;
+                                    $actualMinutes = $baseMinutes - $leaveMinutes;
+                                    break;
+                            }
+
                             $totalTeamLeaves += 1;
                             $leaveTeamMinutes += $leaveMinutesMap[$type];
                         }
                     }
+                    $teamMembers[] = [
+                        "user_id" => $user->id,
+                        "name" => $user->name,
+                        "leave_type" => $leaveType,
+                        "availability" => $availability,
+                        "leave_hours" => $toTime($leaveMinutes),
+                        "expected_hours" => $toTime($expectedMinutes),
+                        "actual_hours" => $toTime($actualMinutes)
+                    ];
                 }
                 $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
                 $toTime = function ($minutes) {
@@ -1460,7 +1502,8 @@ class PerformaSheetController extends Controller
                     "totalHours" => $toTime($totalTeamHoursMinutes),
                     "totalTeamLeaves" => $totalTeamLeaves,
                     "leaveHours" => $toTime($leaveTeamMinutes),
-                    "selectedDate" => $selectedDate->format("Y-m-d")
+                    "selectedDate" => $selectedDate->format("Y-m-d"),
+                    "teamMembers" => $teamMembers
                 ];
             }
 
@@ -1480,5 +1523,108 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
+    public function getUserDaterangePerformaSheets(Request $request)
+    {
+        $user = auth()->user();
+        try {
+            $weeklyTotals = [];
 
+            $startDate = $request->start_date
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : Carbon::today()->startOfMonth();
+
+            $endDate = $request->end_date
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : Carbon::today()->endOfMonth();
+
+            if ($startDate->gt($endDate)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Start date cannot be greater than end date'
+                ], 400);
+            }
+
+            $period = new \DatePeriod($startDate, \DateInterval::createFromDateString('1 day'), $endDate->copy()->addDay(false));
+
+            $sheets = PerformaSheet::with('user:id,name')
+                ->where('user_id', $user->id)
+                ->get()
+                ->filter(function ($sheet) use ($startDate, $endDate) {
+                    $data = json_decode($sheet->data, true);
+                    if (!$data || !isset($data['date']))
+                        return false;
+
+                    $date = $data['date'];
+                    return $date >= $startDate->toDateString() &&
+                        $date <= $endDate->toDateString();
+                })
+                ->values();
+
+            // Initialize weekly totals
+            foreach ($period as $day) {
+                $carbonDay = Carbon::instance($day);
+                $weeklyTotals[$carbonDay->toDateString()] = [
+                    'dayname' => $carbonDay->format('D'),
+                    'totalHours' => '00:00',
+                    'totalBillableHours' => '00:00',
+                    'totalNonBillableHours' => '00:00'
+                ];
+            }
+
+            $timeToMinutes = function ($time) {
+                [$hours, $minutes] = explode(':', $time);
+                return intval($hours) * 60 + intval($minutes);
+            };
+
+            $minutesToTime = function ($minutes) {
+                $h = floor($minutes / 60);
+                $m = $minutes % 60;
+                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+            };
+
+            $totalsInMinutes = [];
+            $billableInMinutes = [];
+            $nonBillableInMinutes = [];
+
+            foreach ($sheets as $sheet) {
+                $data = json_decode($sheet->data, true);
+                if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+                    continue;
+
+                $date = $data['date'];
+                $time = $data['time'];
+                $activityType = strtolower($data['activity_type']); // to handle case variations
+                $minutes = $timeToMinutes($time);
+
+                // Total
+                $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+
+                // Billable / Non-Billable
+                if ($activityType === 'billable') {
+                    $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+                } else {
+                    $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+                }
+            }
+
+            // Assign to weekly totals
+            foreach ($weeklyTotals as $date => &$totals) {
+                $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+                $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+                $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Monthly Performa Sheets fetched successfully',
+                'data' => $weeklyTotals
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 }
