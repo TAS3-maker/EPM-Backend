@@ -27,6 +27,7 @@ use App\Http\Controllers\ProjectMasterController;
 use App\Http\Controllers\ProjectRelationController;
 use App\Http\Controllers\ProjectSourceController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\ProjectActivityAndCommentController;
 
 
 
@@ -190,5 +191,6 @@ Route::middleware('auth:api')->group(function () {
 
         //notes
         Route::apiResource('notes', NoteController::class);
+        Route::apiResource('project-activity-comment', ProjectActivityAndCommentController::class);
     });
 });
