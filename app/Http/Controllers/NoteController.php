@@ -5,50 +5,99 @@ namespace App\Http\Controllers;
 use App\Models\Note;
 use Illuminate\Http\Request;
 use App\Http\Resources\NoteResource;
+use Illuminate\Support\Facades\Validator;
+
 
 class NoteController extends Controller
 {
-    // GET /notes
     public function index()
     {
         $notes = Note::all();
         return NoteResource::collection($notes);
     }
 
-    // POST /notes
     public function store(Request $request)
     {
-        $data = $request->validate([
-            'notes' => 'required|string',
-        ]);
+        if (!$request->filled('notes')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Notes field is required',
+            ], 200); 
+        }
+
+        $data = [
+            'notes' => str_replace('"', "'", $request->notes),
+        ];
 
         $note = Note::create($data);
 
         return new NoteResource($note);
     }
 
-    // GET /notes/{id}
-    public function show(Note $note)
+
+    public function show($id)
     {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Note not found',
+            ], 200); 
+        }
+
         return new NoteResource($note);
     }
 
-    // PUT/PATCH /notes/{id}
-    public function update(Request $request, Note $note)
+
+    public function update(Request $request, $id)
     {
-        $data = $request->validate([
-            'notes' => 'required|string',
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Note not found',
+            ], 200);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'notes' => 'required',
         ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'errors' => $validator->errors(),
+            ], 200);
+        }
+
+        $data = $validator->validated();
+        $data['notes'] = str_replace('"', "'", $data['notes']);
 
         $note->update($data);
 
         return new NoteResource($note);
     }
 
-    // DELETE /notes/{id}
-    public function destroy(Note $note)
+
+    public function destroy($id)
     {
+        $note = Note::find($id);
+
+        if (!$note) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Note not found',
+            ], 200);
+        }
+
         $note->delete();
-        return response()->json(['message' => 'Note deleted successfully']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Note deleted successfully',
+        ], 200);
     }
+
 }
