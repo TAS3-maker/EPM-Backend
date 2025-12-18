@@ -87,101 +87,114 @@ class RoleController extends Controller
 
 
     public function update(Request $request, $id)
-{
-    $role = Role::find($id);
-    if (!$role) {
-        return ApiResponse::error('Role not found', [], 404);
-    }
-    try {
-        $validatedData = $request->validate([
-            'name' => 'required|string|max:255|unique:roles,name,' . $id,
-            'roles_permissions' => 'nullable',
-        ]);
-    } catch (\Illuminate\Validation\ValidationException $e) {
-        return ApiResponse::error('Validation Error', $e->errors(), 422);
-    }
-    DB::beginTransaction();
-    try {
-        // ================= UPDATE ROLE =================
-        $role->update([
-            'name' => $request->name,
-            'roles_permissions' => $request->roles_permissions,
-        ]);
-        if (!$request->roles_permissions) {
+    {
+        $role = Role::find($id);
+        if (!$role) {
+            return ApiResponse::error('Role not found', [], 404);
+        }
+        try {
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255|unique:roles,name,' . $id,
+                'roles_permissions' => 'nullable',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return ApiResponse::error('Validation Error', $e->errors(), 422);
+        }
+        DB::beginTransaction();
+        try {
+            // ================= UPDATE ROLE =================
+            // $role->update([
+            //     'name' => $request->name,
+            //     'roles_permissions' => $request->roles_permissions,
+            // ]);
+            $role_data = [
+                'name' => $validatedData['name'],
+            ];
+
+            if (
+                array_key_exists('roles_permissions', $validatedData)
+                && $validatedData['roles_permissions'] !== null
+            ) {
+                $role_data['roles_permissions'] = $validatedData['roles_permissions'];
+            }
+
+            $role->update($role_data);
+
+            if (!$request->roles_permissions) {
+                DB::commit();
+                return ApiResponse::success('Role updated successfully', $role);
+            }
+            $newPermissions = $request->roles_permissions;
+            // ================= USERS WITH THIS ROLE =================
+            $users = User::where('role_id', $role->id)->get();
+            // ================= PERMISSION COLUMNS =================
+            $permissionColumns = [
+                'dashboard',
+                'permission',
+                'permissions',
+                'employee_management',
+                'roles',
+                'department',
+                'team',
+                'clients',
+                'projects',
+                'assigned_projects_inside_projects_assigned',
+                'unassigned_projects_inside_projects_assigned',
+                'performance_sheets',
+                'pending_sheets_inside_performance_sheets',
+                'manage_sheets_inside_performance_sheets',
+                'unfilled_sheets_inside_performance_sheets',
+                'manage_leaves',
+                'activity_tags',
+                'leaves',
+                'teams',
+                'leave_management',
+                'project_management',
+                'assigned_projects_inside_project_management',
+                'unassigned_projects_inside_project_management',
+                'performance_sheet',
+                'performance_history',
+                'projects_assigned',
+            ];
+            // ================= UPDATE PERMISSIONS =================
+            foreach ($users as $user) {
+                $permission = Permission::where('user_id', $user->id)->first();
+                if (!$permission) {
+                    continue;
+                }
+                $updateData = [];
+                foreach ($permissionColumns as $column) {
+                    $existing = (int) $permission->$column;
+                    $new = (int) ($newPermissions[$column] ?? 0);
+                    // RULE 1: Existing 2 always stays 2
+                    if ($existing === 2) {
+                        $final = 2;
+                    }
+                    // RULE 2 & 3: Existing 1
+                    elseif ($existing === 1) {
+                        $final = ($new === 0) ? 1 : $new;
+                    }
+                    // RULE 4: Existing 0
+                    else {
+                        $final = $new;
+                    }
+                    // ENUM-safe value
+                    $updateData[$column] = (string) $final;
+                }
+                $permission->update($updateData);
+            }
             DB::commit();
             return ApiResponse::success('Role updated successfully', $role);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Role update error: ' . $e->getMessage());
+            return ApiResponse::error(
+                'An unexpected error occurred.',
+                ['general' => $e->getMessage()],
+                500
+            );
         }
-        $newPermissions = $request->roles_permissions;
-        // ================= USERS WITH THIS ROLE =================
-        $users = User::where('role_id', $role->id)->get();
-        // ================= PERMISSION COLUMNS =================
-        $permissionColumns = [
-            'dashboard',
-            'permission',
-            'permissions',
-            'employee_management',
-            'roles',
-            'department',
-            'team',
-            'clients',
-            'projects',
-            'assigned_projects_inside_projects_assigned',
-            'unassigned_projects_inside_projects_assigned',
-            'performance_sheets',
-            'pending_sheets_inside_performance_sheets',
-            'manage_sheets_inside_performance_sheets',
-            'unfilled_sheets_inside_performance_sheets',
-            'manage_leaves',
-            'activity_tags',
-            'leaves',
-            'teams',
-            'leave_management',
-            'project_management',
-            'assigned_projects_inside_project_management',
-            'unassigned_projects_inside_project_management',
-            'performance_sheet',
-            'performance_history',
-            'projects_assigned',
-        ];
-        // ================= UPDATE PERMISSIONS =================
-        foreach ($users as $user) {
-            $permission = Permission::where('user_id', $user->id)->first();
-            if (!$permission) {
-                continue;
-            }
-            $updateData = [];
-            foreach ($permissionColumns as $column) {
-                $existing = (int) $permission->$column;
-                $new = (int) ($newPermissions[$column] ?? 0);
-                // RULE 1: Existing 2 always stays 2
-                if ($existing === 2) {
-                    $final = 2;
-                }
-                // RULE 2 & 3: Existing 1
-                elseif ($existing === 1) {
-                    $final = ($new === 0) ? 1 : $new;
-                }
-                // RULE 4: Existing 0
-                else {
-                    $final = $new;
-                }
-                // ENUM-safe value
-                $updateData[$column] = (string) $final;
-            }
-            $permission->update($updateData);
-        }
-        DB::commit();
-        return ApiResponse::success('Role updated successfully', $role);
-    } catch (\Exception $e) {
-        DB::rollBack();
-        \Log::error('Role update error: ' . $e->getMessage());
-        return ApiResponse::error(
-            'An unexpected error occurred.',
-            ['general' => $e->getMessage()],
-            500
-        );
     }
-}
 
     public function destroy($id)
     {
