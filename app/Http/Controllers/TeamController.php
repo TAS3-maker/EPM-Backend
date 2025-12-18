@@ -60,7 +60,7 @@ class TeamController extends Controller
         try {
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:teams',
-                'department_id' => 'required|exists:departments,id',
+                'department_id' => 'nullable|exists:departments,id',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -85,7 +85,7 @@ class TeamController extends Controller
         try {
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:teams,name,' . $id,
-                'department_id' => 'required|exists:departments,id',
+                'department_id' => 'nullable|exists:departments,id',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
