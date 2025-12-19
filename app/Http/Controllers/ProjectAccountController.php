@@ -11,25 +11,9 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectAccountController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $sourceId = $request->source_id;
-
-        $accounts = ProjectAccount::where('source_id', $sourceId)->get();
-
-        if ($accounts->isEmpty()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Account not found',
-                'data' => []
-            ], 200); 
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Account fetched successfully',
-            'data' => $accounts
-        ], 200);
+        return ProjectAccountResource::collection(ProjectAccount::all());
     }
 
 
@@ -136,6 +120,26 @@ class ProjectAccountController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Project account deleted successfully'
+        ], 200);
+    }
+    public function GetAccountBySourceId(Request $request)
+    {
+        $sourceId = $request->source_id;
+
+        $accounts = ProjectAccount::where('source_id', $sourceId)->get();
+
+        if ($accounts->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found',
+                'data' => []
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Account fetched successfully',
+            'data' => $accounts
         ], 200);
     }
 

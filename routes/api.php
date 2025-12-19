@@ -112,8 +112,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-weekly-performa-sheet', [PerformaSheetController::class, 'getUserWeeklyPerformaSheets']);
         Route::get('/get-allusers-unfilled-performa-sheet', [PerformaSheetController::class, 'getAllUsersWithUnfilledPerformaSheets']);
         Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 'getMissingUserPerformaSheets']);
-        
-        
+
+
         Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
         Route::get('/get-all-pending-performa-sheets', [PerformaSheetController::class, 'getAllPendingPerformaSheets']);
         Route::get('/get-performa-sheet-daterange', [PerformaSheetController::class, 'getUserDaterangePerformaSheets']);
@@ -195,6 +195,7 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('notes', NoteController::class);
         Route::apiResource('project-activity-comment', ProjectActivityAndCommentController::class);
         Route::get('/get-all-comments', [ProjectActivityAndCommentController::class, 'GetAllComments']);
+        Route::get('/get-account-by-source-id', [ProjectAccountController::class, 'GetAccountBySourceId']);
 
     });
 });
