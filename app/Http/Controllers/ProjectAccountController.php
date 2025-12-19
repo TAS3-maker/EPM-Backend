@@ -11,9 +11,23 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectAccountController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return ProjectAccountResource::collection(ProjectAccount::all());
+          $account = ProjectAccount::find($request->source_id);
+
+        if (!$account) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Account not found',
+                'data' => null
+            ], 200); // keep 200 if frontend expects it
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Account fetched successfully',
+            'data' => new ProjectAccountResource($account)
+        ], 200);
     }
 
 

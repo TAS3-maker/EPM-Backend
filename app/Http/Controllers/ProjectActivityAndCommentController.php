@@ -8,6 +8,8 @@ use App\Models\ProjectActivityAndComment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
+use App\Models\PerformaSheet;
+
 
 class ProjectActivityAndCommentController extends Controller
 {
@@ -29,6 +31,7 @@ class ProjectActivityAndCommentController extends Controller
                 'message' => 'Record not found',
             ], 200);
         }
+
 
         return response()->json([
             'success' => true,
@@ -268,4 +271,59 @@ class ProjectActivityAndCommentController extends Controller
             'message' => 'Record deleted successfully',
         ], 200);
     }
+
+    public function GetAllComments(Request $request)
+    {
+        // $projectId = $request->project_id;
+        $taskId = $request->task_id;
+
+        $timeline = collect();
+
+        $performaSheets = PerformaSheet::whereIn('status', ['approved', 'pending'])->get();
+
+        $narrations = $performaSheets->map(function ($sheet) use ($taskId) {
+
+            $data = json_decode($sheet->data, true);
+
+            if (!$data || !isset($data['task_id']) || $data['task_id'] != $taskId) {
+                return null;
+            }
+
+            return [
+                'message' => $data['narration'] ?? null,
+                'created_at' => $sheet->created_at
+            ];
+        })->filter();
+
+        $comments = ProjectActivityAndComment::where('task_id', $taskId)
+            ->latest()->where('task_id', $taskId)->where('type', 'comment')
+            ->get()
+            ->map(function ($comment) {
+                return [
+                    'description' => $comment->description ?? null,
+                    'created_at' => $comment->created_at,
+                ];
+            });
+
+        $timeline = $timeline
+            ->merge($comments)
+            ->merge($narrations)
+            ->sortByDesc('created_at')
+            ->values();
+
+        if ($timeline->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No comments or narrations found',
+                'data' => [],
+            ], 200);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Timeline fetched successfully',
+            'data' => $timeline
+        ], 200);
+    }
+
 }

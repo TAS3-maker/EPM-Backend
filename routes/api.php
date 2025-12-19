@@ -194,5 +194,7 @@ Route::middleware('auth:api')->group(function () {
         //notes
         Route::apiResource('notes', NoteController::class);
         Route::apiResource('project-activity-comment', ProjectActivityAndCommentController::class);
+        Route::get('/get-all-comments', [ProjectActivityAndCommentController::class, 'GetAllComments']);
+
     });
 });
