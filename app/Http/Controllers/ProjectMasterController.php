@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use App\Models\ProjectActivityAndComment;
 
 
 class ProjectMasterController extends Controller
@@ -21,12 +22,16 @@ class ProjectMasterController extends Controller
 
         $data = $projects->map(function ($project) {
             $relation = ProjectRelation::where('project_id', $project->id)->first();
+            $attachments = ProjectActivityAndComment::where('project_id', $project->id)
+                ->where('type', 'attachment')
+                ->pluck('attachments');
 
             return [
                 'project' => new ProjectMasterResource($project),
                 'relation' => $relation
                     ? new ProjectRelationResource($relation)
                     : null,
+                'attachment' => $attachments,
             ];
         });
 
@@ -330,6 +335,51 @@ class ProjectMasterController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+    public function updatePartial(Request $request, string $id)
+    {
+        $project = ProjectMaster::findOrFail($id);
+
+        // Validate ONLY fields that may come
+        $validator = Validator::make($request->all(), [
+            'project_name' => 'sometimes|string|max:255',
+            'project_tracking' => 'sometimes|integer',
+            'project_status' => 'sometimes|nullable|string',
+            'project_description' => 'sometimes|nullable|string',
+            'project_budget' => 'sometimes|nullable|string',
+            'project_hours' => 'sometimes|nullable|string',
+            'project_tag_activity' => 'sometimes|integer|exists:tag_activity,id',
+            'project_used_hours' => 'sometimes|nullable|string',
+            'project_used_budget' => 'sometimes|nullable|string',
+        ], [
+            'project_tag_activity.exists' => 'Tag activity does not exist',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => $validator->errors()->first()
+            ], 200);
+        }
+
+        // Update ONLY provided fields
+        $project->update($request->only([
+            'project_name',
+            'project_tracking',
+            'project_status',
+            'project_description',
+            'project_budget',
+            'project_hours',
+            'project_tag_activity',
+            'project_used_hours',
+            'project_used_budget',
+        ]));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project updated successfully',
+            'data' => new ProjectMasterResource($project->fresh()),
+        ], 200);
     }
 
 

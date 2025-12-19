@@ -13,6 +13,7 @@ class ProjectActivityAndCommentResource extends JsonResource
             'id' => $this->id,
             'project_id' => $this->project_id,
             'user_id' => $this->user_id,
+            'task_id' => $this->task_id,
             'type' => $this->type,
             'description' => $this->description,
             'attachments' => $this->attachments,

@@ -179,6 +179,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/delete-all-permissions/{id}', [PermissionController::class, 'destroy']);
         // Route::apiResource('clients-master', ClientMasterController::class);
         Route::apiResource('projects-master', ProjectMasterController::class);
+        Route::put('/update-projects-master/{id}', [ProjectMasterController::class, 'updatePartial']);
         Route::apiResource('communication-type', CommunicationTypeController::class);
         Route::apiResource('project-accounts', ProjectAccountController::class);
         Route::apiResource('project-sources', ProjectSourceController::class);

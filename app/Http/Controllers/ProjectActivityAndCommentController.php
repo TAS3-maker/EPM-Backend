@@ -41,6 +41,7 @@ class ProjectActivityAndCommentController extends Controller
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
             'user_id' => 'required|integer',
+            'task_id' => 'nullable|integer',
             'type' => 'required|string',
             'description' => 'nullable|string',
             'attachments' => 'nullable',
@@ -93,6 +94,7 @@ class ProjectActivityAndCommentController extends Controller
             $activity = ProjectActivityAndComment::create([
                 'project_id' => $request->project_id,
                 'user_id' => $request->user_id,
+                'task_id' => $request->task_id,
                 'type' => $request->type,
                 'description' => $request->description,
                 'attachments' => $attachmentValue,
@@ -162,9 +164,10 @@ class ProjectActivityAndCommentController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'project_id' => 'nullable|integer',
-            'user_id' => 'nullable|integer',
-            'type' => 'nullable|string',
+            'project_id' => 'required|integer',
+            'user_id' => 'required|integer',
+            'task_id' => 'nullable|integer',
+            'type' => 'required|string',
             'description' => 'nullable|string',
             'attachments' => 'nullable',
         ]);
@@ -218,6 +221,7 @@ class ProjectActivityAndCommentController extends Controller
 
             $activity->project_id = $request->project_id ?? $activity->project_id;
             $activity->user_id = $request->user_id ?? $activity->user_id;
+            $activity->task_id = $request->task_id ?? $activity->task_id;
             $activity->type = $request->type ?? $activity->type;
             $activity->description = $request->description ?? $activity->description;
 
