@@ -13,20 +13,22 @@ class ProjectAccountController extends Controller
 {
     public function index(Request $request)
     {
-          $account = ProjectAccount::find($request->source_id);
+        $sourceId = $request->source_id;
 
-        if (!$account) {
+        $accounts = ProjectAccount::where('source_id', $sourceId)->get();
+
+        if ($accounts->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Account not found',
-                'data' => null
-            ], 200); // keep 200 if frontend expects it
+                'data' => []
+            ], 200); 
         }
 
         return response()->json([
             'success' => true,
             'message' => 'Account fetched successfully',
-            'data' => new ProjectAccountResource($account)
+            'data' => $accounts
         ], 200);
     }
 
