@@ -1529,6 +1529,13 @@ class PerformaSheetController extends Controller
         $user = auth()->user();
         try {
             $weeklyTotals = [];
+            $dailyExpectedMinutes = 510;
+            $leaveMinutesMap = [
+                'Full Leave' => $dailyExpectedMinutes,
+                'Multiple Days Leave' => $dailyExpectedMinutes,
+                'Half Day' => intval($dailyExpectedMinutes / 2),
+                'Short Leave' => 120,
+            ];
 
             $startDate = $request->start_date
             ? Carbon::parse($request->start_date)->startOfDay()
@@ -1546,6 +1553,11 @@ class PerformaSheetController extends Controller
             }
 
             $period = new \DatePeriod($startDate, \DateInterval::createFromDateString('1 day'), $endDate->copy()->addDay(false));
+
+            $leaves = LeavePolicy::where('user_id', $user->id)
+            ->whereIn('leave_type', array_keys($leaveMinutesMap))
+            ->whereIn('status', ['Approved', 'Pending'])
+            ->get();
 
             $sheets = PerformaSheet::with('user:id,name')
                 ->where('user_id', $user->id)
@@ -1566,9 +1578,13 @@ class PerformaSheetController extends Controller
                 $carbonDay = Carbon::instance($day);
                 $weeklyTotals[$carbonDay->toDateString()] = [
                     'dayname' => $carbonDay->format('D'),
+                    'availability' => 'Working',
+                    'leave_type' => null,
+                    'leave_hours' => '00:00',
+                    'working_hours' => '00:00',
                     'totalHours' => '00:00',
                     'totalBillableHours' => '00:00',
-                    'totalNonBillableHours' => '00:00'
+                    'totalNonBillableHours' => '00:00',
                 ];
             }
 
@@ -1609,11 +1625,66 @@ class PerformaSheetController extends Controller
             }
 
             // Assign to weekly totals
-            foreach ($weeklyTotals as $date => &$totals) {
-                $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
-                $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
-                $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+            // foreach ($weeklyTotals as $date => &$totals) {
+            //     $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+            //     $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+            //     $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+            // }
+
+            foreach ($weeklyTotals as $date => &$dayData) {
+
+                $currentDate = Carbon::parse($date);
+
+                // Weekend
+                if ($currentDate->isWeekend()) {
+                    $dayData['availability'] = 'Weekend';
+                    continue;
+                }
+
+                foreach ($leaves as $leave) {
+
+                    $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
+                    $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+
+                    if ($currentDate->between($leaveStart, $leaveEnd)) {
+
+                        $leaveType = $leave->leave_type;
+                        $leaveMinutes = $leaveMinutesMap[$leaveType] ?? 0;
+
+                        $workedMinutes = $totalsInMinutes[$date] ?? 0;
+
+                        switch ($leaveType) {
+
+                            case 'Full Leave':
+                            case 'Multiple Days Leave':
+                                $dayData['availability'] = 'On Leave';
+                                $dayData['working_hours'] = '00:00';
+                                break;
+
+                            case 'Half Day':
+                                $dayData['availability'] = 'On Leave';
+                                $dayData['working_hours'] = $minutesToTime($workedMinutes);
+                                break;
+
+                            case 'Short Leave':
+                                $dayData['availability'] = 'On Leave';
+                                $dayData['working_hours'] = $minutesToTime($workedMinutes);
+                                break;
+                        }
+
+                        $dayData['leave_type'] = $leaveType;
+                        $dayData['leave_hours'] = $minutesToTime($leaveMinutes);
+
+                        break;
+                    }
+                }
+                if ($dayData['availability'] === 'Working') {
+                    $dayData['working_hours'] = isset($totalsInMinutes[$date])
+                        ? $minutesToTime($totalsInMinutes[$date])
+                        : '00:00';
+                }
             }
+
 
             return response()->json([
                 'success' => true,
