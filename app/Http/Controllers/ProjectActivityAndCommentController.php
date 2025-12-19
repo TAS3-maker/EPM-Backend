@@ -43,13 +43,14 @@ class ProjectActivityAndCommentController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
-            'user_id' => 'required|integer',
+            // 'user_id' => 'required|integer',
             'task_id' => 'nullable|integer',
             'type' => 'required|string',
             'description' => 'nullable|string',
             'attachments' => 'nullable',
         ]);
-
+        $user = auth()->user();
+        $user_id = $user->id;
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -58,7 +59,7 @@ class ProjectActivityAndCommentController extends Controller
             ], 200);
         }
 
-        if (!$request->project_id || !$request->user_id) {
+        if (!$request->project_id || !$user_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Project ID or User ID is missing',
@@ -96,7 +97,7 @@ class ProjectActivityAndCommentController extends Controller
 
             $activity = ProjectActivityAndComment::create([
                 'project_id' => $request->project_id,
-                'user_id' => $request->user_id,
+                'user_id' => $user_id,
                 'task_id' => $request->task_id,
                 'type' => $request->type,
                 'description' => $request->description,
@@ -132,12 +133,12 @@ class ProjectActivityAndCommentController extends Controller
         $activities = ProjectActivityAndComment::where(
             'project_id',
             $request->project_id
-        )->latest()->get();
+        )->where('type', $request->type)->latest()->get();
 
         if ($activities->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'No activity found',
+                'message' => 'No data found',
                 'data' => [],
             ], 200);
         }
@@ -148,15 +149,108 @@ class ProjectActivityAndCommentController extends Controller
         ], 200);
     }
 
-    public function update(Request $request, $id = null)
-    {
-        if (!$id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'ID is required',
-            ], 200);
-        }
+    // public function update(Request $request, $id = null)
+    // {
+    //     if (!$id) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'ID is required',
+    //         ], 404);
+    //     }
 
+    //     $activity = ProjectActivityAndComment::find($id);
+
+    //     if (!$activity) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Record not found',
+    //         ], 404);
+    //     }
+
+    //     $validator = Validator::make($request->all(), [
+    //         'project_id' => 'required|integer',
+    //         // 'user_id' => 'required|integer',
+    //         'task_id' => 'nullable|integer',
+    //         'type' => 'required|string',
+    //         'description' => 'nullable|string',
+    //         'attachments' => 'nullable',
+    //     ]);
+    //     $user = auth()->user();
+    //     $user_id = $user->id;
+    //     if ($validator->fails()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Validation failed',
+    //             'errors' => $validator->errors(),
+    //         ], 404);
+    //     }
+
+    //     try {
+
+    //         if ($request->hasFile('attachments')) {
+
+    //             $file = $request->file('attachments');
+    //             $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
+
+    //             if (!in_array($file->getClientOriginalExtension(), $allowedExtensions)) {
+    //                 return response()->json([
+    //                     'success' => false,
+    //                     'message' => 'Invalid attachment type',
+    //                 ], 404);
+    //             }
+
+    //             if ($activity->attachments && !filter_var($activity->attachments, FILTER_VALIDATE_URL)) {
+    //                 if (Storage::disk('public')->exists($activity->attachments)) {
+    //                     Storage::disk('public')->delete($activity->attachments);
+    //                 }
+    //             }
+
+    //             if (!Storage::disk('public')->exists('project_attachments')) {
+    //                 Storage::disk('public')->makeDirectory('project_attachments');
+    //             }
+
+    //             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+    //             $file->storeAs('project_attachments', $filename, 'public');
+
+    //             $activity->attachments = 'project_attachments/' . $filename;
+    //         } elseif ($request->attachments && filter_var($request->attachments, FILTER_VALIDATE_URL)) {
+
+    //             if ($activity->attachments && !filter_var($activity->attachments, FILTER_VALIDATE_URL)) {
+    //                 if (Storage::disk('public')->exists($activity->attachments)) {
+    //                     Storage::disk('public')->delete($activity->attachments);
+    //                 }
+    //             }
+
+    //             $activity->attachments = $request->attachments;
+    //         }
+
+    //         $activity->project_id = $request->project_id ?? $activity->project_id;
+    //         $activity->user_id = $user_id;
+    //         $activity->task_id = $request->task_id ?? $activity->task_id;
+    //         $activity->type = $request->type ?? $activity->type;
+    //         $activity->description = $request->description ?? $activity->description;
+
+    //         $activity->save();
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Activity updated successfully',
+    //             'data' => new ProjectActivityAndCommentResource($activity),
+    //         ], 200);
+
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Something went wrong',
+    //             'error' => $e->getMessage(),
+    //         ], 404);
+    //     }
+    // }
+
+
+
+    public function update(Request $request, $id)
+    {
         $activity = ProjectActivityAndComment::find($id);
 
         if (!$activity) {
@@ -168,11 +262,11 @@ class ProjectActivityAndCommentController extends Controller
 
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
-            'user_id' => 'required|integer',
             'task_id' => 'nullable|integer',
             'type' => 'required|string',
-            'description' => 'nullable|string',
-            'attachments' => 'nullable',
+
+            'description' => 'sometimes|nullable|string',
+            'attachments' => 'sometimes|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -184,6 +278,17 @@ class ProjectActivityAndCommentController extends Controller
         }
 
         try {
+
+            
+            $activity->project_id = $request->project_id;
+            $activity->task_id = $request->task_id;
+            $activity->type = $request->type;
+
+            $activity->user_id = auth()->id();
+
+            if ($request->has('description')) {
+                $activity->description = $request->description;
+            }
 
             if ($request->hasFile('attachments')) {
 
@@ -203,15 +308,12 @@ class ProjectActivityAndCommentController extends Controller
                     }
                 }
 
-                if (!Storage::disk('public')->exists('project_attachments')) {
-                    Storage::disk('public')->makeDirectory('project_attachments');
-                }
-
                 $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
                 $file->storeAs('project_attachments', $filename, 'public');
 
                 $activity->attachments = 'project_attachments/' . $filename;
-            } elseif ($request->attachments && filter_var($request->attachments, FILTER_VALIDATE_URL)) {
+
+            } elseif ($request->has('attachments') && filter_var($request->attachments, FILTER_VALIDATE_URL)) {
 
                 if ($activity->attachments && !filter_var($activity->attachments, FILTER_VALIDATE_URL)) {
                     if (Storage::disk('public')->exists($activity->attachments)) {
@@ -221,12 +323,6 @@ class ProjectActivityAndCommentController extends Controller
 
                 $activity->attachments = $request->attachments;
             }
-
-            $activity->project_id = $request->project_id ?? $activity->project_id;
-            $activity->user_id = $request->user_id ?? $activity->user_id;
-            $activity->task_id = $request->task_id ?? $activity->task_id;
-            $activity->type = $request->type ?? $activity->type;
-            $activity->description = $request->description ?? $activity->description;
 
             $activity->save();
 
@@ -244,7 +340,6 @@ class ProjectActivityAndCommentController extends Controller
             ], 200);
         }
     }
-
 
     public function destroy($id = null)
     {
@@ -274,7 +369,6 @@ class ProjectActivityAndCommentController extends Controller
 
     public function GetAllComments(Request $request)
     {
-        // $projectId = $request->project_id;
         $taskId = $request->task_id;
 
         $timeline = collect();
