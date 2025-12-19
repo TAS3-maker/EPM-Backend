@@ -25,13 +25,12 @@ class TeamController extends Controller
 
     //     return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
     // }
-     public function index()
+    public function index()
     {
-        $teams = Team::latest()->get()->map(function($team) {
-            // Fetch users where their team_id JSON array contains this team's id and role_id = 7
+        $teams = Team::latest()->get()->map(function ($team) {
             $team->users = User::whereJsonContains('team_id', $team->id)
-                            //    ->where('role_id', 7)
-                               ->get();
+                ->where('is_active', 1)
+                ->get();
             return $team;
         });
 
@@ -48,8 +47,8 @@ class TeamController extends Controller
 
         // Fetch users dynamically
         $team->users = User::whereJsonContains('team_id', $team->id)
-                        //    ->where('role_id', 7)
-                           ->get();
+            //    ->where('role_id', 7)
+            ->get();
 
         return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
     }
