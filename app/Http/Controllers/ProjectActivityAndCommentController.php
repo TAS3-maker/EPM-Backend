@@ -279,7 +279,7 @@ class ProjectActivityAndCommentController extends Controller
 
         try {
 
-            
+
             $activity->project_id = $request->project_id;
             $activity->task_id = $request->task_id;
             $activity->type = $request->type;
@@ -370,6 +370,12 @@ class ProjectActivityAndCommentController extends Controller
     public function GetAllComments(Request $request)
     {
         $taskId = $request->task_id;
+        if (!$taskId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Task id is required',
+            ], 404);
+        }
 
         $timeline = collect();
 
@@ -402,7 +408,9 @@ class ProjectActivityAndCommentController extends Controller
         $timeline = $timeline
             ->merge($comments)
             ->merge($narrations)
-            ->sortByDesc('created_at')
+            ->sortByDesc(function ($item) {
+                return \Carbon\Carbon::parse($item['created_at'])->timestamp;
+            })
             ->values();
 
         if ($timeline->isEmpty()) {
