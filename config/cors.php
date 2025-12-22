@@ -11,8 +11,8 @@ return [
         'http://127.0.0.1:3000',
         'http://localhost:5173',
         'https://epm.techarcsoftwares.com',
-        'https://emp-staging.techarchsoftwares.com'
-         'https://emp-dev.techarchsoftwares.com'
+        'https://emp-staging.techarchsoftwares.com',
+         'https://emp-dev.techarchsoftwares.com',
     ],
 
     'allowed_origins_patterns' => [],
