@@ -121,6 +121,7 @@ Route::middleware('auth:api')->group(function () {
         // App => Http => Controllers =>LeaveController
         Route::post('/add-leave', [LeaveController::class, 'Addleave']);
         Route::get('/getall-leave-forhr', [LeaveController::class, 'getallLeavesForHr']);
+        Route::get('/getall-leaves-by-user', [LeaveController::class, 'getallLeavesbyUser']);
         Route::get('/getleaves-byemploye', [LeaveController::class, 'getLeavesByemploye']);
         Route::get('/showmanager-leavesfor-teamemploye', [LeaveController::class, 'showmanagerLeavesForTeamemploye']);
         Route::post('/approve-leave', [LeaveController::class, 'approveLeave']);
