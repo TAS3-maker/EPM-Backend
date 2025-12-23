@@ -353,5 +353,85 @@ class LeaveController extends Controller
             'data' => $leave
         ]);
     }
+public function getallLeavesbyUser()
+    {
+        $currentUser = Auth::user();
 
+        $teamIds = $currentUser->team_id ?? [];
+
+        $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
+            ->latest();
+
+        // ROLE 7 → only own leaves
+        if ($currentUser->role_id == 7) {
+
+            $leavesQuery->where('user_id', $currentUser->id);
+        }
+
+        // ROLE 6 → team leaves (team_id is JSON array)
+        elseif ($currentUser->role_id == 6) {
+
+            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
+                $q->where('role_id', 7)
+                    ->where(function ($sub) use ($teamIds) {
+                        foreach ($teamIds as $teamId) {
+                            $sub->orWhereJsonContains('team_id', $teamId);
+                        }
+                    });
+            });
+        }
+
+        // ROLE 5 → team leaves but users with role 6 & 7 only
+        elseif ($currentUser->role_id == 5) {
+
+            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
+                $q->whereIn('role_id', [6, 7])
+                    ->where(function ($sub) use ($teamIds) {
+                        foreach ($teamIds as $teamId) {
+                            $sub->orWhereJsonContains('team_id', $teamId);
+                        }
+                    });
+            });
+        }
+
+        // ROLE 1,2,3,4 → all leaves except own
+        elseif (in_array($currentUser->role_id, [1, 2, 3, 4])) {
+
+            $leavesQuery->where('user_id', '!=', $currentUser->id);
+        }
+
+        $leaves = $leavesQuery->get();
+
+        if ($leaves->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No leaves found',
+                'data' => []
+            ]);
+        }
+
+        $leaveData = $leaves->map(function ($leave) {
+            return [
+                'id' => $leave->id,
+                'user_id' => $leave->user_id,
+                'user_name' => $leave->user->name ?? 'Deleted User',
+                'start_date' => $leave->start_date,
+                'end_date' => $leave->end_date,
+                'leave_type' => $leave->leave_type,
+                'reason' => $leave->reason,
+                'status' => $leave->status,
+                'hours' => $leave->hours,
+                'halfday_period' => $leave->halfday_period,
+                'documents' => $leave->documents,
+                'created_at' => $leave->created_at,
+                'updated_at' => $leave->updated_at,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'leaves data',
+            'data' => $leaveData
+        ]);
+    }
 }
