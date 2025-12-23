@@ -44,7 +44,7 @@ class ProjectActivityAndCommentController extends Controller
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
             // 'user_id' => 'required|integer',
-            'task_id' => 'nullable|integer',
+            'task_id' => 'nullable|string',
             'type' => 'required|string',
             'description' => 'nullable|string',
             'attachments' => 'nullable',
@@ -262,7 +262,7 @@ class ProjectActivityAndCommentController extends Controller
 
         $validator = Validator::make($request->all(), [
             'project_id' => 'required|integer',
-            'task_id' => 'nullable|integer',
+            'task_id' => 'nullable|string',
             'type' => 'required|string',
 
             'description' => 'sometimes|nullable|string',
