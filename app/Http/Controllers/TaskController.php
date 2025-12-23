@@ -88,7 +88,7 @@ class TaskController extends Controller
             ActivityService::log([
                 'project_id' => $project->id,
                 'type' => 'activity',
-                'description' => 'Project created by ' . auth()->user()->name,
+                'description' => 'Task created by ' . auth()->user()->name,
             ]);
 
             return response()->json([

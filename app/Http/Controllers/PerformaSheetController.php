@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Models\LeavePolicy;
 use App\Models\Team;
+use App\Services\ActivityService;
 
 
 class PerformaSheetController extends Controller
@@ -40,7 +41,7 @@ class PerformaSheetController extends Controller
                 ],
                 'data.*.date' => 'required|date_format:Y-m-d',
                 'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-                'data.*.task_id'=>'nullable|integer',
+                'data.*.task_id' => 'nullable|integer',
                 'data.*.work_type' => 'required|string|max:255',
                 'data.*.activity_type' => 'required|string|max:255',
                 'data.*.narration' => 'nullable|string',
@@ -136,7 +137,11 @@ class PerformaSheetController extends Controller
         foreach ($users as $user) {
             // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
         }
-
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Performa Sheets added by ' . auth()->user()->name,
+        ]);
         return response()->json([
             'success' => true,
             'message' => count($inserted) . ' Performa Sheets added successfully',
@@ -687,6 +692,11 @@ class PerformaSheetController extends Controller
                 $performaSheet->data = json_encode($newData);
                 $performaSheet->save();
 
+                ActivityService::log([
+                    'project_id' => $project->id,
+                    'type' => 'activity',
+                    'description' => 'Performa Sheets updated by ' . auth()->user()->name,
+                ]);
                 return response()->json([
                     'success' => true,
                     'message' => 'Performa Sheet updated successfully',
@@ -948,6 +958,11 @@ class PerformaSheetController extends Controller
                 'note' => 'Performa updated with activity type'
             ];
         }
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Performa Sheets Status updated by ' . auth()->user()->name,
+        ]);
         return response()->json([
             'message' => 'Performa sheets processed successfully.',
             'results' => $results
@@ -1428,7 +1443,7 @@ class PerformaSheetController extends Controller
                 $leaveTeamMinutes = 0;
                 $totalTeamLeaves = 0;
                 $teamMembers = [];
-                $baseMinutes = $dailyExpectedMinutes; 
+                $baseMinutes = $dailyExpectedMinutes;
 
                 foreach ($users as $user) {
                     $availability = "Available";
@@ -1538,12 +1553,12 @@ class PerformaSheetController extends Controller
             ];
 
             $startDate = $request->start_date
-            ? Carbon::parse($request->start_date)->startOfDay()
-            : Carbon::today()->startOfMonth();
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::today()->startOfMonth();
 
             $endDate = $request->end_date
-            ? Carbon::parse($request->end_date)->endOfDay()
-            : Carbon::today()->endOfMonth();
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::today()->endOfMonth();
 
             if ($startDate->gt($endDate)) {
                 return response()->json([
@@ -1555,9 +1570,9 @@ class PerformaSheetController extends Controller
             $period = new \DatePeriod($startDate, \DateInterval::createFromDateString('1 day'), $endDate->copy()->addDay(false));
 
             $leaves = LeavePolicy::where('user_id', $user->id)
-            ->whereIn('leave_type', array_keys($leaveMinutesMap))
-            ->whereIn('status', ['Approved', 'Pending'])
-            ->get();
+                ->whereIn('leave_type', array_keys($leaveMinutesMap))
+                ->whereIn('status', ['Approved', 'Pending'])
+                ->get();
 
             $sheets = PerformaSheet::with('user:id,name')
                 ->where('user_id', $user->id)

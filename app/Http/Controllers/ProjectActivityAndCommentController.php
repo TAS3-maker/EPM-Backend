@@ -107,7 +107,7 @@ class ProjectActivityAndCommentController extends Controller
             ActivityService::log([
                 'project_id' => $request->project_id,
                 'type' => 'activity',
-                'description' => $request->type . 'added by ' . auth()->user()->name,
+                'description' => $request->type . ' added by ' . auth()->user()->name,
             ]);
             return response()->json([
                 'success' => true,
@@ -334,7 +334,7 @@ class ProjectActivityAndCommentController extends Controller
             ActivityService::log([
                 'project_id' => $request->project_id,
                 'type' => 'activity',
-                'description' => $request->type . 'added by ' . auth()->user()->name,
+                'description' => $request->type . ' updated by ' . auth()->user()->name,
             ]);
 
             return response()->json([

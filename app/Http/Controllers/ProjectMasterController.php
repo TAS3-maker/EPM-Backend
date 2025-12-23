@@ -552,7 +552,7 @@ class ProjectMasterController extends Controller
         ActivityService::log([
             'project_id' => $project->id,
             'type' => 'activity',
-            'description' => 'Project created by ' . auth()->user()->name,
+            'description' => 'Project updated by ' . auth()->user()->name,
         ]);
 
         return response()->json([
