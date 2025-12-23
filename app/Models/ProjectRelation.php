@@ -46,12 +46,12 @@ class ProjectRelation extends Model
             $this->communication_id ?? []
         )->get();
     }
-    public function assignees()
+   public function assignees()
     {
-        return User::whereIn(
-            'id',
-            $this->assignees ?? []
-        )->get();
+        return User::join('roles', 'roles.id', '=', 'users.role_id')
+            ->whereIn('users.id', $this->assignees ?? [])
+            ->select('users.*', 'roles.name as role_name')
+            ->get();
     }
 
     public function source()
