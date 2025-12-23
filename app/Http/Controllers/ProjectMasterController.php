@@ -199,7 +199,7 @@ class ProjectMasterController extends Controller
             'assignees' => 'sometimes|required',
             'source_id' => 'sometimes|required|integer|exists:project_source,id',
             'account_id' => 'sometimes|required|integer|exists:project_accounts,id',
-            'sales_person_id' => 'sometimes|required|integer|exists:users,id',
+            'sales_person_id' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
             'project_status' => 'sometimes|nullable|string',
             'project_description' => 'sometimes|nullable|string',
