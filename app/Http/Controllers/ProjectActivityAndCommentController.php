@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\Models\PerformaSheet;
+use App\Services\ActivityService;
 
 
 class ProjectActivityAndCommentController extends Controller
@@ -103,7 +104,11 @@ class ProjectActivityAndCommentController extends Controller
                 'description' => $request->description,
                 'attachments' => $attachmentValue,
             ]);
-
+            ActivityService::log([
+                'project_id' => $request->project_id,
+                'type' => 'activity',
+                'description' => $request->type . 'added by ' . auth()->user()->name,
+            ]);
             return response()->json([
                 'success' => true,
                 'message' => 'Activity created successfully',
@@ -325,6 +330,12 @@ class ProjectActivityAndCommentController extends Controller
             }
 
             $activity->save();
+
+            ActivityService::log([
+                'project_id' => $request->project_id,
+                'type' => 'activity',
+                'description' => $request->type . 'added by ' . auth()->user()->name,
+            ]);
 
             return response()->json([
                 'success' => true,

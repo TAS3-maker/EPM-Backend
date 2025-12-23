@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Models\ProjectActivityAndComment;
-
+use App\Services\ActivityService;
 
 class ProjectMasterController extends Controller
 {
@@ -153,6 +153,12 @@ class ProjectMasterController extends Controller
             ]);
 
             DB::commit();
+
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Project created by ' . auth()->user()->name,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -336,6 +342,12 @@ class ProjectMasterController extends Controller
 
             $relation->save();
 
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Project updated by ' . auth()->user()->name,
+            ]);
+
             return response()->json([
                 'success' => true,
                 'message' => 'Project updated successfully',
@@ -504,7 +516,6 @@ class ProjectMasterController extends Controller
     {
         $project = ProjectMaster::findOrFail($id);
 
-        // Validate ONLY fields that may come
         $validator = Validator::make($request->all(), [
             'project_name' => 'sometimes|string|max:255',
             'project_tracking' => 'sometimes|integer',
@@ -526,7 +537,6 @@ class ProjectMasterController extends Controller
             ], 200);
         }
 
-        // Update ONLY provided fields
         $project->update($request->only([
             'project_name',
             'project_tracking',
@@ -538,6 +548,12 @@ class ProjectMasterController extends Controller
             'project_used_hours',
             'project_used_budget',
         ]));
+
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Project created by ' . auth()->user()->name,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -551,7 +567,11 @@ class ProjectMasterController extends Controller
     {
         $project = ProjectMaster::findOrFail($id);
         $project->delete();
-
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Project deleted by ' . auth()->user()->name,
+        ]);
         return response()->json([
             'message' => 'Project deleted successfully',
         ]);
