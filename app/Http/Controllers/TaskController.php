@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 use App\Models\User;
 use Illuminate\Support\Facades\Log;
+use App\Models\ProjectMaster;
 
 class TaskController extends Controller
 {
@@ -26,7 +27,7 @@ public function AddTasks(Request $request)
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'status' => 'required|in:To do,In Progress,Completed,Cancel',
-            'project_id' => 'required|exists:projects,id',
+            'project_id' => 'required',
             'hours' => 'nullable|numeric',
             'deadline' => 'nullable|date',
             'start_date' => 'nullable|date', // start_date ka validation
@@ -48,13 +49,13 @@ public function AddTasks(Request $request)
             ], 409); 
         }
 
-        $project = Project::find($validatedData['project_id']);
-        if (!$project) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project not found.'
-            ], 404);
-        }
+        $project = ProjectMaster::find($validatedData['project_id']);
+        // if (!$project) {
+        //     return response()->json([
+        //         'success' => false,
+        //         'message' => 'Project not found.'
+        //     ], 404);
+        // }
 
         $currentHours = $project->total_hours ?? 0;
         $currentRemaining = $project->remaining_hours ?? 0;
@@ -77,11 +78,11 @@ public function AddTasks(Request $request)
             ->whereNotNull('deadline')
             ->max('deadline');
 
-        $project->update([
-            'total_hours' => $newTotalHours,
-            'remaining_hours' => $newRemaining,
-            'deadline' => $highestDeadline
-        ]);
+        // $project->update([
+        //     'total_hours' => $newTotalHours,
+        //     'remaining_hours' => $newRemaining,
+        //     'deadline' => $highestDeadline
+        // ]);
 
         return response()->json([
             'success' => true,
