@@ -104,11 +104,13 @@ class ProjectActivityAndCommentController extends Controller
                 'description' => $request->description,
                 'attachments' => $attachmentValue,
             ]);
-            ActivityService::log([
-                'project_id' => $request->project_id,
-                'type' => 'activity',
-                'description' => $request->type . ' added by ' . auth()->user()->name,
-            ]);
+            if (!$request->type == 'activity') {
+                ActivityService::log([
+                    'project_id' => $request->project_id,
+                    'type' => 'activity',
+                    'description' => $request->type . ' added by ' . auth()->user()->name,
+                ]);
+            }
             return response()->json([
                 'success' => true,
                 'message' => 'Activity created successfully',
