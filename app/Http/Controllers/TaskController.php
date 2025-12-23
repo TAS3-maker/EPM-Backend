@@ -16,9 +16,6 @@ use App\Services\ActivityService;
 
 class TaskController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function AddTasks(Request $request)
     {
         try {
@@ -28,7 +25,7 @@ class TaskController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'status' => 'required|in:To do,In Progress,Completed,Cancel',
-                'project_id' => 'required',
+                'project_id' => 'required|exists:projects,id',
                 'hours' => 'nullable|numeric',
                 'deadline' => 'nullable|date',
                 'start_date' => 'nullable|date', // start_date ka validation
@@ -47,16 +44,16 @@ class TaskController extends Controller
                 return response()->json([
                     'success' => false,
                     'message' => 'Task is already created with the same data.'
-                ], 409);
+                ], 404);
             }
 
-            $project = ProjectMaster::find($validatedData['project_id']);
-            // if (!$project) {
-            //     return response()->json([
-            //         'success' => false,
-            //         'message' => 'Project not found.'
-            //     ], 404);
-            // }
+            $project = Project::find($validatedData['project_id']);
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project not found.'
+                ], 404);
+            }
 
             $currentHours = $project->total_hours ?? 0;
             $currentRemaining = $project->remaining_hours ?? 0;
@@ -79,11 +76,11 @@ class TaskController extends Controller
                 ->whereNotNull('deadline')
                 ->max('deadline');
 
-            // $project->update([
-            //     'total_hours' => $newTotalHours,
-            //     'remaining_hours' => $newRemaining,
-            //     'deadline' => $highestDeadline
-            // ]);
+            $project->update([
+                'total_hours' => $newTotalHours,
+                'remaining_hours' => $newRemaining,
+                'deadline' => $highestDeadline
+            ]);
 
             ActivityService::log([
                 'project_id' => $project->id,
@@ -114,8 +111,6 @@ class TaskController extends Controller
             ], 500);
         }
     }
-
-
     public function getAllTaskofProjectById($id)
     {
         $project = Project::find($id);
@@ -171,7 +166,6 @@ class TaskController extends Controller
             ]
         ]);
     }
-
     public function getEmployeTasksbyProject(Request $request)
     {
         try {
@@ -281,7 +275,6 @@ class TaskController extends Controller
             ], 500);
         }
     }
-
     public function ApproveTaskofProject(Request $request)
     {
         try {
@@ -340,7 +333,6 @@ class TaskController extends Controller
             ], 500);
         }
     }
-
     public function EditTasks(Request $request, $id)
     {
         try {
@@ -431,9 +423,6 @@ class TaskController extends Controller
             ], 500);
         }
     }
-
-
-
     public function DeleteTasks(Request $request, $id)
     {
         try {
@@ -475,7 +464,7 @@ class TaskController extends Controller
                 'type' => 'activity',
                 'description' => 'Task Deleted by ' . auth()->user()->name,
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Task deleted successfully and project details updated.',
@@ -490,6 +479,287 @@ class TaskController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error deleting task: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function AddTasksToProjectMaster(Request $request)
+    {
+        try {
+            $user = Auth::user();
+
+            $validatedData = $request->validate([
+                'title' => 'required|string|max:255',
+                'description' => 'nullable|string',
+                'status' => 'required|in:To do,In Progress,Completed,Cancel',
+                'project_id' => 'required|exists:projects_master,id',
+                'hours' => 'nullable|numeric|min:0',
+                'deadline' => 'nullable|date',
+                'start_date' => 'nullable|date',
+            ]);
+
+
+            $duplicateTask = Task::where('title', $validatedData['title'])
+                ->where('project_id', $validatedData['project_id'])
+                ->first();
+
+            if ($duplicateTask) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task already exists for this project.'
+                ], 409);
+            }
+
+
+            $project = ProjectMaster::find($validatedData['project_id']);
+
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project master not found.'
+                ], 404);
+            }
+
+
+            $currentTotalHours = (float) ($project->project_hours ?? 0);
+            $currentUsedHours = (float) ($project->project_used_hours ?? 0);
+            $taskHours = (float) ($validatedData['hours'] ?? 0);
+
+            $newUsedHours = $currentUsedHours + $taskHours;
+
+
+            $task = Task::create([
+                'title' => $validatedData['title'],
+                'description' => $validatedData['description'] ?? null,
+                'status' => $validatedData['status'],
+                'project_id' => $validatedData['project_id'],
+                'hours' => $taskHours,
+                'deadline' => $validatedData['deadline'] ?? null,
+                'start_date' => $validatedData['start_date'] ?? null,
+            ]);
+
+            $project->update([
+                'project_used_hours' => $newUsedHours,
+            ]);
+
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Task added to by ' . $user->name,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task created successfully.',
+                'project_master' => [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'total_hours' => $currentTotalHours,
+                    'used_hours' => $newUsedHours,
+                ],
+                'task' => $task
+            ], 201);
+
+        } catch (\Exception $e) {
+            \Log::error('ProjectMaster Task Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function getAllTaskOfProjectMasterById($id)
+    {
+        $project = ProjectMaster::find($id);
+
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project master not found.'
+            ], 404);
+        }
+
+        $tasks = Task::where('project_id', $id)->get();
+
+        $totalTaskHours = $tasks->sum('hours');
+
+        $formattedTasks = $tasks->map(function ($task) {
+            return [
+                'id' => $task->id,
+                'title' => $task->title,
+                'description' => $task->description,
+                'status' => $task->status,
+                'hours' => $task->hours,
+                'deadline' => $task->deadline,
+                'start_date' => $task->start_date,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project master fetched successfully.',
+            'data' => [
+                'id' => $project->id,
+                'project_name' => $project->project_name,
+                'project_tracking' => $project->project_tracking,
+                'project_status' => $project->project_status,
+                'project_description' => $project->project_description,
+                'project_budget' => $project->project_budget,
+                'project_hours' => $project->project_hours,
+                'project_used_hours' => $project->project_used_hours,
+                'total_task_hours' => $totalTaskHours,
+                'tasks' => $formattedTasks,
+                'created_at' => $project->created_at->format('Y-m-d H:i:s'),
+                'updated_at' => $project->updated_at->format('Y-m-d H:i:s'),
+            ]
+        ]);
+    }
+    public function EditTasksForProjectMaster(Request $request, $id)
+    {
+        try {
+            $validatedData = $request->validate([
+                'title' => 'sometimes|string|max:255',
+                'description' => 'sometimes|nullable|string',
+                'hours' => 'sometimes|nullable|integer|min:0',
+                'deadline' => 'sometimes|nullable|date',
+                'start_date' => 'sometimes|nullable|date'
+            ]);
+
+            $task = Task::find($id);
+            if (!$task) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task not found.'
+                ], 404);
+            }
+
+            $project = ProjectMaster::find($task->project_id);
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project master not found.'
+                ], 404);
+            }
+
+            if (array_key_exists('hours', $validatedData) && (int) $validatedData['hours'] === 0) {
+                $validatedData['hours'] = null;
+            }
+
+            if (array_key_exists('deadline', $validatedData) && empty($validatedData['deadline'])) {
+                $validatedData['deadline'] = null;
+            }
+
+            if (array_key_exists('start_date', $validatedData) && empty($validatedData['start_date'])) {
+                $validatedData['start_date'] = null;
+            }
+
+            if (array_key_exists('hours', $validatedData)) {
+
+                $previousHours = $task->hours ?? 0;
+                $newHours = $validatedData['hours'] ?? 0;
+
+                if ($newHours !== null) {
+                    $newUsedHours = max(
+                        0,
+                        ($project->project_used_hours - $previousHours) + $newHours
+                    );
+
+                    $project->update([
+                        'project_used_hours' => $newUsedHours
+                    ]);
+
+                    $task->hours = $newHours;
+                } else {
+                    $task->hours = null;
+                }
+            }
+
+            $task->update($validatedData);
+
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Task updated by ' . auth()->user()->name,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task updated successfully.',
+                'project_master' => [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'project_used_hours' => $project->project_used_hours,
+                ],
+                'task' => $task
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('ProjectMaster Task Update Error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function DeleteTasksForProjectMaster(Request $request, $id)
+    {
+        try {
+
+            $task = Task::find($id);
+            if (!$task) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Task not found.'
+                ], 404);
+            }
+
+            $project = ProjectMaster::find($task->project_id);
+            if (!$project) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project master not found.'
+                ], 404);
+            }
+
+            $previousHours = $task->hours ?? 0;
+
+            $newUsedHours = max(
+                0,
+                ($project->project_used_hours ?? 0) - $previousHours
+            );
+
+            $project->update([
+                'project_used_hours' => $newUsedHours
+            ]);
+
+            $task->delete();
+
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Task deleted by ' . auth()->user()->name,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Task deleted successfully.',
+                'project_master' => [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'project_used_hours' => $project->project_used_hours,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('ProjectMaster Task Delete Error: ' . $e->getMessage());
 
             return response()->json([
                 'success' => false,

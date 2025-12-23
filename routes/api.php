@@ -198,5 +198,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-all-comments', [ProjectActivityAndCommentController::class, 'GetAllComments']);
         Route::get('/get-account-by-source-id', [ProjectAccountController::class, 'GetAccountBySourceId']);
 
+        Route::post('/add-project-master-task', [TaskController::class, 'AddTasksToProjectMaster']);
+        Route::get('/get-project-master-tasks/{id}', [TaskController::class, 'getAllTaskOfProjectMasterById']);
+        Route::put('/edit-project-master-task/{id}', [TaskController::class, 'EditTasksForProjectMaster']);
+        Route::delete('/delete-project-master-task/{id}', [TaskController::class, 'DeleteTasksForProjectMaster']);
+
     });
 });
