@@ -17,6 +17,8 @@ class ProjectRelationResource extends JsonResource
             'assignees_id' => $this->assignees,
             'source_id' => $this->source_id,
             'account_id' => $this->account_id,
+            'tracking_id' => $this->tracking_id,
+            'tracking_account' => $this->trackingID(),
             'sales_person_id' => $this->sales_person_id,
             'sales_person_data' => $this->sales_person_id(),
             'client' => $this->client ? $this->client->client_name : null,

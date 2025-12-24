@@ -54,6 +54,7 @@ class ProjectMasterController extends Controller
             'account_id' => 'required|integer|exists:project_accounts,id',
             'sales_person_id' => 'nullable|integer|exists:users,id',
             'project_tracking' => 'required|integer',
+            'tracking_id' => 'nullable|integer',
             'project_status' => 'nullable|string',
             'project_description' => 'nullable|string',
             'project_budget' => 'nullable|string',
@@ -149,6 +150,7 @@ class ProjectMasterController extends Controller
                 'assignees' => $assignees,
                 'source_id' => $request->source_id,
                 'account_id' => $request->account_id,
+                'tracking_id' => $request->tracking_id,
                 'sales_person_id' => $request->sales_person_id,
             ]);
 
@@ -207,6 +209,7 @@ class ProjectMasterController extends Controller
             'account_id' => 'sometimes|required|integer|exists:project_accounts,id',
             'sales_person_id' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
+            'tracking_id' => 'sometimes|nullable|integer',
             'project_status' => 'sometimes|nullable|string',
             'project_description' => 'sometimes|nullable|string',
             'project_budget' => 'sometimes|nullable|string',
@@ -333,6 +336,7 @@ class ProjectMasterController extends Controller
                 'client_id',
                 'source_id',
                 'account_id',
+                'tracking_id',
                 'sales_person_id',
             ]);
 

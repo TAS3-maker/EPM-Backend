@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\CommunicationType;
+use App\Models\ProjectAccount;
 
 class ProjectRelation extends Model
 {
@@ -16,6 +17,7 @@ class ProjectRelation extends Model
         'assignees',
         'source_id',
         'account_id',
+        'tracking_id',
         'sales_person_id',
     ];
     protected $casts = [
@@ -62,5 +64,12 @@ class ProjectRelation extends Model
     public function account()
     {
         return $this->belongsTo(\App\Models\ProjectAccount::class, 'account_id');
+    }
+    public function trackingID()
+    {
+       return ProjectAccount::where(
+            'id',
+            $this->tracking_id ?? ''
+        )->get();
     }
 }
