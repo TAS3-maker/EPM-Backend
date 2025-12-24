@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Storage;
 use App\Models\PerformaSheet;
+use App\Models\User;
 use App\Services\ActivityService;
 
 
@@ -384,6 +385,7 @@ class ProjectActivityAndCommentController extends Controller
     public function GetAllComments(Request $request)
     {
         $taskId = $request->task_id;
+
         if (!$taskId) {
             return response()->json([
                 'success' => false,
@@ -399,22 +401,28 @@ class ProjectActivityAndCommentController extends Controller
 
             $data = json_decode($sheet->data, true);
 
-            if (!$data || !isset($data['task_id']) || $data['task_id'] != $taskId) {
+            if (!$data || ($data['task_id'] ?? null) != $taskId) {
                 return null;
             }
 
+            $user = User::find($sheet->user_id);
+
             return [
                 'message' => $data['narration'] ?? null,
-                'created_at' => $sheet->created_at
+                'user' => $user?->name,
+                'created_at' => $sheet->created_at,
             ];
         })->filter();
 
-        $comments = ProjectActivityAndComment::where('task_id', $taskId)
-            ->latest()->where('task_id', $taskId)->where('type', 'comment')
+        $comments = ProjectActivityAndComment::with('user')
+            ->where('task_id', $taskId)
+            ->where('type', 'comment')
+            ->latest()
             ->get()
             ->map(function ($comment) {
                 return [
-                    'description' => $comment->description ?? null,
+                    'message' => $comment->description ?? null,
+                    'user' => $comment->user?->name,
                     'created_at' => $comment->created_at,
                 ];
             });
@@ -422,9 +430,7 @@ class ProjectActivityAndCommentController extends Controller
         $timeline = $timeline
             ->merge($comments)
             ->merge($narrations)
-            ->sortByDesc(function ($item) {
-                return \Carbon\Carbon::parse($item['created_at'])->timestamp;
-            })
+            ->sortByDesc(fn($item) => \Carbon\Carbon::parse($item['created_at'])->timestamp)
             ->values();
 
         if ($timeline->isEmpty()) {
@@ -441,5 +447,6 @@ class ProjectActivityAndCommentController extends Controller
             'data' => $timeline
         ], 200);
     }
+
 
 }
