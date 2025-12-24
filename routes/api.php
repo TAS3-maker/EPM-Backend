@@ -83,15 +83,18 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/assign-project-manager', [ProjectController::class, 'assignProjectToManager']);
     Route::get('/assigned-all-projects', [ProjectController::class, 'getAssignedAllProjects']);
     Route::get('/assigned-projects', [ProjectController::class, 'getAssignedProjects']);
-    Route::post('/assign-project-to-tl', [ProjectController::class, 'assignProjectToTL']);
+    //commented for new approach
+    // Route::post('/assign-project-to-tl', [ProjectController::class, 'assignProjectToTL']);
     Route::get('/tl-projects', [ProjectController::class, 'getTlProjects']);
     Route::get('/user-projects', [ProjectController::class, 'getUserProjects']);
     Route::get('/get-projectmanager-tl', [ProjectController::class, 'getProjectManagerTl']);
     Route::get('/get-tl-employee', [ProjectController::class, 'getTlEmployee']);
-    Route::post('/assign-project-tl-to-employee', [ProjectController::class, 'assignProjectManagerProjectToEmployee']);
+    //commented for new approach
+    // Route::post('/assign-project-tl-to-employee', [ProjectController::class, 'assignProjectManagerProjectToEmployee']);
     Route::post('/remove-project-managers', [ProjectController::class, 'removeProjectManagers']);
-    Route::delete('/remove-project-tl/{project_id}/{tl_ids}', [ProjectController::class, 'removeprojecttl']);
-    Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectController::class, 'removeprojectemployee']);
+    //commented for new approach
+    // Route::delete('/remove-project-tl/{project_id}/{tl_ids}', [ProjectController::class, 'removeprojecttl']);
+    // Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectController::class, 'removeprojectemployee']);
     Route::get('/getfull-projectmananger-data', [ProjectController::class, 'GetFullProjectManangerData']);
     Route::get('/total-departmentproject', [ProjectController::class, 'totaldepartmentProject']);
     Route::get('/get-projectof-employee-assignby-projectmanager', [ProjectController::class, 'getProjectofEmployeeAssignbyProjectManager']);
