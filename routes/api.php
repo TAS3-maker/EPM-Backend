@@ -80,7 +80,8 @@ Route::middleware('auth:api')->group(function () {
     Route::post('/projects', [ProjectController::class, 'store']);
     Route::put('/projects/{id}', [ProjectController::class, 'update']);
     Route::delete('/projects/{id}', [ProjectController::class, 'destroy']);
-    Route::post('/assign-project-manager', [ProjectController::class, 'assignProjectToManager']);
+    //commented for new approach
+    // Route::post('/assign-project-manager', [ProjectController::class, 'assignProjectToManager']);
     Route::get('/assigned-all-projects', [ProjectController::class, 'getAssignedAllProjects']);
     Route::get('/assigned-projects', [ProjectController::class, 'getAssignedProjects']);
     //commented for new approach
@@ -91,7 +92,7 @@ Route::middleware('auth:api')->group(function () {
     Route::get('/get-tl-employee', [ProjectController::class, 'getTlEmployee']);
     //commented for new approach
     // Route::post('/assign-project-tl-to-employee', [ProjectController::class, 'assignProjectManagerProjectToEmployee']);
-    Route::post('/remove-project-managers', [ProjectController::class, 'removeProjectManagers']);
+    // Route::post('/remove-project-managers', [ProjectController::class, 'removeProjectManagers']);
     //commented for new approach
     // Route::delete('/remove-project-tl/{project_id}/{tl_ids}', [ProjectController::class, 'removeprojecttl']);
     // Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectController::class, 'removeprojectemployee']);
@@ -213,6 +214,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeprojectemployeeMaster']);
         // Route::post('/update-assignee', [ProjectMasterController::class, 'updateAssignee']);
         Route::delete('/remove-assignee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeAssignee']);
-        
+        Route::post('/assign-project-manager', [ProjectMasterController::class, 'assignProjectToManagerMaster']);
+        Route::post('/remove-project-managers', [ProjectMasterController::class, 'removeProjectManagersMaster']);
     });
 });

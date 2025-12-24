@@ -7,6 +7,7 @@ use App\Models\ProjectMaster;
 use App\Models\CommunicationType;
 use App\Http\Resources\ProjectMasterResource;
 use App\Http\Resources\ProjectRelationResource;
+use App\Mail\ProjectAssignedMail;
 use App\Mail\ProjectAssignedToTLMail;
 use App\Models\ProjectRelation;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Models\ProjectActivityAndComment;
 use App\Services\ActivityService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use League\Config\Exception\ValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -832,4 +834,125 @@ class ProjectMasterController extends Controller
             'message' => 'User removed from project successfully.',
         ]);
     }
+    public function assignProjectToManagerMaster(Request $request){
+        $validatedData = $request->validate([
+            'project_id' => 'required|exists:projects_master,id',
+            'project_manager_ids' => 'required|array|min:1',
+            'project_manager_ids.*' => 'exists:users,id'
+        ]);
+
+        // Fetch project relation
+        $relation = ProjectRelation::where('project_id', $validatedData['project_id'])->first();
+
+        if (!$relation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found'
+            ], 404);
+        }
+
+        // Existing assignees (PMs are part of this)
+        $existingAssignees = $relation->assignees;
+        if (!is_array($existingAssignees)) {
+            $existingAssignees = [];
+        }
+
+        // Merge without duplicates
+        $mergedManagerIds = array_values(
+            array_unique(array_merge($existingAssignees, $validatedData['project_manager_ids']))
+        );
+
+        // Identify newly assigned managers
+        $newlyAssignedIds = array_diff($validatedData['project_manager_ids'], $existingAssignees);
+
+        // Save
+        $relation->assignees = ($mergedManagerIds);
+        $relation->updated_at = now();
+        $relation->save();
+
+        // Send emails only to newly assigned managers
+        $assigner = auth()->user();
+        foreach ($newlyAssignedIds as $managerId) {
+            $manager = User::find($managerId);
+            if ($manager && $manager->email) {
+                $mail = (new ProjectAssignedMail(
+                    $manager,
+                    $relation->project_id,
+                    $assigner
+                ))->replyTo($assigner->email, $assigner->name);
+
+                // Mail::to($manager->email)->send($mail);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project assigned successfully and emails sent to new managers.',
+            'data' => [
+                'project_id' => $validatedData['project_id'],
+                'project_manager_ids' => $mergedManagerIds,
+                'emails_sent_to' => array_values($newlyAssignedIds)
+            ]
+        ]);
+    }
+    public function removeProjectManagersMaster(Request $request)
+    {
+        try {
+            $validatedData = $request->validate([
+                'project_id' => 'required|exists:projects_master,id',
+                'manager_ids' => 'required|array|min:1',
+                'manager_ids.*' => 'integer|exists:users,id'
+            ]);
+
+            $relation = ProjectRelation::where('project_id', $validatedData['project_id'])->first();
+
+            if (!$relation) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project not found'
+                ], 404);
+            }
+
+            $assignees = $relation->assignees;
+            if (!is_array($assignees)) {
+                $assignees = [];
+            }
+
+            $existingManagers = array_intersect($assignees, $validatedData['manager_ids']);
+            if (empty($existingManagers)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No project managers found to remove.'
+                ], 404);
+            }
+
+            $updatedManagers = array_values(
+                array_diff($assignees, $validatedData['manager_ids'])
+            );
+
+            $relation->assignees = empty($updatedManagers)
+                ? []
+                : $updatedManagers;
+
+            $relation->updated_at = now();
+            $relation->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Project managers removed successfully.',
+                'updated_rows' => count($existingManagers),
+                'remaining_managers' => $updatedManagers
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error removing project managers: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
 }
