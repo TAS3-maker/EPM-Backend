@@ -139,10 +139,12 @@ class ProjectActivityAndCommentController extends Controller
             ], 200);
         }
 
-        $activities = ProjectActivityAndComment::where(
-            'project_id',
-            $request->project_id
-        )->where('type', $request->type)->latest()->get();
+        $activities = ProjectActivityAndComment::with('user')
+            ->where('project_id', $request->project_id)
+            ->when($request->type, function ($query) use ($request) {
+                $query->where('type', $request->type);
+            })
+            ->get();
 
         if ($activities->isEmpty()) {
             return response()->json([
@@ -157,6 +159,7 @@ class ProjectActivityAndCommentController extends Controller
             'data' => ProjectActivityAndCommentResource::collection($activities),
         ], 200);
     }
+
 
     // public function update(Request $request, $id = null)
     // {

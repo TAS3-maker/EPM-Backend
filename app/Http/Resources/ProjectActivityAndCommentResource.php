@@ -17,6 +17,7 @@ class ProjectActivityAndCommentResource extends JsonResource
             'type' => $this->type,
             'description' => $this->description,
             'attachments' => $this->attachments,
+            'user_name' => $this->user?->name,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
