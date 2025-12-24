@@ -203,5 +203,13 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/edit-project-master-task/{id}', [TaskController::class, 'EditTasksForProjectMaster']);
         Route::delete('/delete-project-master-task/{id}', [TaskController::class, 'DeleteTasksForProjectMaster']);
 
+        //Project Master API's
+        Route::post('/assign-project-to-tl', [ProjectMasterController::class, 'assignProjectToTLMaster']);
+        Route::delete('/remove-project-tl/{project_id}/{tl_ids}', [ProjectMasterController::class, 'removeprojecttlMaster']);
+        Route::post('/assign-project-tl-to-employee', [ProjectMasterController::class, 'assignProjectManagerProjectToEmployeeMaster']);
+        Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeprojectemployeeMaster']);
+        // Route::post('/update-assignee', [ProjectMasterController::class, 'updateAssignee']);
+        Route::delete('/remove-assignee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeAssignee']);
+        
     });
 });
