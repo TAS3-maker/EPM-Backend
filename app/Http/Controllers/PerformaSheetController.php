@@ -1392,13 +1392,172 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function TeamWiseDailyWorkingHours(Request $request)
+    // {
+    //     try {
+    //         $selectedDate = $request->date ? Carbon::parse($request->date) : Carbon::today();
+    //         $startOfDay = $selectedDate->copy()->startOfDay();
+    //         $endOfDay = $selectedDate->copy()->endOfDay();
+    //         $dailyExpectedMinutes = (8 * 60) + 30;
+    //         $leaveMinutesMap = [
+    //             "Full Leave" => $dailyExpectedMinutes,
+    //             "Multiple Days Leave" => $dailyExpectedMinutes,
+    //             "Half Day" => intval($dailyExpectedMinutes / 2),
+    //             "Short Leave" => 120
+    //         ];
+
+    //         $current_user = auth()->user();
+    //         $currentTeamIds = $current_user->team_id;
+    //         if ($current_user->role_id == 5 || $current_user->role_id == 6) {
+    //             $teams = Team::whereIn('id', $currentTeamIds)
+    //                 ->latest()
+    //                 ->get();
+
+    //         } elseif ($current_user->role_id == 7) {
+    //             return response()->json([
+    //                 "success" => false,
+    //                 "message" => "You don't have permission",
+    //                 "data" => []
+    //             ]);
+    //         } else {
+    //             $teams = Team::latest()->get();
+    //         }
+
+
+    //         $finalData = [];
+    //         $toTime = function ($minutes) {
+    //             $h = floor($minutes / 60);
+    //             $m = $minutes % 60;
+    //             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+    //         };
+    //         foreach ($teams as $team) {
+
+    //             $users = User::whereJsonContains('team_id', $team->id)
+    //                 ->where('is_active', true)
+    //                 ->whereIn('role_id', [7])
+    //                 ->get();
+    //             $teamUserCount = $users->count();
+    //             $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
+
+
+    //             $leaveTeamMinutes = 0;
+    //             $totalTeamLeaves = 0;
+    //             $teamMembers = [];
+    //             $baseMinutes = $dailyExpectedMinutes;
+
+    //             foreach ($users as $user) {
+    //                 $availability = "Available";
+    //                 $leaveType = null;
+    //                 $leaveMinutes = 0;
+    //                 $expectedMinutes = $baseMinutes;
+    //                 $actualMinutes = $baseMinutes;
+
+    //                 $userLeaves = LeavePolicy::where('user_id', $user->id)
+    //                     ->whereIn('leave_type', [
+    //                         'Full Leave',
+    //                         'Multiple Days Leave',
+    //                         'Half Day',
+    //                         'Short Leave'
+    //                     ])
+    //                     ->whereIn('status', ['Approved', 'Pending'])
+    //                     ->get();
+
+    //                 foreach ($userLeaves as $leave) {
+
+    //                     $type = $leave->leave_type;
+    //                     $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
+    //                     $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+
+    //                     if ($selectedDate->between($leaveStart, $leaveEnd)) {
+    //                         $leaveType = $leave->leave_type;
+    //                         $availability = "On Leave";
+    //                         $leaveMinutes = $leaveMinutesMap[$leaveType];
+
+    //                         switch ($leaveType) {
+
+    //                             case 'Full Leave':
+    //                             case 'Multiple Days Leave':
+    //                                 $availability = "On Leave";
+    //                                 $expectedMinutes = 0;
+    //                                 $actualMinutes = 0;
+    //                                 break;
+
+    //                             case 'Half Day':
+    //                                 $availability = "On Leave";
+    //                                 $expectedMinutes = intval($baseMinutes / 2);
+    //                                 $actualMinutes = intval($baseMinutes / 2);
+    //                                 break;
+
+    //                             case 'Short Leave':
+    //                                 $availability = "On Leave";
+    //                                 $expectedMinutes = $baseMinutes;
+    //                                 $actualMinutes = $baseMinutes - $leaveMinutes;
+    //                                 break;
+    //                         }
+
+    //                         $totalTeamLeaves += 1;
+    //                         $leaveTeamMinutes += $leaveMinutesMap[$type];
+    //                     }
+    //                 }
+    //                 $teamMembers[] = [
+    //                     "user_id" => $user->id,
+    //                     "name" => $user->name,
+    //                     "leave_type" => $leaveType,
+    //                     "availability" => $availability,
+    //                     "leave_hours" => $toTime($leaveMinutes),
+    //                     "expected_hours" => $toTime($expectedMinutes),
+    //                     "actual_hours" => $toTime($actualMinutes)
+    //                 ];
+    //             }
+    //             $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
+
+    //             $finalData[] = [
+    //                 "teamName" => $team->team_name ?? $team->name,
+    //                 "totalTeamMembers" => $teamUserCount,
+    //                 "expectedHours" => $toTime($expectedTeamMinutes),
+    //                 "totalHours" => $toTime($totalTeamHoursMinutes),
+    //                 "totalTeamLeaves" => $totalTeamLeaves,
+    //                 "leaveHours" => $toTime($leaveTeamMinutes),
+    //                 "selectedDate" => $selectedDate->format("Y-m-d"),
+    //                 "teamMembers" => $teamMembers
+    //             ];
+    //         }
+
+    //         return response()->json([
+    //             "success" => true,
+    //             "message" => "Team-wise daily working hours overview",
+    //             "data" => $finalData
+    //         ]);
+
+    //     } catch (\Exception $e) {
+
+    //         return response()->json([
+    //             "success" => false,
+    //             "message" => "Server Error",
+    //             "error" => $e->getMessage(),
+    //             "line" => $e->getLine()
+    //         ], 500);
+    //     }
+    // }
+
+
+
     public function TeamWiseDailyWorkingHours(Request $request)
     {
         try {
-            $selectedDate = $request->date ? Carbon::parse($request->date) : Carbon::today();
-            $startOfDay = $selectedDate->copy()->startOfDay();
-            $endOfDay = $selectedDate->copy()->endOfDay();
+            // -----------------------------
+            // Date Handling
+            // -----------------------------
+            if ($request->start_date && $request->end_date) {
+                $startDate = Carbon::parse($request->start_date)->startOfDay();
+                $endDate = Carbon::parse($request->end_date)->endOfDay();
+            } else {
+                $startDate = Carbon::today()->startOfDay();
+                $endDate = Carbon::today()->endOfDay();
+            }
+
             $dailyExpectedMinutes = (8 * 60) + 30;
+
             $leaveMinutesMap = [
                 "Full Leave" => $dailyExpectedMinutes,
                 "Multiple Days Leave" => $dailyExpectedMinutes,
@@ -1406,13 +1565,14 @@ class PerformaSheetController extends Controller
                 "Short Leave" => 120
             ];
 
+            // -----------------------------
+            // Auth & Teams
+            // -----------------------------
             $current_user = auth()->user();
             $currentTeamIds = $current_user->team_id;
-            if ($current_user->role_id == 5 || $current_user->role_id == 6) {
-                $teams = Team::whereIn('id', $currentTeamIds)
-                    ->latest()
-                    ->get();
 
+            if (in_array($current_user->role_id, [5, 6])) {
+                $teams = Team::whereIn('id', $currentTeamIds)->latest()->get();
             } elseif ($current_user->role_id == 7) {
                 return response()->json([
                     "success" => false,
@@ -1423,114 +1583,128 @@ class PerformaSheetController extends Controller
                 $teams = Team::latest()->get();
             }
 
-
-            $finalData = [];
+            // -----------------------------
+            // Helpers
+            // -----------------------------
             $toTime = function ($minutes) {
                 $h = floor($minutes / 60);
                 $m = $minutes % 60;
                 return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
             };
+
+            $finalData = [];
+
+            // -----------------------------
+            // Initialize team containers
+            // -----------------------------
             foreach ($teams as $team) {
+                $finalData[$team->id] = [
+                    "teamName" => $team->team_name ?? $team->name,
+                    "totalTeamMembers" => 0,
+                    "expectedMinutes" => 0,
+                    "actualMinutes" => 0,
+                    "leaveMinutes" => 0,
+                    "totalTeamLeaves" => 0,
+                    "teamMembers" => []
+                ];
+            }
 
-                $users = User::whereJsonContains('team_id', $team->id)
-                    ->where('is_active', true)
-                    ->whereIn('role_id', [7])
-                    ->get();
-                $teamUserCount = $users->count();
-                $expectedTeamMinutes = $teamUserCount * $dailyExpectedMinutes;
+            // -----------------------------
+            // Loop date range
+            // -----------------------------
+            for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
 
+                foreach ($teams as $team) {
 
-                $leaveTeamMinutes = 0;
-                $totalTeamLeaves = 0;
-                $teamMembers = [];
-                $baseMinutes = $dailyExpectedMinutes;
-
-                foreach ($users as $user) {
-                    $availability = "Available";
-                    $leaveType = null;
-                    $leaveMinutes = 0;
-                    $expectedMinutes = $baseMinutes;
-                    $actualMinutes = $baseMinutes;
-
-                    $userLeaves = LeavePolicy::where('user_id', $user->id)
-                        ->whereIn('leave_type', [
-                            'Full Leave',
-                            'Multiple Days Leave',
-                            'Half Day',
-                            'Short Leave'
-                        ])
-                        ->whereIn('status', ['Approved', 'Pending'])
+                    $users = User::whereJsonContains('team_id', $team->id)
+                        ->where('is_active', true)
+                        ->whereIn('role_id', [7])
                         ->get();
 
-                    foreach ($userLeaves as $leave) {
+                    $finalData[$team->id]["totalTeamMembers"] = $users->count();
 
-                        $type = $leave->leave_type;
-                        $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
-                        $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+                    foreach ($users as $user) {
 
-                        if ($selectedDate->between($leaveStart, $leaveEnd)) {
-                            $leaveType = $leave->leave_type;
-                            $availability = "On Leave";
-                            $leaveMinutes = $leaveMinutesMap[$leaveType];
-
-                            switch ($leaveType) {
-
-                                case 'Full Leave':
-                                case 'Multiple Days Leave':
-                                    $availability = "On Leave";
-                                    $expectedMinutes = 0;
-                                    $actualMinutes = 0;
-                                    break;
-
-                                case 'Half Day':
-                                    $availability = "On Leave";
-                                    $expectedMinutes = intval($baseMinutes / 2);
-                                    $actualMinutes = intval($baseMinutes / 2);
-                                    break;
-
-                                case 'Short Leave':
-                                    $availability = "On Leave";
-                                    $expectedMinutes = $baseMinutes;
-                                    $actualMinutes = $baseMinutes - $leaveMinutes;
-                                    break;
-                            }
-
-                            $totalTeamLeaves += 1;
-                            $leaveTeamMinutes += $leaveMinutesMap[$type];
+                        if (!isset($finalData[$team->id]["teamMembers"][$user->id])) {
+                            $finalData[$team->id]["teamMembers"][$user->id] = [
+                                "user_id" => $user->id,
+                                "name" => $user->name,
+                                "expectedMinutes" => 0,
+                                "actualMinutes" => 0,
+                                "leaveMinutes" => 0,
+                                "availability" => "Available"
+                            ];
                         }
+
+                        $expectedMinutes = $dailyExpectedMinutes;
+                        $leaveMinutes = 0;
+
+                        $userLeaves = LeavePolicy::where('user_id', $user->id)
+                            ->whereIn('leave_type', array_keys($leaveMinutesMap))
+                            ->whereIn('status', ['Approved', 'Pending'])
+                            ->get();
+
+                        foreach ($userLeaves as $leave) {
+                            $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
+                            $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+
+                            if ($date->between($leaveStart, $leaveEnd)) {
+
+                                $leaveMinutes = $leaveMinutesMap[$leave->leave_type];
+                                $finalData[$team->id]["totalTeamLeaves"]++;
+                                $finalData[$team->id]["teamMembers"][$user->id]["availability"] = "On Leave";
+                            }
+                        }
+
+                        // Merge totals
+                        $finalData[$team->id]["expectedMinutes"] += $expectedMinutes;
+                        $finalData[$team->id]["leaveMinutes"] += $leaveMinutes;
+                        $finalData[$team->id]["actualMinutes"] += ($expectedMinutes - $leaveMinutes);
+
+                        $finalData[$team->id]["teamMembers"][$user->id]["expectedMinutes"] += $expectedMinutes;
+                        $finalData[$team->id]["teamMembers"][$user->id]["leaveMinutes"] += $leaveMinutes;
+                        $finalData[$team->id]["teamMembers"][$user->id]["actualMinutes"] += ($expectedMinutes - $leaveMinutes);
                     }
-                    $teamMembers[] = [
-                        "user_id" => $user->id,
-                        "name" => $user->name,
-                        "leave_type" => $leaveType,
-                        "availability" => $availability,
-                        "leave_hours" => $toTime($leaveMinutes),
-                        "expected_hours" => $toTime($expectedMinutes),
-                        "actual_hours" => $toTime($actualMinutes)
+                }
+            }
+
+            // -----------------------------
+            // Format Output
+            // -----------------------------
+            $response = [];
+
+            foreach ($finalData as $team) {
+                $members = [];
+
+                foreach ($team["teamMembers"] as $member) {
+                    $members[] = [
+                        "user_id" => $member["user_id"],
+                        "name" => $member["name"],
+                        "availability" => $member["availability"],
+                        "expected_hours" => $toTime($member["expectedMinutes"]),
+                        "actual_hours" => $toTime($member["actualMinutes"]),
+                        "leave_hours" => $toTime($member["leaveMinutes"])
                     ];
                 }
-                $totalTeamHoursMinutes = $expectedTeamMinutes - $leaveTeamMinutes;
 
-                $finalData[] = [
-                    "teamName" => $team->team_name ?? $team->name,
-                    "totalTeamMembers" => $teamUserCount,
-                    "expectedHours" => $toTime($expectedTeamMinutes),
-                    "totalHours" => $toTime($totalTeamHoursMinutes),
-                    "totalTeamLeaves" => $totalTeamLeaves,
-                    "leaveHours" => $toTime($leaveTeamMinutes),
-                    "selectedDate" => $selectedDate->format("Y-m-d"),
-                    "teamMembers" => $teamMembers
+                $response[] = [
+                    "teamName" => $team["teamName"],
+                    "totalTeamMembers" => $team["totalTeamMembers"],
+                    "expectedHours" => $toTime($team["expectedMinutes"]),
+                    "totalHours" => $toTime($team["actualMinutes"]),
+                    "leaveHours" => $toTime($team["leaveMinutes"]),
+                    "totalTeamLeaves" => $team["totalTeamLeaves"],
+                    "teamMembers" => $members
                 ];
             }
 
             return response()->json([
                 "success" => true,
-                "message" => "Team-wise daily working hours overview",
-                "data" => $finalData
+                "message" => "Team-wise working hours",
+                "data" => $response
             ]);
 
         } catch (\Exception $e) {
-
             return response()->json([
                 "success" => false,
                 "message" => "Server Error",
@@ -1539,6 +1713,9 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
+
+
+
     public function getUserDaterangePerformaSheets(Request $request)
     {
         $user = auth()->user();
