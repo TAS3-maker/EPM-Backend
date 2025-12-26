@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use League\Config\Exception\ValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use App\Models\Task;
+use App\Models\TagsActivity;
 
 class ProjectMasterController extends Controller
 {
@@ -1017,5 +1019,101 @@ class ProjectMasterController extends Controller
             ], 500);
         }
     }
+
+
+    public function getUserProjects()
+    {
+        try {
+            $userId = auth()->id();
+
+            $projects = ProjectMaster::with(['relation', 'client'])
+                ->get()
+                ->filter(function ($project) use ($userId) {
+
+                    if (!$project->relation) {
+                        return false;
+                    }
+
+                    $assignees = $project->relation->assignees ?? [];
+
+                    if (is_string($assignees)) {
+                        $decoded = json_decode($assignees, true);
+                        $assignees = is_array($decoded) ? $decoded : [$assignees];
+                    }
+
+                    if (is_numeric($assignees)) {
+                        $assignees = [$assignees];
+                    }
+
+                    return in_array($userId, (array) $assignees);
+                })
+                ->map(function ($project) {
+
+                    // Tags
+                    $tagIds = $project->project_tag_activity
+                        ? json_decode($project->project_tag_activity, true)
+                        : [];
+
+                    $tags = TagsActivity::whereIn('id', (array) $tagIds)
+                        ->get(['id', 'name']);
+
+                    // Tasks
+                    $assignedTasks = Task::where('project_id', $project->id)
+                        ->with('projectManager:id,name')
+                        ->get()
+                        ->map(function ($task) {
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
+
+                    return [
+                        'id' => $project->id,
+                        'project_name' => $project->project_name,
+                        'project_tracking' => $project->project_tracking,
+                        'project_status' => $project->project_status,
+                        'project_description' => $project->project_description,
+                        'project_budget' => $project->project_budget,
+                        'project_hours' => $project->project_hours,
+                        'project_used_hours' => $project->project_used_hours,
+                        'project_used_budget' => $project->project_used_budget,
+                        'created_at' => optional($project->created_at)->toDateString(),
+                        'updated_at' => optional($project->updated_at)->toDateString(),
+
+                        'client' => $project->client ?? ['message' => 'No Client Found'],
+                        'tags_activitys' => $tags,
+
+                        'relation' => [
+                            'client_id' => $project->relation->client_id ?? null,
+                            'assignees' => $project->relation->assignees ?? [],
+                            'assigned_at' => optional($project->relation->created_at)->toDateString(),
+                        ],
+
+                        'assigned_tasks' => $assignedTasks,
+                    ];
+                })
+                ->values(); // reset keys
+
+            return ApiResponse::success(
+                'User projects fetched successfully',
+                $projects
+            );
+
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch user projects',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 
 }
