@@ -25,7 +25,7 @@ class TaskController extends Controller
                 'title' => 'required|string|max:255',
                 'description' => 'nullable|string',
                 'status' => 'required|in:To do,In Progress,Completed,Cancel',
-                'project_id' => 'required|exists:projects,id',
+                'project_id' => 'required|exists:projects_master,id',
                 'hours' => 'nullable|numeric',
                 'deadline' => 'nullable|date',
                 'start_date' => 'nullable|date', // start_date ka validation
@@ -47,7 +47,7 @@ class TaskController extends Controller
                 ], 404);
             }
 
-            $project = Project::find($validatedData['project_id']);
+            $project = ProjectMaster::find($validatedData['project_id']);
             if (!$project) {
                 return response()->json([
                     'success' => false,
@@ -55,8 +55,10 @@ class TaskController extends Controller
                 ], 404);
             }
 
-            $currentHours = $project->total_hours ?? 0;
-            $currentRemaining = $project->remaining_hours ?? 0;
+            $currentHours = $project->project_hours ?? 0;
+            if($currentHours > 0){
+                $currentRemaining = $project->project_hours - $project->project_used_hours;
+            }
             $newTaskHours = $validatedData['hours'] ?? 0;
             $newTotalHours = $currentHours + $newTaskHours;
             $newRemaining = $currentRemaining + $newTaskHours;
@@ -77,8 +79,9 @@ class TaskController extends Controller
                 ->max('deadline');
 
             $project->update([
-                'total_hours' => $newTotalHours,
-                'remaining_hours' => $newRemaining,
+                'project_hours' => $newTotalHours,
+                //commented for new approach
+                // 'remaining_hours' => $newRemaining,
                 'deadline' => $highestDeadline
             ]);
 
@@ -95,7 +98,7 @@ class TaskController extends Controller
                     'id' => $project->id,
                     'name' => $project->project_name,
                     'updated_total_hours' => $newTotalHours,
-                    'updated_remaining_hours' => $newRemaining,
+                    // 'updated_remaining_hours' => $newRemaining,
                     'updated_deadline' => $highestDeadline
                 ],
                 'task' => $task
@@ -352,7 +355,7 @@ class TaskController extends Controller
                 ], 404);
             }
 
-            $project = Project::find($task->project_id);
+            $project = ProjectMaster::find($task->project_id);
             if (!$project) {
                 return response()->json([
                     'success' => false,
@@ -377,8 +380,8 @@ class TaskController extends Controller
                 $newHours = $validatedData['hours'] ?? 0;
 
                 if ($newHours !== null) {
-                    $newTotalHours = max(0, ($project->total_hours - $previousHours) + $newHours);
-                    $project->update(['total_hours' => $newTotalHours]);
+                    $newTotalHours = max(0, ($project->project_hours - $previousHours) + $newHours);
+                    $project->update(['project_hours' => $newTotalHours]);
                     $task->hours = $newHours;
                 } else {
                     $task->hours = null;
@@ -407,7 +410,7 @@ class TaskController extends Controller
                 'project' => [
                     'id' => $project->id,
                     'name' => $project->project_name,
-                    'updated_total_hours' => $project->total_hours,
+                    'updated_total_hours' => $project->project_hours,
                     'updated_deadline' => $highestDeadline
                 ],
                 'task' => $task

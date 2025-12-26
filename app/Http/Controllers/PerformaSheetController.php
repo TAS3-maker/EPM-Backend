@@ -11,6 +11,7 @@ use App\Models\Task;
 use App\Http\Helpers\ApiResponse;
 use App\Http\Resources\ProjectResource;
 use App\Mail\EmployeePerformaSheet;
+use App\Models\ApplicationPerforma;
 use App\Models\PerformaSheet;
 use App\Models\Role;
 use App\Models\TagsActivity;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 use App\Models\LeavePolicy;
+use App\Models\ProjectMaster;
 use App\Models\Team;
 use App\Services\ActivityService;
 
@@ -35,18 +37,21 @@ class PerformaSheetController extends Controller
                 'data' => 'required|array',
                 'data.*.project_id' => [
                     'required',
-                    Rule::exists('project_user', 'project_id')->where(function ($query) use ($submitting_user) {
-                        $query->where('user_id', $submitting_user->id);
+                    Rule::exists('project_relations', 'project_id')->where(function ($query) use ($submitting_user) {
+                    $query->whereRaw(
+                            'JSON_CONTAINS(assignees, ?, "$")',
+                            [json_encode((int) $submitting_user->id)]
+                        );
                     })
                 ],
                 'data.*.date' => 'required|date_format:Y-m-d',
                 'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
                 'data.*.task_id' => 'nullable|integer',
                 'data.*.work_type' => 'required|string|max:255',
-                'data.*.activity_type' => 'required|string|max:255',
                 'data.*.narration' => 'nullable|string',
-                'data.*.project_type' => 'required|string|max:255',
-                'data.*.project_type_status' => 'required|string|max:255',
+                'data.*.is_tracking'=>'required|in:yes,no',
+                'data.*.tracking_mode'=>'nullable|in:all,partial',
+                'data.*.tracked_hours'=>'nullable',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -55,32 +60,56 @@ class PerformaSheetController extends Controller
                 'errors' => $e->errors()
             ], 422);
         }
-
         $inserted = [];
         $sheetsWithDetails = [];
 
         foreach ($validatedData['data'] as $record) {
-            $project = Project::find($record['project_id']);
+            $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
-
             /**
              * Force every record to be Billable
              * - If user selected Non Billable, convert to Billable
              * - If project is hourly, keep Billable
              * - Basically: Non Billable can never go to DB
              */
+            $record['project_type'] = 'Fixed';
+            $record['project_type_status'] = 'Offline';
+            $record['activity_type'] = $project->tagActivityRelated?->name;
             if (
+                !isset($project->tagActivityRelated->name) ||
+                strtolower($project->tagActivityRelated->name) === 'non billable' ||
+                strtolower($project->tagActivityRelated->name) === 'non-billable'
+            ){
+                $record['activity_type'] = 'Billable';
+            }
+            else if($project->tagActivityRelated->id == 18){
+                $record['project_type'] = 'No Work';                
+            }
+
+            if($record['is_tracking'] === 'yes'){
+                if($record['tracking_mode'] === 'all'){
+                    $record['tracked_hours'] = $record['time'];
+                }
+            }
+
+            if ($project && $project->project_tracking) {
+                $record['activity_type'] = 'Billable';
+                $record['project_type'] = 'Hourly';
+                $record['project_type_status'] = 'Online';
+            }
+            
+            /* if (
                 !isset($record['activity_type']) ||
                 strtolower($record['activity_type']) === 'non billable' ||
                 strtolower($record['activity_type']) === 'non-billable'
             ) {
                 $record['activity_type'] = 'Billable';
-            }
+            } 
 
             if ($project && $project->billing_type === 'hourly') {
                 $record['activity_type'] = 'Billable';
             }
-
+            */
             // Check if project has tasks
             $tasks = Task::where('project_id', $record['project_id'])->get();
 
@@ -103,10 +132,15 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
+            $status = 'pending';
+            //validation for submission allowed or not
+            if(!$request->is_fillable){
+                $status = 'draft';
+            }
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
                 'user_id' => $submitting_user->id,
-                'status' => 'pending',
+                'status' => $status,
                 'data' => json_encode($record)
             ]);
 
@@ -123,6 +157,11 @@ class PerformaSheetController extends Controller
                 'project_type' => $record['project_type'],
                 'project_type_status' => $record['project_type_status'],
             ];
+            if($record['is_tracking']){
+                $sheetsWithDetails['is_tracking'] = $record['is_tracking'];
+                $sheetsWithDetails['tracking_mode']= $record['tracking_mode'];
+                $sheetsWithDetails['tracked_hours']= $record['tracked_hours'];
+            }
 
             $inserted[] = $insertedSheet;
         }
@@ -627,23 +666,26 @@ class PerformaSheetController extends Controller
                 'data' => 'required|array',
                 'data.project_id' => [
                     'required',
-                    Rule::exists('project_user', 'project_id')->where(function ($query) use ($user) {
-                        $query->where('user_id', $user->id);
+                    Rule::exists('project_relations', 'project_id')->where(function ($query) use ($user) {
+                    $query->whereRaw(
+                            'JSON_CONTAINS(assignees, ?, "$")',
+                            [json_encode((int) $user->id)]
+                        );
                     })
                 ],
                 'data.date' => 'required|date_format:Y-m-d',
                 'data.time' => 'required|date_format:H:i',
                 'data.work_type' => 'required|string|max:255',
-                'data.activity_type' => 'required|string|max:255',
                 'data.narration' => 'nullable|string',
-                'data.project_type' => 'required|string|max:255',
-                'data.project_type_status' => 'required|string|max:255',
                 'data.tags_activitys' => 'nullable|array',
                 'data.tags_activitys.*' => 'integer|exists:tagsactivity,id',
+                'data.is_tracking'=>'required|in:yes,no',
+                'data.tracking_mode'=>'nullable|in:all,partial',
+                'data.tracked_hours'=>'nullable',
             ]);
 
             $projectId = $validatedData['data']['project_id'];
-            $project = Project::find($projectId);
+            $project = ProjectMaster::find($projectId);
             $projectName = $project ? $project->name : "Unknown Project";
 
             $tasks = Task::where('project_id', $projectId)->get();
@@ -1094,6 +1136,32 @@ class PerformaSheetController extends Controller
             $endOfWeek = $selectedDate->copy()->endOfWeek();
             $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
 
+            /** is passed date fillable for performa sheet */
+            $today = Carbon::today();
+            $isFillable = 1;
+            $hasApprovedApplication = ApplicationPerforma::where('user_id', auth()->id())
+            ->whereDate('apply_date', $selectedDate->toDateString())
+            ->where('status', 'approved')
+            ->exists();
+
+            if ($hasApprovedApplication) {
+                $isFillable = 1;
+            } else {
+                if ($selectedDate->lt($today)) {
+                    $workingDays = 0;
+                    $dateCursor = $selectedDate->copy();
+                    while ($dateCursor->lt($today)) {
+                        if (!$dateCursor->isWeekend()) {
+                            $workingDays++;
+                        }
+                        $dateCursor->addDay();
+                    }
+                    if ($workingDays > 2) {
+                        $isFillable = 0;
+                    }
+                }
+            }
+
             $sheets = PerformaSheet::with('user:id,name')
                 ->where('user_id', $user->id)
                 ->get()
@@ -1165,7 +1233,9 @@ class PerformaSheetController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Weekly Performa Sheets fetched successfully',
-                'data' => $weeklyTotals
+                'data' => $weeklyTotals,
+                'is_fillable' => $isFillable,
+                'selected_date' => $selectedDate->toDateString(),
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -1706,6 +1776,116 @@ class PerformaSheetController extends Controller
                 'message' => 'Monthly Performa Sheets fetched successfully',
                 'data' => $weeklyTotals
             ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function applyToFillPerformaSheets(Request $request){
+        $submitting_user = auth()->user();
+        $validatedData = $request->validate([
+            'apply_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+        ]);
+
+        $application = ApplicationPerforma::create([
+            'user_id'    => $submitting_user->id,
+            'status'     => 'pending',
+            'apply_date'    => $validatedData['apply_date'],
+            'approval_date' => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application For Performa submitted successfully',
+            'data' => [
+                'id' => $application->id,
+                'user_id' => $application->user_id,
+                'status' => $application->status,
+                'apply_date' => $application->apply_date
+            ]
+        ], 201);
+    }
+    public function approveApplicationPerformaSheets(Request $request, $id){
+        $approver = auth()->user();
+        if (!in_array($approver->role_id, [4])) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You are not authorized to approve this application'
+            ], 403);
+        }
+
+        $application = ApplicationPerforma::find($id);
+
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        if ($application->status === 'approved') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application already approved'
+            ], 422);
+        }
+
+        $application->update([
+            'status' => 'approved',
+            'approval_date' => now()->toDateString()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Application to fill performa approved successfully',
+            'data' => [
+                'id' => $application->id,
+                'user_id' => $application->user_id,
+                'status' => $application->status,
+                'apply_date' => $application->apply_date,
+                'approval_date' => $application->approval_date
+            ]
+        ]);
+    }
+    public function rejectApplicationPerformaSheets(Request $request, $id)
+    {
+        $application = ApplicationPerforma::find($id);
+        if (!$application) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        $application->update([
+            'status' => 'rejected',
+            'approval_date' => now()->toDateString()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Performa application rejected',
+            'data' => $application
+        ]);
+    }
+       
+    public function getAllPerformaApplications(Request $request)
+    {
+        try {
+            $applications = ApplicationPerforma::with('user:id,name')
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Performa applications fetched successfully',
+                'data' => $applications
+            ]);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

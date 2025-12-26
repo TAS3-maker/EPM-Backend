@@ -28,5 +28,13 @@ class ProjectMaster extends Model
             $this->project_tag_activity ?? ''
         )->get();
     }
+    public function tagActivityRelated()
+    {
+        return $this->belongsTo(
+            TagsActivity::class,
+            'project_tag_activity',
+            'id'
+        );
+    }
 
 }

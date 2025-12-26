@@ -116,11 +116,14 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-weekly-performa-sheet', [PerformaSheetController::class, 'getUserWeeklyPerformaSheets']);
         Route::get('/get-allusers-unfilled-performa-sheet', [PerformaSheetController::class, 'getAllUsersWithUnfilledPerformaSheets']);
         Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 'getMissingUserPerformaSheets']);
-
-
         Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
         Route::get('/get-all-pending-performa-sheets', [PerformaSheetController::class, 'getAllPendingPerformaSheets']);
         Route::get('/get-performa-sheet-daterange', [PerformaSheetController::class, 'getUserDaterangePerformaSheets']);
+        
+        Route::post('/apply-performa', [PerformaSheetController::class, 'applyToFillPerformaSheets']);
+        Route::post('/approve-application/{id}', [PerformaSheetController::class, 'approveApplicationPerformaSheets']);
+        Route::post('/reject-application/{id}', [PerformaSheetController::class, 'rejectApplicationPerformaSheets']);
+        Route::get('/get-applications-performa', [PerformaSheetController::class, 'getAllPerformaApplications']);
 
         // App => Http => Controllers =>LeaveController
         Route::post('/add-leave', [LeaveController::class, 'Addleave']);
