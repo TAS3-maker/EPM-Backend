@@ -35,7 +35,13 @@ class Permission extends Model
         'unassigned_projects_inside_project_management',
         'performance_sheet',
         'performance_history',
-        'projects_assigned'
+        'projects_assigned',
+        'project_master',
+        'client_master',
+        'project_source',
+        'communication_type',
+        'account_master',
+        'notes_management',
     ];
 
     // Relationship to User

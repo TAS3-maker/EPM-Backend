@@ -102,7 +102,6 @@ class RoleController extends Controller
         }
         DB::beginTransaction();
         try {
-            // ================= UPDATE ROLE =================
             // $role->update([
             //     'name' => $request->name,
             //     'roles_permissions' => $request->roles_permissions,
@@ -125,9 +124,7 @@ class RoleController extends Controller
                 return ApiResponse::success('Role updated successfully', $role);
             }
             $newPermissions = $request->roles_permissions;
-            // ================= USERS WITH THIS ROLE =================
             $users = User::where('role_id', $role->id)->get();
-            // ================= PERMISSION COLUMNS =================
             $permissionColumns = [
                 'dashboard',
                 'permission',
@@ -155,8 +152,13 @@ class RoleController extends Controller
                 'performance_sheet',
                 'performance_history',
                 'projects_assigned',
+                'project_master',
+                'client_master',
+                'project_source',
+                'communication_type',
+                'account_master',
+                'notes_management',
             ];
-            // ================= UPDATE PERMISSIONS =================
             foreach ($users as $user) {
                 $permission = Permission::where('user_id', $user->id)->first();
                 if (!$permission) {
@@ -166,19 +168,15 @@ class RoleController extends Controller
                 foreach ($permissionColumns as $column) {
                     $existing = (int) $permission->$column;
                     $new = (int) ($newPermissions[$column] ?? 0);
-                    // RULE 1: Existing 2 always stays 2
                     if ($existing === 2) {
                         $final = 2;
                     }
-                    // RULE 2 & 3: Existing 1
                     elseif ($existing === 1) {
                         $final = ($new === 0) ? 1 : $new;
                     }
-                    // RULE 4: Existing 0
                     else {
                         $final = $new;
                     }
-                    // ENUM-safe value
                     $updateData[$column] = (string) $final;
                 }
                 $permission->update($updateData);

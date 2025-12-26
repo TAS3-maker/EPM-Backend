@@ -38,6 +38,12 @@ class PermissionResource extends JsonResource
             'performance_sheet' => $this->performance_sheet,
             'performance_history' => $this->performance_history,
             'projects_assigned' => $this->projects_assigned,
+            'project_master'=> $this->project_master,
+            'client_master'=> $this->client_master,
+            'project_source'=> $this->project_source,
+            'communication_type'=> $this->communication_type,
+            'account_master'=> $this->account_master,
+            'notes_management'=> $this->notes_management,
         ];
     }
 }

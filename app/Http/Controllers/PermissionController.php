@@ -74,6 +74,12 @@ class PermissionController extends Controller
                     "performance_sheet" => "0",
                     "performance_history" => "0",
                     "projects_assigned" => "0",
+                    "project_master" => "0",
+                    "client_master" => "0",
+                    "project_source" => "0",
+                    "communication_type" => "0",
+                    "account_master" => "0",
+                    "notes_management" => "0",
                 ];
 
                 $users = User::with('permission')
