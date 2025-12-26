@@ -588,7 +588,7 @@ class ProjectMasterController extends Controller
         ]);
     }
 
-    
+
     public function assignProjectToTLMaster(Request $request): JsonResponse
     {
         try {
@@ -608,7 +608,7 @@ class ProjectMasterController extends Controller
         try {
             $project = ProjectMaster::findOrFail($validatedData['project_id']);
 
-        
+
 
         } catch (ModelNotFoundException $e) {
             return response()->json([
@@ -656,6 +656,12 @@ class ProjectMasterController extends Controller
             }
         }
 
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Project assigned to Team Leaders by' . auth()->user()->name,
+        ]);
+
         return response()->json([
             'success' => true,
             'message' => 'Project assigned to Team Leaders successfully.',
@@ -673,9 +679,9 @@ class ProjectMasterController extends Controller
             return response()->json(['error' => 'Invalid project ID'], 422);
         }
 
-        if (!is_array($member_id)) {
-            $member_ids = explode(',', $member_id);
-        }
+        $member_ids = is_array($member_id)
+            ? $member_id
+            : explode(',', $member_id);
 
         $relation = ProjectRelation::where('project_id', $project_id)->first();
 
@@ -683,25 +689,38 @@ class ProjectMasterController extends Controller
             return response()->json(['error' => 'Project relation not found'], 404);
         }
 
-        $assignees = ($relation->assignees);
-        if (!is_array($assignees)) {
-            $assignees = [];
-        }
+        $assignees = is_array($relation->assignees)
+            ? $relation->assignees
+            : [];
 
-        $updatedAssignees = array_filter($assignees, fn($id) => !in_array($id, $member_ids));
+        $updatedAssignees = array_filter(
+            $assignees,
+            fn($id) => !in_array($id, $member_ids)
+        );
 
-        $relation->assignees = (array_values($updatedAssignees));
+        $relation->assignees = array_values($updatedAssignees);
         $relation->save();
+
+        $userNames = User::whereIn('id', $member_ids)
+            ->pluck('name')
+            ->implode(', ');
+
+        ActivityService::log([
+            'project_id' => $project_id,
+            'type' => 'activity',
+            'description' => "{$userNames} unassigned from project by " . auth()->user()->name,
+        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Team Lead removed successfully.',
             'data' => [
                 'project_id' => $relation->project_id,
-                'updated_tl_id' => json_encode($relation->assignees)
+                'updated_tl_id' => $relation->assignees
             ]
         ]);
     }
+
     public function assignProjectManagerProjectToEmployeeMaster(Request $request)
     {
         $projectManagerId = auth()->user()->id;
@@ -763,12 +782,66 @@ class ProjectMasterController extends Controller
             $responseMessage .= '. But these users were already assigned: ' . implode(', ', $alreadyAssigned);
         }
 
+        $userNames = User::whereIn('id', $validatedData['employee_ids'])
+            ->pluck('name')
+            ->implode(', ');
+
+        ActivityService::log([
+            'project_id' => $validatedData['project_id'],
+            'type' => 'activity',
+            'description' => "{$userNames} assigned to project by " . auth()->user()->name,
+        ]);
+
         return ApiResponse::success($responseMessage, [
             'project_manager_id' => $projectManagerId,
             'data' => $insertedData
         ]);
     }
-    public function removeprojectemployeeMaster($project_id, $user_id){
+    public function removeprojectemployeeMaster($project_id, $user_id)
+    {
+        if (!is_numeric($project_id) || !is_numeric($user_id)) {
+            return response()->json(['error' => 'Invalid parameters'], 422);
+        }
+
+        $relation = ProjectRelation::where('project_id', $project_id)->first();
+
+        if (!$relation) {
+            return response()->json(['error' => 'Project not found'], 404);
+        }
+
+        $assignees = $relation->assignees;
+
+        if (!is_array($assignees) || !in_array($user_id, $assignees)) {
+            return response()->json([
+                'error' => 'User is not assigned to this project'
+            ], 404);
+        }
+
+        $updatedAssignees = array_values(
+            array_diff($assignees, [$user_id])
+        );
+
+        $relation->assignees = $updatedAssignees;
+        $relation->updated_at = now();
+        $relation->save();
+
+        $username = User::find($user_id)->name;
+
+
+        ActivityService::log([
+            'project_id' => $project_id,
+            'type' => 'activity',
+            'description' => $username . ' unassigned from project by ' . auth()->user()->name,
+
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User removed from project successfully.',
+        ]);
+    }
+    public function removeAssignee($project_id, $user_id)
+    {
         if (!is_numeric($project_id) || !is_numeric($user_id)) {
             return response()->json(['error' => 'Invalid parameters'], 422);
         }
@@ -796,52 +869,27 @@ class ProjectMasterController extends Controller
         $relation->updated_at = now();
         $relation->save();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User removed from project successfully.',
+        $username = User::find($user_id)->name;
+        ActivityService::log([
+            'project_id' => $project_id,
+            'type' => 'activity',
+            'description' => $username . ' unassigned from project by ' . auth()->user()->name,
+
         ]);
-    }
-    public function removeAssignee($project_id, $user_id){
-        if (!is_numeric($project_id) || !is_numeric($user_id)) {
-            return response()->json(['error' => 'Invalid parameters'], 422);
-        }
-
-        $relation = ProjectRelation::where('project_id', $project_id)->first();
-
-        if (!$relation) {
-            return response()->json(['error' => 'Project not found'], 404);
-        }
-
-        $assignees = $relation->assignees;
-
-        if (!is_array($assignees) || !in_array($user_id, $assignees)) {
-            return response()->json([
-                'error' => 'User is not assigned to this project'
-            ], 404);
-        }
-
-        // Remove user from assignees
-        $updatedAssignees = array_values(
-            array_diff($assignees, [$user_id])
-        );
-
-        $relation->assignees = $updatedAssignees;
-        $relation->updated_at = now();
-        $relation->save();
 
         return response()->json([
             'success' => true,
             'message' => 'User removed from project successfully.',
         ]);
     }
-    public function assignProjectToManagerMaster(Request $request){
+    public function assignProjectToManagerMaster(Request $request)
+    {
         $validatedData = $request->validate([
             'project_id' => 'required|exists:projects_master,id',
             'project_manager_ids' => 'required|array|min:1',
             'project_manager_ids.*' => 'exists:users,id'
         ]);
 
-        // Fetch project relation
         $relation = ProjectRelation::where('project_id', $validatedData['project_id'])->first();
 
         if (!$relation) {
@@ -851,26 +899,21 @@ class ProjectMasterController extends Controller
             ], 404);
         }
 
-        // Existing assignees (PMs are part of this)
         $existingAssignees = $relation->assignees;
         if (!is_array($existingAssignees)) {
             $existingAssignees = [];
         }
 
-        // Merge without duplicates
         $mergedManagerIds = array_values(
             array_unique(array_merge($existingAssignees, $validatedData['project_manager_ids']))
         );
 
-        // Identify newly assigned managers
         $newlyAssignedIds = array_diff($validatedData['project_manager_ids'], $existingAssignees);
 
-        // Save
         $relation->assignees = ($mergedManagerIds);
         $relation->updated_at = now();
         $relation->save();
 
-        // Send emails only to newly assigned managers
         $assigner = auth()->user();
         foreach ($newlyAssignedIds as $managerId) {
             $manager = User::find($managerId);
@@ -884,6 +927,16 @@ class ProjectMasterController extends Controller
                 // Mail::to($manager->email)->send($mail);
             }
         }
+
+        $userNames = User::whereIn('id', $validatedData['project_manager_ids'])
+            ->pluck('name')
+            ->implode(', ');
+
+        ActivityService::log([
+            'project_id' => $validatedData['project_id'],
+            'type' => 'activity',
+            'description' => "{$userNames} assigned to project by " . auth()->user()->name,
+        ]);
 
         return response()->json([
             'success' => true,
@@ -936,6 +989,16 @@ class ProjectMasterController extends Controller
 
             $relation->updated_at = now();
             $relation->save();
+
+            $userNames = User::whereIn('id', $validatedData['manager_ids'])
+                ->pluck('name')
+                ->implode(', ');
+
+            ActivityService::log([
+                'project_id' => $validatedData['project_id'],
+                'type' => 'activity',
+                'description' => "{$userNames} unassigned from project by " . auth()->user()->name,
+            ]);
 
             return response()->json([
                 'success' => true,
