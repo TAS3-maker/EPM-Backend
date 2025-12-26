@@ -34,6 +34,7 @@ class PerformaSheetController extends Controller
         $submitting_user_employee_id = $submitting_user->employee_id;
         try {
             $validatedData = $request->validate([
+                'is_fillable' => 'nullable|boolean',
                 'data' => 'required|array',
                 'data.*.project_id' => [
                     'required',
@@ -132,11 +133,8 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
-            $status = 'pending';
-            //validation for submission allowed or not
-            if(!$request->is_fillable){
-                $status = 'draft';
-            }
+            $isFillable = (bool) ($validatedData['is_fillable'] ?? false);
+            $status = $isFillable ? 'pending' : 'draft';
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
                 'user_id' => $submitting_user->id,
