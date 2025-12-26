@@ -219,5 +219,8 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/remove-assignee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeAssignee']);
         Route::post('/assign-project-manager', [ProjectMasterController::class, 'assignProjectToManagerMaster']);
         Route::delete('/remove-project-managers', [ProjectMasterController::class, 'removeProjectManagersMaster']);
+
+        Route::get('/user-projects-master', [ProjectMasterController::class, 'getUserProjects']);
+
     });
 });

@@ -21,63 +21,70 @@ use LDAP\Result;
 
 class LeaveController extends Controller
 {
-	public function AddLeave(Request $request)
-	{
-		$user = auth()->user(); 
-		$request->validate([
-			'start_date' => 'required|date|after_or_equal:today',
-			'end_date' => 'nullable|date|after_or_equal:start_date',
-			'leave_type' => 'required|in:Full Leave,Short Leave,Half Day,Multiple Days Leave',
-			'reason' => 'required',
-			'status' => 'in:Pending,Approved,Rejected',
-			'hours' => [
-        'nullable',
-        function ($attribute, $value, $fail) use ($request) {
-            if ($request->leave_type === 'Short Leave') {
-                // Regex: Example format "4PM to 8PM"
-                if (!preg_match('/^(1[0-2]|0?[1-9])(AM|PM)\s+to\s+(1[0-2]|0?[1-9])(AM|PM)$/i', $value)) {
-                    $fail('Hours must be in format like "4PM to 8PM".');
-                }
-            }
-        }
-    ],
+    public function AddLeave(Request $request)
+    {
+        $user = auth()->user();
+
+        $request->validate([
+            'start_date' => 'required|date|after_or_equal:today',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'leave_type' => 'required|in:Full Leave,Short Leave,Half Day,Multiple Days Leave',
+            'reason' => 'required',
+            'status' => 'in:Pending,Approved,Rejected',
+
+            'start_time' => 'required_if:leave_type,Short Leave|string',
+            'end_time' => 'required_if:leave_type,Short Leave|string',
+
             'halfday_period' => [
-            'nullable',
-            function ($attribute, $value, $fail) use ($request) {
-                if ($request->leave_type === 'Half Day') {
-                    if (!$value) {
-                        $fail('The halfday_period field is required when leave_type is Half Day.');
-                    } elseif (!in_array(strtolower($value), ['morning', 'afternoon'])) {
-                        $fail('Halfday period must be either morning or afternoon.');
+                'nullable',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($request->leave_type === 'Half Day') {
+                        if (!$value) {
+                            $fail('The halfday_period field is required when leave_type is Half Day.');
+                        } elseif (!in_array(strtolower($value), ['morning', 'afternoon'])) {
+                            $fail('Halfday period must be either morning or afternoon.');
+                        }
                     }
                 }
-            }
-        ],
-        'documents' => 'nullable|mimes:jpg,jpeg,png,pdf,docx|max:10240'
-		]);
+            ],
 
-		if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
-			$endDate = $request->start_date;
-		} elseif ($request->leave_type === 'Multiple Days Leave' && isset($request->end_date)) {
-			$endDate = $request->end_date; 
-		} else {
-			return response()->json([
-				'success' => false,
-				'message' => "End date is required for Multiple Days Leave"
-			], 400);
-		}
-		$hours = ($request->leave_type === 'Short Leave') ? ($request->hours ?? null) : null;
-		$halfdayPeriod = ($request->leave_type === 'Half Day') ? strtolower($request->halfday_period) : null;
-		$leave = LeavePolicy::create([
-				'user_id' => $user->id, 
-				'start_date' => $request->start_date,
-				'end_date' => $endDate, 
-				'leave_type' => $request->leave_type,
-				'reason' => $request->reason,
-				'status' => $request->status ?? 'Pending',
-				'hours' => $hours,
-                'halfday_period' => $halfdayPeriod,
-		]);
+            'documents' => 'nullable|mimes:jpg,jpeg,png,pdf,docx|max:10240'
+        ]);
+
+        if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
+            $endDate = $request->start_date;
+        } elseif ($request->leave_type === 'Multiple Days Leave') {
+            if (!$request->end_date) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'End date is required for Multiple Days Leave'
+                ], 400);
+            }
+            $endDate = $request->end_date;
+        }
+        $hours = null;
+
+        if ($request->leave_type === 'Short Leave') {
+            $hours = trim($request->start_time) . ' to ' . trim($request->end_time);
+        }
+
+        $halfdayPeriod = ($request->leave_type === 'Half Day')
+            ? strtolower($request->halfday_period)
+            : null;
+
+        $leave = LeavePolicy::create([
+            'user_id' => $user->id,
+            'start_date' => $request->start_date,
+            'end_date' => $endDate,
+            'leave_type' => $request->leave_type,
+            'reason' => $request->reason,
+            'status' => $request->status ?? 'Pending',
+            'hours' => $hours,
+            'halfday_period' => $halfdayPeriod,
+            'start_time' => $request->start_time,
+            'end_time' => $request->end_time,
+        ]);
+
         if ($request->hasFile('documents')) {
             $file = $request->file('documents');
 
@@ -91,18 +98,18 @@ class LeaveController extends Controller
             $leave->documents = $filename;
             $leave->save();
         }
-		return response()->json([
-			'success' => true,
-			'message' => 'Leave request submitted successfully',
-			'data' => $leave,
-            'url' => !empty($filename) ? asset('storage/' . $filename):'',
-		]);
-	}
 
+        return response()->json([
+            'success' => true,
+            'message' => 'Leave request submitted successfully',
+            'data' => $leave,
+            'url' => !empty($filename) ? asset('storage/' . $filename) : '',
+        ]);
+    }
     public function getallLeavesForHr()
     {
-        $leaves = LeavePolicy::with('user:id,name') 
-                             ->latest()->get();
+        $leaves = LeavePolicy::with('user:id,name')
+            ->latest()->get();
 
         if ($leaves->isEmpty()) {
             return response()->json([
@@ -111,12 +118,12 @@ class LeaveController extends Controller
                 'data' => []
             ]);
         }
-        
+
         $leaveData = $leaves->map(function ($leave) {
             return [
                 'id' => $leave->id,
                 'user_id' => $leave->user_id,
-                'user_name' => $leave->user->name ?? 'Deleted User',  
+                'user_name' => $leave->user->name ?? 'Deleted User',
                 'start_date' => $leave->start_date,
                 'end_date' => $leave->end_date,
                 'leave_type' => $leave->leave_type,
@@ -138,13 +145,13 @@ class LeaveController extends Controller
     public function getLeavesByemploye()
     {
         $user = auth()->user();
-        
+
         // code commented to show only current user's leaves
         // if ($user->role_id == 7) {
-            $leaves = LeavePolicy::with('user:id,name')
-                ->where('user_id', $user->id)
-                ->latest()
-                ->get();
+        $leaves = LeavePolicy::with('user:id,name')
+            ->where('user_id', $user->id)
+            ->latest()
+            ->get();
         // } else {
         //     $leaves = LeavePolicy::with('user:id,name')
         //         ->latest()
@@ -179,22 +186,22 @@ class LeaveController extends Controller
         if ($user->role_id == 6) {
             $employees = User::where('id', '!=', $user->id)
                 ->where(function ($q) use ($team_id) {
-                        foreach ($team_id as $t) {
-                            if ($t !== null) {
-                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                            }
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                         }
+                    }
                 })
-                ->where('role_id', 7)         
+                ->where('role_id', 7)
                 ->get();
         } else {
             $employees = User::where('id', '!=', $user->id)
                 ->where(function ($q) use ($team_id) {
-                        foreach ($team_id as $t) {
-                            if ($t !== null) {
-                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                            }
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                         }
+                    }
                 })
                 ->get();
         }
@@ -344,7 +351,7 @@ class LeaveController extends Controller
             // Mail::to($user->email)->send(
             //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
             // );
-            
+
         }
 
         return response()->json([
@@ -353,7 +360,7 @@ class LeaveController extends Controller
             'data' => $leave
         ]);
     }
-public function getallLeavesbyUser()
+    public function getallLeavesbyUser()
     {
         $currentUser = Auth::user();
 

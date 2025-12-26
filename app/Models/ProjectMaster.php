@@ -36,5 +36,21 @@ class ProjectMaster extends Model
             'id'
         );
     }
+    public function relation()
+    {
+        return $this->hasOne(ProjectRelation::class, 'project_id');
+    }
+
+    public function client()
+    {
+        return $this->hasOneThrough(
+            Client::class,
+            ProjectRelation::class,
+            'project_id',
+            'id',
+            'id',
+            'client_id'
+        );
+    }
 
 }
