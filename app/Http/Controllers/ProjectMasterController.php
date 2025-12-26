@@ -27,10 +27,44 @@ class ProjectMasterController extends Controller
 {
     public function index()
     {
-        $projects = ProjectMaster::all();
+        $currentUser = auth()->user();
 
-        $data = $projects->map(function ($project) {
-            $relation = ProjectRelation::where('project_id', $project->id)->first();
+        if (in_array($currentUser->role_id, [1, 2, 3, 4])) {
+
+            $projects = ProjectMaster::with(['relation'])
+                ->get();
+
+        } else {
+
+            $projects = ProjectMaster::with(['relation'])
+                ->get()
+                ->filter(function (ProjectMaster $project) use ($currentUser) {
+
+                    if (!$project->relation) {
+                        return false;
+                    }
+
+                    $assignees = $project->relation->assignees ?? [];
+
+                    if (is_array($assignees)) {
+                    } elseif (is_numeric($assignees)) {
+                        $assignees = [(int) $assignees];
+                    } elseif (is_string($assignees)) {
+                        $decoded = json_decode($assignees, true);
+                        $assignees = is_array($decoded) ? $decoded : [];
+                    } else {
+                        $assignees = [];
+                    }
+
+                    return in_array($currentUser->id, $assignees, true);
+                })
+                ->values();
+        }
+
+        $data = $projects->map(function (ProjectMaster $project) {
+
+            $relation = $project->relation;
+
             $attachments = ProjectActivityAndComment::where('project_id', $project->id)
                 ->where('type', 'attachment')
                 ->pluck('attachments');
@@ -49,8 +83,6 @@ class ProjectMasterController extends Controller
             'data' => $data,
         ], 200);
     }
-
-
 
     public function store(Request $request)
     {
