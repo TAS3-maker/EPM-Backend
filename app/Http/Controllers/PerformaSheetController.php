@@ -1136,29 +1136,11 @@ class PerformaSheetController extends Controller
 
             /** is passed date fillable for performa sheet */
             $today = Carbon::today();
-            $isFillable = 1;
-            $hasApprovedApplication = ApplicationPerforma::where('user_id', auth()->id())
-            ->whereDate('apply_date', $selectedDate->toDateString())
+            $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
             ->where('status', 'approved')
-            ->exists();
-
-            if ($hasApprovedApplication) {
-                $isFillable = 1;
-            } else {
-                if ($selectedDate->lt($today)) {
-                    $workingDays = 0;
-                    $dateCursor = $selectedDate->copy();
-                    while ($dateCursor->lt($today)) {
-                        if (!$dateCursor->isWeekend()) {
-                            $workingDays++;
-                        }
-                        $dateCursor->addDay();
-                    }
-                    if ($workingDays > 2) {
-                        $isFillable = 0;
-                    }
-                }
-            }
+            ->pluck('apply_date')
+            ->map(fn ($d) => Carbon::parse($d)->toDateString())
+            ->toArray();
 
             $sheets = PerformaSheet::with('user:id,name')
                 ->where('user_id', $user->id)
@@ -1177,11 +1159,35 @@ class PerformaSheetController extends Controller
             // Initialize weekly totals
             foreach ($period as $day) {
                 $carbonDay = Carbon::instance($day);
+                $dateKey   = $carbonDay->toDateString();
+
+                /* is_fillable calculation per day*/
+                $isFillable = 1;
+                if (!in_array($dateKey, $approvedApplications)) {
+                    if ($carbonDay->lt($today)) {
+                        $workingDays = 0;
+                        $cursor = $carbonDay->copy();
+
+                        while ($cursor->lt($today)) {
+                            if (!$cursor->isWeekend()) {
+                                $workingDays++;
+                            }
+                            $cursor->addDay();
+                        }
+
+                        if ($workingDays > 2) {
+                            $isFillable = 0;
+                        }
+                    }
+                }
+
+
                 $weeklyTotals[$carbonDay->toDateString()] = [
                     'dayname' => $carbonDay->format('D'),
                     'totalHours' => '00:00',
                     'totalBillableHours' => '00:00',
-                    'totalNonBillableHours' => '00:00'
+                    'totalNonBillableHours' => '00:00',
+                    'is_fillable' => $isFillable
                 ];
             }
 
@@ -1232,8 +1238,6 @@ class PerformaSheetController extends Controller
                 'success' => true,
                 'message' => 'Weekly Performa Sheets fetched successfully',
                 'data' => $weeklyTotals,
-                'is_fillable' => $isFillable,
-                'selected_date' => $selectedDate->toDateString(),
             ]);
         } catch (\Exception $e) {
             return response()->json([
