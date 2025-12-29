@@ -199,13 +199,14 @@ class PerformaSheetController extends Controller
              $isFillable = (bool) ($record['is_fillable'] ?? false);
             $status = $isFillable ? 'pending' : 'draft'; */
 
-            $sheet_data = json_decode($sheet->data, true) ?? [];
-            $sheet_data['is_fillable'] = 1;
+            $data = json_decode($sheet->data, true) ?? [];
+            $data['is_fillable'] = 1;
 
             $sheet->update([
-                'data'   => json_encode($sheet_data),
+                'data'   => json_encode($data),
                 'status' => 'pending',
             ]);
+            $sheet_data = json_decode($sheet->data);
             $updatedCount++;
             //sheet details for mail/report
             $sheetsWithDetails[] = [
