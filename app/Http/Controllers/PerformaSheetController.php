@@ -1090,14 +1090,6 @@ class PerformaSheetController extends Controller
         $user = $request->user();
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
-        $status = $request->query('status');
-        $isFillable = $request->query('is_fillable');
-        
-        if(isset($status) && $status == 'draft'){
-            $status = 'draft';
-        }else{
-            $status = 'pending';
-        }
 
         $baseQuery = PerformaSheet::with('user:id,name');
 
@@ -1144,7 +1136,117 @@ class PerformaSheetController extends Controller
             $query = clone $baseQuery;
         }
 
-        $query->where('status', $status);
+        $query->where('status', 'pending');
+
+        $query->orderBy('id', 'DESC');
+
+        $sheets = $query->get();
+
+        $structuredData = [];
+
+        foreach ($sheets as $sheet) {
+            $dataArray = json_decode($sheet->data, true);
+
+            if (!is_array($dataArray)) {
+                continue;
+            }
+
+            $projectId = $dataArray['project_id'] ?? null;
+            $project = $projectId ? ProjectMaster::find($projectId) : null;
+
+            $projectName = $project->project_name ?? 'No Project Found';
+            // $clientName = $project->client->name ?? 'No Client Found';
+            $deadline = $project->deadline ?? 'No Deadline Set';
+
+            // Remove unwanted keys
+            unset($dataArray['user_id'], $dataArray['user_name']);
+
+            // Inject meta values
+            $dataArray['project_name'] = $projectName;
+            // $dataArray['client_name'] = $clientName;
+            $dataArray['deadline'] = $deadline;
+            $dataArray['status'] = $sheet->status;
+            $dataArray['id'] = $sheet->id;
+
+            $dataArray['created_at'] = $sheet->created_at
+                ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
+
+            $dataArray['updated_at'] = $sheet->updated_at
+                ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
+
+            // Group by user
+            if (!isset($structuredData[$sheet->user_id])) {
+                $structuredData[$sheet->user_id] = [
+                    'user_id' => $sheet->user_id,
+                    'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+                    'sheets' => []
+                ];
+            }
+
+            $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
+        }
+
+        $structuredData = array_values($structuredData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All pending Performa Sheets fetched successfully',
+            'data' => $structuredData
+        ]);
+    }
+    public function getAllDraftPerformaSheets(Request $request)
+    {
+        $user = $request->user();
+        $role_id = $user->role_id;
+        $team_id = $user->team_id ?? [];
+        $isFillable = $request->query('is_fillable');        
+
+        $baseQuery = PerformaSheet::with('user:id,name');
+
+        if ($role_id == 1 || $role_id == 4) {
+            $query = clone $baseQuery;
+
+        } else if ($role_id == 7) {
+            $query = clone $baseQuery;
+            $query->where('user_id', $user->id);
+
+        } else if ($role_id == 6) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else if ($role_id == 5 && $team_id) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else {
+            $query = clone $baseQuery;
+        }
+
+        $query->where('status', 'draft');
 
         $query->orderBy('id', 'DESC');
 
