@@ -105,7 +105,7 @@ Route::middleware('auth:api')->group(function () {
 
     // App => Http => Controllers =>PerformaSheetController
     Route::post('/add-performa-sheets', [PerformaSheetController::class, 'addPerformaSheets']);
-    Route::post('/submit-performa-sheets', [PerformaSheetController::class, 'SubmitForApproval']);
+    Route::post('/submit-performa-sheets', [PerformaSheetController::class, 'submitForApproval']);
     Route::delete('/delete-performa-sheets', [PerformaSheetController::class, 'deletePerformaSheets']);
     Route::post('/edit-performa-sheets', [PerformaSheetController::class, 'editPerformaSheets']);
     Route::post('/get-approval-performa-sheets', [PerformaSheetController::class, 'approveRejectPerformaSheets']);

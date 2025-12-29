@@ -158,7 +158,7 @@ class PerformaSheetController extends Controller
             'message' => count($inserted) . ' Performa Sheets added successfully',
         ]);
     }
-    public function SubmitForApproval(Request $request)
+    public function submitForApproval(Request $request)
     {
         $user = auth()->user();
         try {
