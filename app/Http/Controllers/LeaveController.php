@@ -143,21 +143,15 @@ class LeaveController extends Controller
         ]);
     }
 
-    public function getLeavesByemploye()
+    public function getLeavesByemploye(Request $request)
     {
-        $user = auth()->user();
-
-        // code commented to show only current user's leaves
-        // if ($user->role_id == 7) {
+        $user_id = $request->filled('user_id')
+        ? $request->user_id
+        : auth()->id();
         $leaves = LeavePolicy::with('user:id,name')
-            ->where('user_id', $user->id)
+            ->where('user_id', $user_id)
             ->latest()
             ->get();
-        // } else {
-        //     $leaves = LeavePolicy::with('user:id,name')
-        //         ->latest()
-        //         ->get();
-        // }
 
         if ($leaves->isEmpty()) {
             return response()->json([
