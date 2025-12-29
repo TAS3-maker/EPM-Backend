@@ -132,16 +132,16 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
-            $isFillable = (bool) ($record['is_fillable'] ?? false);
+            /*$isFillable = (bool) ($record['is_fillable'] ?? false);
             if(isset($record['status']) && strtolower($record['status']) == 'draft'){
                 $status = 'draft';
             }else{
                $status = $isFillable ? 'pending' : 'draft';
-            }
+            }*/
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
                 'user_id' => $submitting_user->id,
-                'status' => $status,
+                'status' => 'draft',
                 'data' => json_encode($record)
             ]);
 
@@ -156,6 +156,7 @@ class PerformaSheetController extends Controller
         return response()->json([
             'success' => true,
             'message' => count($inserted) . ' Performa Sheets added successfully',
+            'data'=> $inserted
         ]);
     }
     public function submitForApproval(Request $request)
@@ -195,13 +196,7 @@ class PerformaSheetController extends Controller
             }
 
             $isFillable = (bool) ($record['is_fillable'] ?? false);
-
-            // Status logic
-            if (isset($record['status']) && strtolower($record['status']) === 'draft') {
-                $status = 'draft';
-            } else {
-                $status = $isFillable ? 'pending' : 'draft';
-            }
+            $status = $isFillable ? 'pending' : 'draft';
 
             $sheet->update([
                 'status' => $status,
@@ -802,7 +797,7 @@ class PerformaSheetController extends Controller
                 if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                     $performaSheet->status = 'pending';
                 }
-                if(!$newData['is_fillable']){
+                else if(isset($newData['is_fillable']) && !$newData['is_fillable']){
                     $performaSheet->status = 'draft';
                 }else{
                     /**if status does not include draft approved rejected then status will be pending */
