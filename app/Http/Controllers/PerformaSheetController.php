@@ -209,7 +209,7 @@ class PerformaSheetController extends Controller
 
             $updatedCount++;
             //sheet details for mail/report
-            $sheetsWithDetails[] = [
+            /*$sheetsWithDetails[] = [
                 'submitting_user' => $user->name,
                 'project_name' => $sheet->project_id,
                 'task_id' => $sheet->task_id,
@@ -230,7 +230,7 @@ class PerformaSheetController extends Controller
                 'project_id'  => null,
                 'type'        => 'activity',
                 'description' => 'Performa Sheets submitted for approval by ' . $user->name,
-            ]);
+            ]);*/
         }
 
         // Get users with higher roles (Super Admin / Billing Manager)
