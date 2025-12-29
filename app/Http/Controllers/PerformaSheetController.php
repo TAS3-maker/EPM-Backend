@@ -1199,8 +1199,8 @@ class PerformaSheetController extends Controller
         $user = $request->user();
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
-        $isFillable = $request->query('is_fillable');        
-
+        $isFillable = $request->has('is_fillable') ? (int)$request->query('is_fillable') : null;
+        
         $baseQuery = PerformaSheet::with('user:id,name');
 
         if ($role_id == 1 || $role_id == 4) {
@@ -1252,6 +1252,7 @@ class PerformaSheetController extends Controller
 
         $sheets = $query->get();
 
+        // Prepare structured data
         $structuredData = [];
 
         foreach ($sheets as $sheet) {
@@ -1261,11 +1262,17 @@ class PerformaSheetController extends Controller
                 continue;
             }
 
+            // Skip if filter is applied and the row doesn't match
+            if ($isFillable !== null) {
+                if (!isset($dataArray['is_fillable']) || (int)$dataArray['is_fillable'] !== $isFillable) {
+                    continue;
+                }
+            }
+
             $projectId = $dataArray['project_id'] ?? null;
             $project = $projectId ? ProjectMaster::find($projectId) : null;
 
             $projectName = $project->project_name ?? 'No Project Found';
-            // $clientName = $project->client->name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             // Remove unwanted keys
@@ -1273,14 +1280,11 @@ class PerformaSheetController extends Controller
 
             // Inject meta values
             $dataArray['project_name'] = $projectName;
-            // $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
-
             $dataArray['created_at'] = $sheet->created_at
                 ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
-
             $dataArray['updated_at'] = $sheet->updated_at
                 ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
 
