@@ -11,6 +11,7 @@ use App\Http\Helpers\ApiResponse;
 use App\Http\Resources\ProjectResource;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\LeaveStatusUpdateMail;
 
@@ -440,5 +441,132 @@ class LeaveController extends Controller
             'message' => 'leaves data',
             'data' => $leaveData
         ]);
+    }
+    public function GetUsersAttendance(Request $request)
+    {
+        $current_user = auth()->user();
+
+        /* -------------------- ROLE VALIDATION -------------------- */
+        $allowedRoles = ['superadmin', 'Admin', 'HR'];
+
+        $role = DB::table('roles')
+            ->where('id', $current_user->role_id)
+            ->value('name');
+
+        if (!in_array($role, $allowedRoles)) {
+            return ApiResponse::error(
+                'You are not authorized to access this data.',
+                [],
+                403
+            );
+        }
+
+        if ($request->start_date && $request->end_date) {
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $endDate = Carbon::parse($request->end_date)->endOfDay();
+        } else {
+            if (Carbon::now()->isMonday()) {
+                $startDate = Carbon::now()->subWeek()->startOfWeek();
+                $endDate = Carbon::now()->subWeek()->endOfWeek();
+            } else {
+                $startDate = Carbon::now()->startOfWeek();
+                $endDate = Carbon::now()->endOfWeek();
+            }
+        }
+
+        $users = DB::table('users')
+            ->select('id', 'name')
+            ->get();
+
+        $leaves = DB::table('leavespolicy')
+            ->where('status', 'Approved')
+            ->where(function ($q) use ($startDate, $endDate) {
+                $q->whereBetween('start_date', [$startDate, $endDate])
+                    ->orWhereBetween('end_date', [$startDate, $endDate])
+                    ->orWhere(function ($q) use ($startDate, $endDate) {
+                        $q->where('start_date', '<=', $startDate)
+                            ->where('end_date', '>=', $endDate);
+                    });
+            })
+            ->get()
+            ->groupBy('user_id');
+
+        $period = iterator_to_array(
+            CarbonPeriod::create($startDate, $endDate)
+        );
+
+        $response = [];
+
+        foreach ($users as $user) {
+
+            $attendanceData = [];
+
+            foreach ($period as $date) {
+                $day = $date->format('Y-m-d');
+
+                $attendanceData[$day] = [
+                    'present' => 1,
+                    'leave_type' => '',
+                    'halfday_period' => '',
+                    'hours' => '',
+                    'reason' => '',
+                    'status' => ''
+                ];
+            }
+
+            if (isset($leaves[$user->id])) {
+
+                foreach ($leaves[$user->id] as $leave) {
+
+                    $leaveStart = Carbon::parse($leave->start_date);
+                    $leaveEnd = Carbon::parse($leave->end_date);
+
+                    $leavePeriod = CarbonPeriod::create(
+                        $leaveStart,
+                        $leaveEnd
+                    );
+
+                    foreach ($leavePeriod as $day) {
+
+                        if ($day->lt($startDate) || $day->gt($endDate)) {
+                            continue;
+                        }
+
+                        $dayStr = $day->format('Y-m-d');
+
+                        if ($leave->leave_type === 'Multiple Days Leave') {
+                            $attendanceData[$dayStr]['present'] = 0;
+                            $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+                        }
+
+                        if ($leave->leave_type === 'Half Day') {
+                            $attendanceData[$dayStr]['present'] = 1;
+                            $attendanceData[$dayStr]['leave_type'] = 'Half Day';
+                            $attendanceData[$dayStr]['halfday_period'] = $leave->halfday_period;
+                        }
+
+                        if ($leave->leave_type === 'Short Leave') {
+                            $attendanceData[$dayStr]['present'] = 1;
+                            $attendanceData[$dayStr]['leave_type'] = 'Short Leave';
+                            $attendanceData[$dayStr]['hours'] = $leave->hours;
+                        }
+
+                        $attendanceData[$dayStr]['reason'] = $leave->reason;
+                        $attendanceData[$dayStr]['status'] = $leave->status;
+                    }
+                }
+            }
+
+            $response[] = [
+                'user_id' => $user->id,
+                'user_name' => $user->name,
+                'attendance_data' => $attendanceData
+            ];
+        }
+
+        return ApiResponse::success(
+            'User availability fetched successfully',
+            $response
+        );
     }
 }
