@@ -206,31 +206,31 @@ class PerformaSheetController extends Controller
             $sheet->update([
                 'status' => $status,
             ]);
-
+            $sheet_data = json_decode($sheet->data);
             $updatedCount++;
             //sheet details for mail/report
-            /*$sheetsWithDetails[] = [
+            $sheetsWithDetails[] = [
                 'submitting_user' => $user->name,
-                'project_name' => $sheet->project_id,
-                'task_id' => $sheet->task_id,
-                'date' => $sheet->date,
-                'time' => $sheet->time,
-                'work_type' => $sheet->work_type,
-                'activity_type' => $sheet->activity_type,
-                'narration' => $sheet->narration,
-                'project_type' => $sheet->project_type,
-                'project_type_status' => $sheet->project_type_status,
+                'project_name' => $sheet_data->project_id,
+                'task_id' => $sheet_data->task_id,
+                'date' => $sheet_data->date,
+                'time' => $sheet_data->time,
+                'work_type' => $sheet_data->work_type,
+                'activity_type' => $sheet_data->activity_type,
+                'narration' => $sheet_data->narration,
+                'project_type' => $sheet_data->project_type,
+                'project_type_status' => $sheet_data->project_type_status,
             ];
             if($sheet->is_tracking){
-                $sheetsWithDetails['is_tracking'] = $sheet->is_tracking;
-                $sheetsWithDetails['tracking_mode']= $sheet->tracking_mode;
-                $sheetsWithDetails['tracked_hours']= $sheet->tracked_hours;
+                $sheetsWithDetails['is_tracking'] = $sheet_data->is_tracking;
+                $sheetsWithDetails['tracking_mode']= $sheet_data->tracking_mode;
+                $sheetsWithDetails['tracked_hours']= $sheet_data->tracked_hours;
             }
             ActivityService::log([
-                'project_id'  => null,
+                'project_id'  => $sheet_data->project_id,
                 'type'        => 'activity',
                 'description' => 'Performa Sheets submitted for approval by ' . $user->name,
-            ]);*/
+            ]);
         }
 
         // Get users with higher roles (Super Admin / Billing Manager)
