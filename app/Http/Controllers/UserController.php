@@ -140,126 +140,126 @@ class UserController extends Controller
     //     }
     // }
 
-    
+
     public function store(Request $request)
-{
-    try {
-        // ================= VALIDATION =================
-        $validatedData = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users',
-            'password' => 'required|min:6',
-            'team_id' => 'nullable',
-            'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
-            'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
-            'address' => 'nullable|string',
-            'role_id' => 'required|exists:roles,id',
-            'tl_id' => 'required_if:role_id,7|nullable|exists:users,id',
-            'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'employee_id' => 'required|string|unique:users,employee_id',
-        ], [
-            'employee_id.required' => 'Employee ID is required.',
-            'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
-            'tl_id.required_if' => 'Team Leader is required for employees.',
-            'tl_id.exists' => 'Selected Team Leader does not exist.',
-        ]);
-        // ================= TEAM LOGIC =================
-        $teamIds = $request->team_id;
-        if (is_string($teamIds)) {
-            $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
-        }
-        if (!is_array($teamIds)) {
-            $teamIds = [];
-        }
-        $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
-        $missing = array_diff($teamIds, $existingTeams);
-        if (!empty($missing)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Team does not exist!'
-            ], 422);
-        }
-        // ================= USER CREATE =================
-        $user = User::create([
-            'name' => $validatedData['name'],
-            'email' => $validatedData['email'],
-            'address' => $validatedData['address'] ?? null,
-            'phone_num' => $validatedData['phone_num'],
-            'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
-            'password' => Hash::make($validatedData['password']),
-            'team_id' => $teamIds,
-            'role_id' => $validatedData['role_id'],
-            'tl_id' => $validatedData['tl_id'] ?? null,
-            'employee_id' => $validatedData['employee_id'],
-        ]);
-        // ================= PROFILE PIC =================
-        if ($request->hasFile('profile_pic')) {
-            $file = $request->file('profile_pic');
-            if (!Storage::disk('public')->exists('profile_pics')) {
-                Storage::disk('public')->makeDirectory('profile_pics');
-            }
-            $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-            $file->storeAs('profile_pics', $filename, 'public');
-            $user->profile_pic = $filename;
-            $user->save();
-        }
-        // ================= PERMISSIONS INSERT =================
-        $role = Role::find($validatedData['role_id']);
-        if ($role && $role->roles_permissions) {
-            $rolePermissions = json_decode($role->roles_permissions, true);
-            Permission::create([
-                'user_id' => $user->id,
-                'dashboard' => $rolePermissions['dashboard'] ?? 0,
-                'permission' => $rolePermissions['permission'] ?? 0,
-                'employee_management' => $rolePermissions['employee_management'] ?? 0,
-                'roles' => $rolePermissions['roles'] ?? 0,
-                'department' => $rolePermissions['department'] ?? 0,
-                'team' => $rolePermissions['team'] ?? 0,
-                'clients' => $rolePermissions['clients'] ?? 0,
-                'projects' => $rolePermissions['projects'] ?? 0,
-                'assigned_projects_inside_projects_assigned' =>
-                    $rolePermissions['assigned_projects_inside_projects_assigned'] ?? 0,
-                'unassigned_projects_inside_projects_assigned' =>
-                    $rolePermissions['unassigned_projects_inside_projects_assigned'] ?? 0,
-                'performance_sheets' => $rolePermissions['performance_sheets'] ?? 0,
-                'pending_sheets_inside_performance_sheets' =>
-                    $rolePermissions['pending_sheets_inside_performance_sheets'] ?? 0,
-                'manage_sheets_inside_performance_sheets' =>
-                    $rolePermissions['manage_sheets_inside_performance_sheets'] ?? 0,
-                'unfilled_sheets_inside_performance_sheets' =>
-                    $rolePermissions['unfilled_sheets_inside_performance_sheets'] ?? 0,
-                'manage_leaves' => $rolePermissions['manage_leaves'] ?? 0,
-                'activity_tags' => $rolePermissions['activity_tags'] ?? 0,
-                'leaves' => $rolePermissions['leaves'] ?? 0,
-                'teams' => $rolePermissions['teams'] ?? 0,
-                'leave_management' => $rolePermissions['leave_management'] ?? 0,
-                'project_management' => $rolePermissions['project_management'] ?? 0,
-                'assigned_projects_inside_project_management' =>
-                    $rolePermissions['assigned_projects_inside_project_management'] ?? 0,
-                'unassigned_projects_inside_project_management' =>
-                    $rolePermissions['unassigned_projects_inside_project_management'] ?? 0,
-                'performance_sheet' => $rolePermissions['performance_sheet'] ?? 0,
-                'performance_history' => $rolePermissions['performance_history'] ?? 0,
-                'projects_assigned' => $rolePermissions['projects_assigned'] ?? 0,
+    {
+        try {
+            // ================= VALIDATION =================
+            $validatedData = $request->validate([
+                'name' => 'required|string|max:255',
+                'email' => 'required|email|unique:users',
+                'password' => 'required|min:6',
+                'team_id' => 'nullable',
+                'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
+                'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
+                'address' => 'nullable|string',
+                'role_id' => 'required|exists:roles,id',
+                'tl_id' => 'required_if:role_id,7|nullable|exists:users,id',
+                'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'employee_id' => 'required|string|unique:users,employee_id',
+            ], [
+                'employee_id.required' => 'Employee ID is required.',
+                'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
+                'tl_id.required_if' => 'Team Leader is required for employees.',
+                'tl_id.exists' => 'Selected Team Leader does not exist.',
             ]);
+            // ================= TEAM LOGIC =================
+            $teamIds = $request->team_id;
+            if (is_string($teamIds)) {
+                $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
+            }
+            if (!is_array($teamIds)) {
+                $teamIds = [];
+            }
+            $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+            $missing = array_diff($teamIds, $existingTeams);
+            if (!empty($missing)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Team does not exist!'
+                ], 422);
+            }
+            // ================= USER CREATE =================
+            $user = User::create([
+                'name' => $validatedData['name'],
+                'email' => $validatedData['email'],
+                'address' => $validatedData['address'] ?? null,
+                'phone_num' => $validatedData['phone_num'],
+                'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
+                'password' => Hash::make($validatedData['password']),
+                'team_id' => $teamIds,
+                'role_id' => $validatedData['role_id'],
+                'tl_id' => $validatedData['tl_id'] ?? null,
+                'employee_id' => $validatedData['employee_id'],
+            ]);
+            // ================= PROFILE PIC =================
+            if ($request->hasFile('profile_pic')) {
+                $file = $request->file('profile_pic');
+                if (!Storage::disk('public')->exists('profile_pics')) {
+                    Storage::disk('public')->makeDirectory('profile_pics');
+                }
+                $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
+                $file->storeAs('profile_pics', $filename, 'public');
+                $user->profile_pic = $filename;
+                $user->save();
+            }
+            // ================= PERMISSIONS INSERT =================
+            $role = Role::find($validatedData['role_id']);
+            if ($role && $role->roles_permissions) {
+                $rolePermissions = json_decode($role->roles_permissions, true);
+                Permission::create([
+                    'user_id' => $user->id,
+                    'dashboard' => $rolePermissions['dashboard'] ?? 0,
+                    'permission' => $rolePermissions['permission'] ?? 0,
+                    'employee_management' => $rolePermissions['employee_management'] ?? 0,
+                    'roles' => $rolePermissions['roles'] ?? 0,
+                    'department' => $rolePermissions['department'] ?? 0,
+                    'team' => $rolePermissions['team'] ?? 0,
+                    'clients' => $rolePermissions['clients'] ?? 0,
+                    'projects' => $rolePermissions['projects'] ?? 0,
+                    'assigned_projects_inside_projects_assigned' =>
+                        $rolePermissions['assigned_projects_inside_projects_assigned'] ?? 0,
+                    'unassigned_projects_inside_projects_assigned' =>
+                        $rolePermissions['unassigned_projects_inside_projects_assigned'] ?? 0,
+                    'performance_sheets' => $rolePermissions['performance_sheets'] ?? 0,
+                    'pending_sheets_inside_performance_sheets' =>
+                        $rolePermissions['pending_sheets_inside_performance_sheets'] ?? 0,
+                    'manage_sheets_inside_performance_sheets' =>
+                        $rolePermissions['manage_sheets_inside_performance_sheets'] ?? 0,
+                    'unfilled_sheets_inside_performance_sheets' =>
+                        $rolePermissions['unfilled_sheets_inside_performance_sheets'] ?? 0,
+                    'manage_leaves' => $rolePermissions['manage_leaves'] ?? 0,
+                    'activity_tags' => $rolePermissions['activity_tags'] ?? 0,
+                    'leaves' => $rolePermissions['leaves'] ?? 0,
+                    'teams' => $rolePermissions['teams'] ?? 0,
+                    'leave_management' => $rolePermissions['leave_management'] ?? 0,
+                    'project_management' => $rolePermissions['project_management'] ?? 0,
+                    'assigned_projects_inside_project_management' =>
+                        $rolePermissions['assigned_projects_inside_project_management'] ?? 0,
+                    'unassigned_projects_inside_project_management' =>
+                        $rolePermissions['unassigned_projects_inside_project_management'] ?? 0,
+                    'performance_sheet' => $rolePermissions['performance_sheet'] ?? 0,
+                    'performance_history' => $rolePermissions['performance_history'] ?? 0,
+                    'projects_assigned' => $rolePermissions['projects_assigned'] ?? 0,
+                ]);
+            }
+            return ApiResponse::success(
+                'User created successfully',
+                new UserResource($user),
+                201
+            );
+        } catch (ValidationException $e) {
+            return ApiResponse::error('Validation failed', $e->errors(), 422);
+        } catch (\Exception $e) {
+            \Log::error('Error creating user: ' . $e->getMessage());
+            return ApiResponse::error(
+                'An unexpected error occurred.',
+                ['general' => $e->getMessage()],
+                500
+            );
         }
-        return ApiResponse::success(
-            'User created successfully',
-            new UserResource($user),
-            201
-        );
-    } catch (ValidationException $e) {
-        return ApiResponse::error('Validation failed', $e->errors(), 422);
-    } catch (\Exception $e) {
-        \Log::error('Error creating user: ' . $e->getMessage());
-        return ApiResponse::error(
-            'An unexpected error occurred.',
-            ['general' => $e->getMessage()],
-            500
-        );
     }
-}
-    
+
     public function index()
     {
         $users = User::with('role')->orderBy('id', 'desc')->get();
@@ -390,32 +390,46 @@ class UserController extends Controller
     }
 
 
-
-
-
-
     public function GetFullProileEmployee($id)
     {
-        $user = User::with(['role'])->find($id);
+        $user = User::with('role')->find($id);
 
         if (!$user) {
             return ApiResponse::error('User not found', [], 404);
         }
 
-        $projectUserData = DB::table('project_user')
-            ->leftJoin('users as pm', 'project_user.project_manager_id', '=', 'pm.id')
-            ->leftJoin('projects', 'project_user.project_id', '=', 'projects.id')
+        $projectRelations = DB::table('project_relations')
+            ->join('projects_master', 'project_relations.project_id', '=', 'projects_master.id')
             ->select(
-                'project_user.user_id',
-                'project_user.project_id',
-                'projects.project_name',
-                'project_user.project_manager_id',
-                'pm.name as project_manager_name',
-                'project_user.created_at',
-                'project_user.updated_at'
+                'project_relations.project_id',
+                'projects_master.project_name',
+                'project_relations.assignees',
+                'project_relations.created_at',
+                'project_relations.updated_at'
             )
-            ->where('project_user.user_id', $id)
+            ->whereRaw(
+                'JSON_CONTAINS(project_relations.assignees, ?)',
+                [json_encode((int) $id)]
+            )
             ->get();
+
+        $allAssigneeIds = collect($projectRelations)
+            ->pluck('assignees')
+            ->flatMap(fn($a) => json_decode($a, true) ?: [])
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $users = DB::table('users')
+            ->join('roles', 'users.role_id', '=', 'roles.id')
+            ->whereIn('users.id', $allAssigneeIds)
+            ->select(
+                'users.id',
+                'users.name',
+                'roles.name as role_name'
+            )
+            ->get()
+            ->keyBy('id');
 
         $performaSheets = DB::table('performa_sheets')
             ->where('user_id', $id)
@@ -426,29 +440,29 @@ class UserController extends Controller
 
         foreach ($performaSheets as $row) {
             $decoded = json_decode($row->data, true);
+
             if (is_string($decoded)) {
                 $decoded = json_decode($decoded, true);
             }
 
-            \Log::info('Decoded Sheet Data', ['sheet_id' => $row->id, 'decoded' => $decoded]);
-
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
-                if (!isset($entry['activity_type'], $entry['time']))
+                if (!isset($entry['activity_type'], $entry['time'])) {
                     continue;
+                }
 
                 $activityType = $entry['activity_type'];
-                $projectId = $entry['project_id'] ?? null; // treat null as Inhouse
+                $projectId = $entry['project_id'] ?? null;
                 $time = $entry['time'];
 
                 $timeParts = explode(':', $time);
-                if (count($timeParts) !== 2)
+                if (count($timeParts) !== 2) {
                     continue;
+                }
 
                 $minutes = ((int) $timeParts[0] * 60) + (int) $timeParts[1];
 
-                // Grouping by project_id and activity_type
                 if (!isset($activityData[$projectId])) {
                     $activityData[$projectId] = [];
                 }
@@ -461,26 +475,24 @@ class UserController extends Controller
             }
         }
 
-        $projectUserDataArray = $projectUserData->toArray();
+        $projectUserData = [];
 
-        if (isset($activityData[null])) {
-            $projectUserDataArray[] = (object) [
-                'project_id' => null,
-                'project_name' => 'Inhouse',
-                'project_manager_id' => null,
-                'project_manager_name' => null,
-                'user_id' => $id,
-                'created_at' => null,
-                'updated_at' => null,
-            ];
-        }
+        foreach ($projectRelations as $relation) {
 
-        $finalProjects = collect($projectUserDataArray)->transform(function ($project) use ($activityData) {
-            $pid = $project->project_id;
+            $assignees = json_decode($relation->assignees, true);
+            if (!is_array($assignees)) {
+                continue;
+            }
+
+            $pm = collect($assignees)
+                ->map(fn($uid) => $users[$uid] ?? null)
+                ->filter()
+                ->firstWhere('role_name', 'Project Manager');
+
             $activities = [];
 
-            if (isset($activityData[$pid])) {
-                foreach ($activityData[$pid] as $type => $minutes) {
+            if (isset($activityData[$relation->project_id])) {
+                foreach ($activityData[$relation->project_id] as $type => $minutes) {
                     $h = floor($minutes / 60);
                     $m = $minutes % 60;
 
@@ -491,15 +503,50 @@ class UserController extends Controller
                 }
             }
 
-            $project->activities = $activities;
-            return $project;
-        });
+            $projectUserData[] = (object) [
+                'project_id' => $relation->project_id,
+                'project_name' => $relation->project_name,
+                'project_manager_id' => $pm->id ?? null,
+                'project_manager_name' => $pm->name ?? null,
+                'user_id' => $id,
+                'activities' => $activities,
+                'created_at' => $relation->created_at,
+                'updated_at' => $relation->updated_at,
+            ];
+        }
+
+        if (isset($activityData[null])) {
+            $activities = [];
+
+            foreach ($activityData[null] as $type => $minutes) {
+                $h = floor($minutes / 60);
+                $m = $minutes % 60;
+
+                $activities[] = [
+                    'activity_type' => $type,
+                    'total_hours' => sprintf('%02d:%02d', $h, $m),
+                ];
+            }
+
+            $projectUserData[] = (object) [
+                'project_id' => null,
+                'project_name' => 'Inhouse',
+                'project_manager_id' => null,
+                'project_manager_name' => null,
+                'user_id' => $id,
+                'activities' => $activities,
+                'created_at' => null,
+                'updated_at' => null,
+            ];
+        }
 
         return ApiResponse::success('User details fetched successfully', [
             'user' => new UserResource($user),
-            'project_user' => $finalProjects,
+            'project_user' => $projectUserData,
         ]);
     }
+
+
 
 
     public function getUserCountByTeam()
