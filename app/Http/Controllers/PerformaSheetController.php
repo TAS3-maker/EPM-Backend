@@ -246,42 +246,14 @@ class PerformaSheetController extends Controller
     }
 
 
-    public function getUserPerformaSheets(Request $request)
+    public function getUserPerformaSheets()
     {
         $user = auth()->user();
-        // Optional query params
-        $status     = $request->query('status');       // draft / pending
-        $isFillable = $request->query('is_fillable');
-        
-        $query = PerformaSheet::with('user:id,name')
-        ->where('user_id', $user->id);
 
-        if (!empty($status)) {
-        $query->where('status', $status);
-    }
-
-        // $filterDate = \Carbon\Carbon::today()->toDateString();
-        // $query->whereRaw(
-        //     "
-        //     JSON_EXTRACT(data, '$.date') IS NOT NULL
-        //     AND CAST(
-        //         JSON_UNQUOTE(JSON_EXTRACT(data, '$.date'))
-        //         AS DATE
-        //     ) = ?
-        //     ",
-        //     [$filterDate]
-        // );
-
-        // if (!is_null($isFillable)) {
-        //     $query->whereRaw(
-        //         "data->>'$.is_fillable' = ?",
-        //         [(int) filter_var($isFillable, FILTER_VALIDATE_BOOLEAN)]
-        //     );
-        // }
-    
-        $sheets = $query
-        ->orderBy('created_at', 'desc')
-        ->get();
+        $sheets = PerformaSheet::with('user:id,name')
+            ->where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         $structuredData = [
             'user_id' => $user->id,
@@ -296,16 +268,16 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? ProjectMaster::find($projectId) : null;
+            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
             $projectName = $project->project_name ?? 'No Project Found';
-            // $clientName = $project->client->name ?? 'No Client Found';
+            $clientName = $project->client->name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             unset($dataArray['user_id'], $dataArray['user_name']);
 
             $dataArray['id'] = $sheet->id;
             $dataArray['project_name'] = $projectName;
-            // $dataArray['client_name'] = $clientName;
+            $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status ?? 'pending';
 
@@ -1118,9 +1090,14 @@ class PerformaSheetController extends Controller
         $user = $request->user();
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
-
-        // Force all sheets to pending
-        $status = 'pending';
+        $status = $request->query('status');
+        $isFillable = $request->query('is_fillable');
+        
+        if(isset($status) && $status == 'draft'){
+            $status = 'draft';
+        }else{
+            $status = 'pending';
+        }
 
         $baseQuery = PerformaSheet::with('user:id,name');
 
@@ -1167,7 +1144,7 @@ class PerformaSheetController extends Controller
             $query = clone $baseQuery;
         }
 
-        $query->where('status', 'pending');
+        $query->where('status', $status);
 
         $query->orderBy('id', 'DESC');
 
@@ -1183,10 +1160,10 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $project = $projectId ? ProjectMaster::find($projectId) : null;
 
             $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->name ?? 'No Client Found';
+            // $clientName = $project->client->name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             // Remove unwanted keys
@@ -1194,7 +1171,7 @@ class PerformaSheetController extends Controller
 
             // Inject meta values
             $dataArray['project_name'] = $projectName;
-            $dataArray['client_name'] = $clientName;
+            // $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
