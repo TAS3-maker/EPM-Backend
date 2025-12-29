@@ -195,13 +195,17 @@ class PerformaSheetController extends Controller
                 continue;
             }
 
-            $isFillable = (bool) ($record['is_fillable'] ?? false);
-            $status = $isFillable ? 'pending' : 'draft';
+            /*$record['is_fillable'] = 1;
+             $isFillable = (bool) ($record['is_fillable'] ?? false);
+            $status = $isFillable ? 'pending' : 'draft'; */
+
+            $sheet_data = json_decode($sheet->data, true) ?? [];
+            $sheet_data['is_fillable'] = 1;
 
             $sheet->update([
-                'status' => $status,
+                'data'   => json_encode($sheet_data),
+                'status' => 'pending',
             ]);
-            $sheet_data = json_decode($sheet->data);
             $updatedCount++;
             //sheet details for mail/report
             $sheetsWithDetails[] = [
@@ -2215,7 +2219,7 @@ class PerformaSheetController extends Controller
                 ->first();
 
         if (in_array(strtolower($performa_sheet_data->status), ['draft'])) {
-            $performa_sheet_data->status = 'pending';
+            $performa_sheet_data->status = 'approved';
         }
         $performa_sheet_data->save();
 
