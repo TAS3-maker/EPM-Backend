@@ -34,12 +34,11 @@ class PerformaSheetController extends Controller
         $submitting_user_employee_id = $submitting_user->employee_id;
         try {
             $validatedData = $request->validate([
-                'is_fillable' => 'nullable|boolean',
                 'data' => 'required|array',
                 'data.*.project_id' => [
                     'required',
                     Rule::exists('project_relations', 'project_id')->where(function ($query) use ($submitting_user) {
-                    $query->whereRaw(
+                        $query->whereRaw(
                             'JSON_CONTAINS(assignees, ?, "$")',
                             [json_encode((int) $submitting_user->id)]
                         );
@@ -53,6 +52,8 @@ class PerformaSheetController extends Controller
                 'data.*.is_tracking'=>'required|in:yes,no',
                 'data.*.tracking_mode'=>'nullable|in:all,partial',
                 'data.*.tracked_hours'=>'nullable',
+                'data.*.status' => 'nullable',
+                'data.*.is_fillable' => 'nullable|boolean',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -61,8 +62,6 @@ class PerformaSheetController extends Controller
                 'errors' => $e->errors()
             ], 422);
         }
-        $inserted = [];
-        $sheetsWithDetails = [];
 
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
@@ -133,8 +132,12 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
-            $isFillable = (bool) ($validatedData['is_fillable'] ?? false);
-            $status = $isFillable ? 'pending' : 'draft';
+            $isFillable = (bool) ($record['is_fillable'] ?? false);
+            if(isset($record['status']) && strtolower($record['status']) == 'draft'){
+                $status = 'draft';
+            }else{
+               $status = $isFillable ? 'pending' : 'draft';
+            }
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
                 'user_id' => $submitting_user->id,
@@ -142,30 +145,96 @@ class PerformaSheetController extends Controller
                 'data' => json_encode($record)
             ]);
 
-            // Store sheet details for mail/report
-            $sheetsWithDetails[] = [
-                'submitting_user' => $submitting_user->name,
-                'project_name' => $projectName,
-                'task_id' => $record['task_id'],
-                'date' => $record['date'],
-                'time' => $record['time'],
-                'work_type' => $record['work_type'],
-                'activity_type' => $record['activity_type'],
-                'narration' => $record['narration'],
-                'project_type' => $record['project_type'],
-                'project_type_status' => $record['project_type_status'],
-            ];
-            if($record['is_tracking']){
-                $sheetsWithDetails['is_tracking'] = $record['is_tracking'];
-                $sheetsWithDetails['tracking_mode']= $record['tracking_mode'];
-                $sheetsWithDetails['tracked_hours']= $record['tracked_hours'];
+            $inserted[] = $insertedSheet;
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Performa Sheets added by ' . auth()->user()->name,
+            ]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => count($inserted) . ' Performa Sheets added successfully',
+        ]);
+    }
+    public function SubmitForApproval(Request $request)
+    {
+        $user = auth()->user();
+        try {
+            $validatedData = $request->validate([
+                'data' => 'required|array|min:1',
+                'data.*.id' => [
+                    'required',
+                    Rule::exists('performa_sheets', 'id')->where('user_id', $user->id),
+                ],
+                'data.*.date' => 'required|date_format:Y-m-d',
+                'data.*.is_fillable' => 'nullable|boolean',
+                'data.*.status' => 'nullable|string',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed!',
+                'errors'  => $e->errors()
+            ], 422);
+        }
+
+        $updatedCount = 0;
+        $inserted = [];
+        $sheetsWithDetails = [];
+
+        foreach ($validatedData['data'] as $record) {
+
+            $sheet = PerformaSheet::where('id', $record['id'])
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$sheet) {
+                continue;
             }
 
-            $inserted[] = $insertedSheet;
+            $isFillable = (bool) ($record['is_fillable'] ?? false);
+
+            // Status logic
+            if (isset($record['status']) && strtolower($record['status']) === 'draft') {
+                $status = 'draft';
+            } else {
+                $status = $isFillable ? 'pending' : 'draft';
+            }
+
+            $sheet->update([
+                'status' => $status,
+            ]);
+
+            $updatedCount++;
+            //sheet details for mail/report
+            $sheetsWithDetails[] = [
+                'submitting_user' => $user->name,
+                'project_name' => $sheet->project_id,
+                'task_id' => $sheet->task_id,
+                'date' => $sheet->date,
+                'time' => $sheet->time,
+                'work_type' => $sheet->work_type,
+                'activity_type' => $sheet->activity_type,
+                'narration' => $sheet->narration,
+                'project_type' => $sheet->project_type,
+                'project_type_status' => $sheet->project_type_status,
+            ];
+            if($sheet->is_tracking){
+                $sheetsWithDetails['is_tracking'] = $sheet->is_tracking;
+                $sheetsWithDetails['tracking_mode']= $sheet->tracking_mode;
+                $sheetsWithDetails['tracked_hours']= $sheet->tracked_hours;
+            }
+            ActivityService::log([
+                'project_id'  => null,
+                'type'        => 'activity',
+                'description' => 'Performa Sheets submitted for approval by ' . $user->name,
+            ]);
         }
 
         // Get users with higher roles (Super Admin / Billing Manager)
-        $users = User::whereHas('role', function ($query) {
+        /* $users = User::whereHas('role', function ($query) {
             $query->whereIn('name', ['Super Admin', 'Billing Manager']);
         })->get();
 
@@ -173,15 +242,11 @@ class PerformaSheetController extends Controller
 
         foreach ($users as $user) {
             // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
-        }
-        ActivityService::log([
-            'project_id' => $project->id,
-            'type' => 'activity',
-            'description' => 'Performa Sheets added by ' . auth()->user()->name,
-        ]);
+        } */
+
         return response()->json([
             'success' => true,
-            'message' => count($inserted) . ' Performa Sheets added successfully',
+            'message' => $updatedCount . ' Performa Sheets submitted for approval successfully',
         ]);
     }
 
@@ -598,6 +663,15 @@ class PerformaSheetController extends Controller
                 $query->where('team_id', $teamId);
             })
             ->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Performa Sheets fetched successfully',
+            'project_manager_id' => $projectManager->id,
+            'team_id' => $teamId,
+            'data' => $sheets
+        ]);
+
         $structuredData = [];
         foreach ($sheets as $sheet) {
             $dataArray = json_decode($sheet->data, true);
@@ -675,11 +749,11 @@ class PerformaSheetController extends Controller
                 'data.time' => 'required|date_format:H:i',
                 'data.work_type' => 'required|string|max:255',
                 'data.narration' => 'nullable|string',
-                'data.tags_activitys' => 'nullable|array',
-                'data.tags_activitys.*' => 'integer|exists:tagsactivity,id',
                 'data.is_tracking'=>'required|in:yes,no',
                 'data.tracking_mode'=>'nullable|in:all,partial',
                 'data.tracked_hours'=>'nullable',
+                'data.is_fillable'=>'nullable|boolean',
+                'data.status' => 'nullable',
             ]);
 
             $projectId = $validatedData['data']['project_id'];
@@ -726,9 +800,16 @@ class PerformaSheetController extends Controller
 
             if ($isChanged) {
                 if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
-                    $performaSheet->status = 'Pending';
+                    $performaSheet->status = 'pending';
                 }
-
+                if(!$newData['is_fillable']){
+                    $performaSheet->status = 'draft';
+                }else{
+                    /**if status does not include draft approved rejected then status will be pending */
+                    if(!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['draft', 'approved', 'rejected'])){
+                        $performaSheet->status = 'pending';
+                    }
+                }
                 $performaSheet->data = json_encode($newData);
                 $performaSheet->save();
 
@@ -1968,10 +2049,11 @@ class PerformaSheetController extends Controller
         $submitting_user = auth()->user();
         $validatedData = $request->validate([
             'apply_date' => 'required|date_format:Y-m-d|before_or_equal:today',
+            'performa_sheet' => 'nullable|exists:performa_sheets,id',
         ]);
-
         $application = ApplicationPerforma::create([
             'user_id'    => $submitting_user->id,
+            'performa_sheet'=>$validatedData['performa_sheet'],
             'status'     => 'pending',
             'apply_date'    => $validatedData['apply_date'],
             'approval_date' => null,
@@ -1983,6 +2065,7 @@ class PerformaSheetController extends Controller
             'data' => [
                 'id' => $application->id,
                 'user_id' => $application->user_id,
+                'performa_sheet' => $application->performa_sheet,
                 'status' => $application->status,
                 'apply_date' => $application->apply_date
             ]
@@ -2017,6 +2100,17 @@ class PerformaSheetController extends Controller
             'status' => 'approved',
             'approval_date' => now()->toDateString()
         ]);
+        /**update performa with status pending */
+        $performa_id = $application->performa_sheet;
+        $performa_sheet_data = PerformaSheet::where('id', $performa_id)
+                ->where('user_id', $application->user_id)
+                ->first();
+
+        if (in_array(strtolower($performa_sheet_data->status), ['draft'])) {
+            $performa_sheet_data->status = 'pending';
+        }
+        $performa_sheet_data->save();
+
 
         return response()->json([
             'success' => true,
@@ -2024,6 +2118,7 @@ class PerformaSheetController extends Controller
             'data' => [
                 'id' => $application->id,
                 'user_id' => $application->user_id,
+                'performa_sheet' => $application->performa_sheet,
                 'status' => $application->status,
                 'apply_date' => $application->apply_date,
                 'approval_date' => $application->approval_date
@@ -2044,6 +2139,13 @@ class PerformaSheetController extends Controller
             'status' => 'rejected',
             'approval_date' => now()->toDateString()
         ]);
+
+        /**update performa with status pending */
+        $performa_id = $application->performa_sheet;
+        $performa_sheet_data = PerformaSheet::where('id', $performa_id)
+                ->where('user_id', $application->user_id)
+                ->first();
+        $performa_sheet_data->delete();
 
         return response()->json([
             'success' => true,

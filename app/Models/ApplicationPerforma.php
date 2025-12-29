@@ -10,14 +10,13 @@ class ApplicationPerforma extends Model
 
     protected $fillable = [
         'user_id',
-        'data',
-        'status',
+        'performa_sheet',
         'apply_date',
+        'status',
         'approval_date'
     ];
 
     protected $casts = [
-        'data' => 'array',
         'approval_date' => 'datetime',
     ];
 
