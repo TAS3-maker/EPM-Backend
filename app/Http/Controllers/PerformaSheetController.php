@@ -246,14 +246,42 @@ class PerformaSheetController extends Controller
     }
 
 
-    public function getUserPerformaSheets()
+    public function getUserPerformaSheets(Request $request)
     {
         $user = auth()->user();
+        // Optional query params
+        $status     = $request->query('status');       // draft / pending
+        $isFillable = $request->query('is_fillable');
+        
+        $query = PerformaSheet::with('user:id,name')
+        ->where('user_id', $user->id);
 
-        $sheets = PerformaSheet::with('user:id,name')
-            ->where('user_id', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        if (!empty($status)) {
+        $query->where('status', $status);
+    }
+
+        // $filterDate = \Carbon\Carbon::today()->toDateString();
+        // $query->whereRaw(
+        //     "
+        //     JSON_EXTRACT(data, '$.date') IS NOT NULL
+        //     AND CAST(
+        //         JSON_UNQUOTE(JSON_EXTRACT(data, '$.date'))
+        //         AS DATE
+        //     ) = ?
+        //     ",
+        //     [$filterDate]
+        // );
+
+        // if (!is_null($isFillable)) {
+        //     $query->whereRaw(
+        //         "data->>'$.is_fillable' = ?",
+        //         [(int) filter_var($isFillable, FILTER_VALIDATE_BOOLEAN)]
+        //     );
+        // }
+    
+        $sheets = $query
+        ->orderBy('created_at', 'desc')
+        ->get();
 
         $structuredData = [
             'user_id' => $user->id,
@@ -268,16 +296,16 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $project = $projectId ? ProjectMaster::find($projectId) : null;
             $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->name ?? 'No Client Found';
+            // $clientName = $project->client->name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             unset($dataArray['user_id'], $dataArray['user_name']);
 
             $dataArray['id'] = $sheet->id;
             $dataArray['project_name'] = $projectName;
-            $dataArray['client_name'] = $clientName;
+            // $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status ?? 'pending';
 
