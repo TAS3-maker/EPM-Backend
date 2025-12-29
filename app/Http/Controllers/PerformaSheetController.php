@@ -1152,10 +1152,10 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? ProjectMaster::find($projectId) : null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
 
             $projectName = $project->project_name ?? 'No Project Found';
-            // $clientName = $project->client->name ?? 'No Client Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             // Remove unwanted keys
@@ -1163,7 +1163,7 @@ class PerformaSheetController extends Controller
 
             // Inject meta values
             $dataArray['project_name'] = $projectName;
-            // $dataArray['client_name'] = $clientName;
+            $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
@@ -1270,9 +1270,10 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? ProjectMaster::find($projectId) : null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
 
             $projectName = $project->project_name ?? 'No Project Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             // Remove unwanted keys
@@ -1280,6 +1281,7 @@ class PerformaSheetController extends Controller
 
             // Inject meta values
             $dataArray['project_name'] = $projectName;
+            $dataArray['client_name'] = $clientName;
             $dataArray['deadline'] = $deadline;
             $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
