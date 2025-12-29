@@ -132,6 +132,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/getleaves-byemploye', [LeaveController::class, 'getLeavesByemploye']);
         Route::get('/showmanager-leavesfor-teamemploye', [LeaveController::class, 'showmanagerLeavesForTeamemploye']);
         Route::post('/approve-leave', [LeaveController::class, 'approveLeave']);
+        Route::get('/get-users-attendance', [LeaveController::class, 'GetUsersAttendance']);
         Route::get('/storage/leaves/{file}', function ($file) {
             return response()->file(storage_path("app/public/leaves/$file"));
         });
