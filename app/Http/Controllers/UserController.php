@@ -241,6 +241,9 @@ class UserController extends Controller
                     'performance_sheet' => $rolePermissions['performance_sheet'] ?? 0,
                     'performance_history' => $rolePermissions['performance_history'] ?? 0,
                     'projects_assigned' => $rolePermissions['projects_assigned'] ?? 0,
+                    'team_reporting' => $rolePermissions['team_reporting'] ?? 0,
+                    'leave_reporting' => $rolePermissions['leave_reporting'] ?? 0,
+                    'previous_sheets' => $rolePermissions['previous_sheets'] ?? 0,
                 ]);
             }
             return ApiResponse::success(

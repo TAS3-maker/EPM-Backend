@@ -42,6 +42,9 @@ class Permission extends Model
         'communication_type',
         'account_master',
         'notes_management',
+        'team_reporting',
+        'leave_reporting',
+        'previous_sheets',
     ];
 
     // Relationship to User

@@ -80,6 +80,9 @@ class PermissionController extends Controller
                     "communication_type" => "0",
                     "account_master" => "0",
                     "notes_management" => "0",
+                    "team_reporting" => "0",
+                    "leave_reporting" => "0",
+                    "previous_sheets" => "0",
                 ];
 
                 $users = User::with('permission')

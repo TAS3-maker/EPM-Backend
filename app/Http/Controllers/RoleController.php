@@ -158,6 +158,9 @@ class RoleController extends Controller
                 'communication_type',
                 'account_master',
                 'notes_management',
+                'team_reporting',
+                'leave_reporting',
+                'previous_sheets',
             ];
             foreach ($users as $user) {
                 $permission = Permission::where('user_id', $user->id)->first();
@@ -170,11 +173,9 @@ class RoleController extends Controller
                     $new = (int) ($newPermissions[$column] ?? 0);
                     if ($existing === 2) {
                         $final = 2;
-                    }
-                    elseif ($existing === 1) {
+                    } elseif ($existing === 1) {
                         $final = ($new === 0) ? 1 : $new;
-                    }
-                    else {
+                    } else {
                         $final = $new;
                     }
                     $updateData[$column] = (string) $final;
