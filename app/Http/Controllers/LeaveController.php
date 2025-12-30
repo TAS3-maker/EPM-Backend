@@ -146,8 +146,8 @@ class LeaveController extends Controller
     public function getLeavesByemploye(Request $request)
     {
         $user_id = $request->filled('user_id')
-        ? $request->user_id
-        : auth()->id();
+            ? $request->user_id
+            : auth()->id();
         $leaves = LeavePolicy::with('user:id,name')
             ->where('user_id', $user_id)
             ->latest()
@@ -440,7 +440,6 @@ class LeaveController extends Controller
     {
         $current_user = auth()->user();
 
-        /* -------------------- ROLE VALIDATION -------------------- */
         $allowedRoles = ['superadmin', 'Admin', 'HR'];
 
         $role = DB::table('roles')
@@ -468,8 +467,8 @@ class LeaveController extends Controller
             }
         }
 
-        $users = DB::table('users')
-            ->select('id', 'name')
+        $users = User::select('id', 'name')
+            ->whereNotIn('role_id', [1, 2])
             ->get();
 
         $leaves = DB::table('leavespolicy')

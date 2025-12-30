@@ -53,4 +53,32 @@ class ProjectMaster extends Model
         );
     }
 
+    public function tasks()
+    {
+        return $this->hasMany(Task::class, 'project_id');
+    }
+
+    public function scopeForTeam($query, $userId)
+    {
+        return $query->whereHas('relation', function ($q) use ($userId) {
+            $q->whereJsonContains('assignees', $userId);
+        });
+    }
+
+    public function scopeForTL($query, $teamUserIds)
+    {
+        return $query->whereHas('relation', function ($q) use ($teamUserIds) {
+            foreach ($teamUserIds as $userId) {
+                $q->orWhereJsonContains('assignees', $userId);
+            }
+        });
+    }
+
+    public function scopeForPM($query, $userId)
+    {
+        return $query->whereHas('relation', function ($q) use ($userId) {
+            $q->whereJsonContains('assignees', $userId);
+        });
+    }
+
 }

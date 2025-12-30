@@ -11,6 +11,7 @@ use App\Mail\ProjectAssignedMail;
 use App\Mail\ProjectAssignedToTLMail;
 use App\Models\ProjectRelation;
 use App\Models\User;
+use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -22,6 +23,8 @@ use League\Config\Exception\ValidationException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Models\Task;
 use App\Models\TagsActivity;
+use App\Models\PerformaSheet;
+
 
 class ProjectMasterController extends Controller
 {
@@ -226,17 +229,33 @@ class ProjectMasterController extends Controller
 
     public function show(string $id)
     {
-        $project = ProjectMaster::findOrFail($id);
+        if (!$id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project id is required',
+            ], 422);
+        }
+
+        $project = ProjectMaster::find($id);
+
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found',
+            ], 404);
+        }
 
         $relation = ProjectRelation::where('project_id', $project->id)->first();
 
         return response()->json([
+            'success' => true,
             'project' => new ProjectMasterResource($project),
             'relation' => $relation
                 ? new ProjectRelationResource($relation)
                 : null,
         ], 200);
     }
+
 
 
     public function update(Request $request, $id)
@@ -1147,5 +1166,161 @@ class ProjectMasterController extends Controller
         }
     }
 
+    public function GetProjectMasterByClientId(Request $request)
+    {
+        if (!$request->client_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'client_id is required',
+            ], 422);
+        }
+
+        $projectIds = ProjectRelation::where('client_id', $request->client_id)
+            ->pluck('project_id');
+
+        $projects = ProjectMaster::whereIn('id', $projectIds)
+            ->select('id', 'project_name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $projects,
+        ]);
+    }
+    public function GetProjectFullDetailByUserId(Request $request)
+    {
+        if (!$request->user_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User Id is required',
+            ], 422);
+        }
+
+        $currentUser = User::find($request->user_id);
+
+        if (!$currentUser) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+            ], 404);
+        }
+
+        $performaUserIds = [$currentUser->id];
+
+        if ($currentUser->role_id == 6) {
+            $teamIds = is_string($currentUser->team_id)
+                ? json_decode($currentUser->team_id, true)
+                : (array) $currentUser->team_id;
+
+            $performaUserIds = User::where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $teamId) {
+                    $q->orWhereJsonContains('team_id', $teamId);
+                }
+            })->pluck('id')->toArray();
+        }
+
+        $usersMap = User::whereIn('id', $performaUserIds)
+            ->pluck('name', 'id')
+            ->toArray();
+
+        $query = ProjectMaster::select('id', 'project_name', 'project_hours')
+            ->with('tasks:id,project_id,title,status,hours');
+        if (in_array($currentUser->role_id, [5, 7])) {
+
+            $query->whereHas('relation', function ($q) use ($currentUser) {
+                $q->whereJsonContains('assignees', $currentUser->id);
+            });
+
+        } elseif ($currentUser->role_id == 6) {
+
+            $query->whereHas('relation', function ($q) use ($performaUserIds) {
+                foreach ($performaUserIds as $userId) {
+                    $q->orWhereJsonContains('assignees', $userId);
+                }
+            });
+
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized role',
+            ], 403);
+        }
+
+        $projects = $query->get();
+
+        if ($projects->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+            ]);
+        }
+
+        $taskIds = $projects->pluck('tasks')->flatten()->pluck('id')->unique()->toArray();
+
+        $performaSheets = PerformaSheet::whereIn('user_id', $performaUserIds)->get();
+
+        $taskUserMinutes = [];
+
+        foreach ($performaSheets as $sheet) {
+
+            $data = json_decode($sheet->data, true);
+
+            if (!$data || !isset($data['task_id'], $data['time'])) {
+                continue;
+            }
+
+            $taskId = (int) $data['task_id'];
+
+            if (!in_array($taskId, $taskIds)) {
+                continue;
+            }
+
+            [$hours, $minutes] = array_map('intval', explode(':', $data['time']));
+            $totalMinutes = ($hours * 60) + $minutes;
+
+            $userId = $sheet->user_id;
+
+            $taskUserMinutes[$taskId][$userId] =
+                ($taskUserMinutes[$taskId][$userId] ?? 0) + $totalMinutes;
+        }
+
+        $projects = $projects->map(function ($project) use ($taskUserMinutes, $usersMap, $currentUser) {
+
+            $project->requested_user_id = $currentUser->id;
+
+            $project->tasks = $project->tasks->map(function ($task) use ($taskUserMinutes, $usersMap) {
+
+                $taskId = $task->id;
+                $totalMinutes = 0;
+                $users = [];
+
+                if (isset($taskUserMinutes[$taskId])) {
+
+                    foreach ($taskUserMinutes[$taskId] as $userId => $minutes) {
+
+                        $totalMinutes += $minutes;
+
+                        $users[] = [
+                            'id' => $userId,
+                            'name' => $usersMap[$userId] ?? 'Unknown',
+                            'hours' => round($minutes / 60, 2),
+                        ];
+                    }
+                }
+
+                $task->total_hours = round($totalMinutes / 60, 2);
+                $task->users = $users;
+
+                return $task;
+            });
+
+            return $project;
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $projects,
+        ]);
+    }
 
 }

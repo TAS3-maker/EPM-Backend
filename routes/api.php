@@ -223,6 +223,8 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/remove-project-managers', [ProjectMasterController::class, 'removeProjectManagersMaster']);
 
         Route::get('/user-projects-master', [ProjectMasterController::class, 'getUserProjects']);
+        Route::get('/get-project-by-clientid', [ProjectMasterController::class,'GetProjectMasterByClientId']);
+        Route::get('/get-project-full-detail-userid', [ProjectMasterController::class,'GetProjectFullDetailByUserId']);
 
     });
 });
