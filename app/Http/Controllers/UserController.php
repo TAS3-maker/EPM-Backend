@@ -262,20 +262,8 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $per_page = $request->get('per_page', 20);
-        $users = User::with('role')->orderBy('id', 'desc')->paginate($per_page);
-        return ApiResponse::success('Users fetched successfully', 
-        [
-            'items' => UserResource::collection($users),
-            'pagination' => [
-                'current_page' => $users->currentPage(),
-                'per_page'     => $users->perPage(),
-                'total'        => $users->total(),
-                'last_page'    => $users->lastPage(),
-                'from'         => $users->firstItem(),
-                'to'           => $users->lastItem(),
-            ]
-            ]);
+        $users = User::with('role')->orderBy('id', 'desc')->get();
+        return ApiResponse::success('Users fetched successfully', UserResource::collection($users));
     }
 
     public function projectManger()
@@ -792,7 +780,6 @@ class UserController extends Controller
 
     public function getTeamMembers(Request $request)
     {
-        $per_page = $request->get('per_page', 20);
         $currentUser = auth()->user();
         if (!$currentUser) {
             return response()->json([
@@ -804,7 +791,7 @@ class UserController extends Controller
 
         $tlId = $currentUser->id;
 
-        $teamMembers = User::where('tl_id', $tlId)->paginate($per_page);
+        $teamMembers = User::where('tl_id', $tlId)->get();
         if ($teamMembers->isEmpty()) {
             return response()->json([
                 'success' => false,
@@ -816,17 +803,7 @@ class UserController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Team members fetched successfully',
-            'data' => [
-                'items' => $teamMembers->items(),
-                'pagination' => [
-                    'current_page' => $teamMembers->currentPage(),
-                    'per_page'     => $teamMembers->perPage(),
-                    'total'        => $teamMembers->total(),
-                    'last_page'    => $teamMembers->lastPage(),
-                    'from'         => $teamMembers->firstItem(),
-                    'to'           => $teamMembers->lastItem(),
-                ]
-            ]
+            'data' => $teamMembers
         ]);
     }
 

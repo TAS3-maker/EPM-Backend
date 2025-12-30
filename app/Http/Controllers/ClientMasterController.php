@@ -9,22 +9,10 @@ use Illuminate\Http\Request;
 
 class ClientMasterController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $per_page = $request->get('per_page', 20);
-        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->paginate($per_page);
-        return ApiResponse::success('Clients fetched successfully', 
-        [
-            'items' => ClientMasterResource::collection($clients),
-            'pagination' => [
-                'current_page' => $clients->currentPage(),
-                'per_page'     => $clients->perPage(),
-                'total'        => $clients->total(),
-                'last_page'    => $clients->lastPage(),
-                'from'         => $clients->firstItem(),
-                'to'           => $clients->lastItem(),
-            ]
-        ]);
+        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->get();
+        return ApiResponse::success('Clients fetched successfully', ClientMasterResource::collection($clients));
     }
 
     public function store(Request $request)
