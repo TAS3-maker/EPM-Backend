@@ -251,14 +251,14 @@ class PerformaSheetController extends Controller
     }
 
 
-    public function getUserPerformaSheets()
+    public function getUserPerformaSheets(Request $request)
     {
         $user = auth()->user();
-
+        $per_page = $request->get('per_page', 20);
         $sheets = PerformaSheet::with('user:id,name')
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($per_page);
 
         $structuredData = [
             'user_id' => $user->id,
@@ -273,9 +273,9 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
             $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->name ?? 'No Client Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             unset($dataArray['user_id'], $dataArray['user_name']);
@@ -292,7 +292,14 @@ class PerformaSheetController extends Controller
         if (empty($structuredData['sheets'])) {
             unset($structuredData['sheets']);
         }
-
+        $structuredData['pagination'] = [
+                'current_page' => $sheets->currentPage(),
+                'per_page'     => $sheets->perPage(),
+                'total'        => $sheets->total(),
+                'last_page'    => $sheets->lastPage(),
+                'from'         => $sheets->firstItem(),
+                'to'           => $sheets->lastItem(),
+            ];
         return response()->json([
             'success' => true,
             'message' => 'Performa Sheets fetched successfully',
@@ -304,6 +311,7 @@ class PerformaSheetController extends Controller
     public function getAllPerformaSheets(Request $request)
     {
         $user = $request->user();
+        $per_page = $request->get('per_page', 20);
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
         if ($request->has('status'))
@@ -355,7 +363,7 @@ class PerformaSheetController extends Controller
         }
 
         // Fetch sheets after all filters
-        $sheets = $query->get();
+        $sheets = $query->paginate($per_page);
         $structuredData = [];
         foreach ($sheets as $sheet) {
             $dataArray = json_decode($sheet->data, true);
@@ -363,9 +371,9 @@ class PerformaSheetController extends Controller
                 continue;
             }
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
             $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->name ?? 'No Client Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
             unset($dataArray['user_id'], $dataArray['user_name']);
             $dataArray['project_name'] = $projectName;
@@ -388,6 +396,14 @@ class PerformaSheetController extends Controller
             $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
         }
         $structuredData = array_values($structuredData);
+        $structuredData['pagination'] = [
+                'current_page' => $sheets->currentPage(),
+                'per_page'     => $sheets->perPage(),
+                'total'        => $sheets->total(),
+                'last_page'    => $sheets->lastPage(),
+                'from'         => $sheets->firstItem(),
+                'to'           => $sheets->lastItem(),
+            ];
         return response()->json([
             'success' => true,
             'message' => 'All Performa Sheets fetched successfully',
