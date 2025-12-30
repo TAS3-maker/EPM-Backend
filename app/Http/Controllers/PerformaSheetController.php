@@ -250,14 +250,13 @@ class PerformaSheetController extends Controller
     }
 
 
-    public function getUserPerformaSheets(Request $request)
+    public function getUserPerformaSheets()
     {
         $user = auth()->user();
-        $per_page = $request->get('per_page', 20);
         $sheets = PerformaSheet::with('user:id,name')
             ->where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
-            ->paginate($per_page);
+            ->get();
 
         $structuredData = [
             'user_id' => $user->id,
@@ -291,14 +290,6 @@ class PerformaSheetController extends Controller
         if (empty($structuredData['sheets'])) {
             unset($structuredData['sheets']);
         }
-        $structuredData['pagination'] = [
-            'current_page' => $sheets->currentPage(),
-            'per_page' => $sheets->perPage(),
-            'total' => $sheets->total(),
-            'last_page' => $sheets->lastPage(),
-            'from' => $sheets->firstItem(),
-            'to' => $sheets->lastItem(),
-        ];
         return response()->json([
             'success' => true,
             'message' => 'Performa Sheets fetched successfully',
@@ -310,7 +301,6 @@ class PerformaSheetController extends Controller
     public function getAllPerformaSheets(Request $request)
     {
         $user = $request->user();
-        $per_page = $request->get('per_page', 20);
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
         if ($request->has('status'))
@@ -362,7 +352,7 @@ class PerformaSheetController extends Controller
         }
 
         // Fetch sheets after all filters
-        $sheets = $query->paginate($per_page);
+        $sheets = $query->get();
         $structuredData = [];
         foreach ($sheets as $sheet) {
             $dataArray = json_decode($sheet->data, true);
@@ -395,14 +385,7 @@ class PerformaSheetController extends Controller
             $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
         }
         $structuredData = array_values($structuredData);
-        $structuredData['pagination'] = [
-            'current_page' => $sheets->currentPage(),
-            'per_page' => $sheets->perPage(),
-            'total' => $sheets->total(),
-            'last_page' => $sheets->lastPage(),
-            'from' => $sheets->firstItem(),
-            'to' => $sheets->lastItem(),
-        ];
+        
         return response()->json([
             'success' => true,
             'message' => 'All Performa Sheets fetched successfully',
