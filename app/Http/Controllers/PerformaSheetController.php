@@ -132,16 +132,16 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
-            /*$isFillable = (bool) ($record['is_fillable'] ?? false);
+            $isFillable = (bool) ($record['is_fillable'] ?? false);
             if(isset($record['status']) && strtolower($record['status']) == 'draft'){
                 $status = 'draft';
             }else{
-               $status = $isFillable ? 'pending' : 'draft';
-            }*/
+               $status = $isFillable ? 'draft' : 'backdated';
+            }
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
                 'user_id' => $submitting_user->id,
-                'status' => 'draft',
+                'status' => $status,
                 'data' => json_encode($record)
             ]);
 
@@ -885,7 +885,7 @@ class PerformaSheetController extends Controller
                 'message' => 'You can only delete rejected sheets.',
             ], 403);
         }
-        if ($sheet->status === 'rejected') {
+        if ($sheet->status === 'rejected' || $sheet->status === 'draft') {
             $sheet->delete();
 
             return response()->json([
@@ -895,7 +895,7 @@ class PerformaSheetController extends Controller
         }
         return response()->json([
             'success' => false,
-            'message' => 'Only rejected sheets can be deleted.',
+            'message' => 'Only rejected and draft sheets can be deleted.',
         ], 403);
     }
 
