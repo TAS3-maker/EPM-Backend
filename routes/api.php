@@ -227,6 +227,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/user-projects-master', [ProjectMasterController::class, 'getUserProjects']);
         Route::get('/get-project-by-clientid', [ProjectMasterController::class,'GetProjectMasterByClientId']);
         Route::get('/get-project-full-detail-userid', [ProjectMasterController::class,'GetProjectFullDetailByUserId']);
+        Route::get('/get-project-task-performa-by-user', [ProjectMasterController::class,'GetProjectTaskPerformaByUser']);
+        Route::get('/get-user-performa-data', [PerformaSheetController::class,'getUserPerformaData']);
 
     });
 });

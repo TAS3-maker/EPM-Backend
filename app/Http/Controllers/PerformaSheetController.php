@@ -49,9 +49,9 @@ class PerformaSheetController extends Controller
                 'data.*.task_id' => 'nullable|integer',
                 'data.*.work_type' => 'required|string|max:255',
                 'data.*.narration' => 'nullable|string',
-                'data.*.is_tracking'=>'required|in:yes,no',
-                'data.*.tracking_mode'=>'nullable|in:all,partial',
-                'data.*.tracked_hours'=>'nullable',
+                'data.*.is_tracking' => 'required|in:yes,no',
+                'data.*.tracking_mode' => 'nullable|in:all,partial',
+                'data.*.tracked_hours' => 'nullable',
                 'data.*.status' => 'nullable',
                 'data.*.is_fillable' => 'required|boolean',
             ]);
@@ -79,15 +79,14 @@ class PerformaSheetController extends Controller
                 !isset($project->tagActivityRelated->name) ||
                 strtolower($project->tagActivityRelated->name) === 'non billable' ||
                 strtolower($project->tagActivityRelated->name) === 'non-billable'
-            ){
+            ) {
                 $record['activity_type'] = 'Billable';
-            }
-            else if($project->tagActivityRelated->id == 18){
-                $record['project_type'] = 'No Work';                
+            } else if ($project->tagActivityRelated->id == 18) {
+                $record['project_type'] = 'No Work';
             }
 
-            if($record['is_tracking'] === 'yes'){
-                if($record['tracking_mode'] === 'all'){
+            if ($record['is_tracking'] === 'yes') {
+                if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
                 }
             }
@@ -97,7 +96,7 @@ class PerformaSheetController extends Controller
                 $record['project_type'] = 'Hourly';
                 $record['project_type_status'] = 'Online';
             }
-            
+
             /* if (
                 !isset($record['activity_type']) ||
                 strtolower($record['activity_type']) === 'non billable' ||
@@ -156,7 +155,7 @@ class PerformaSheetController extends Controller
         return response()->json([
             'success' => true,
             'message' => count($inserted) . ' Performa Sheets added successfully',
-            'data'=> $inserted
+            'data' => $inserted
         ]);
     }
     public function submitForApproval(Request $request)
@@ -177,7 +176,7 @@ class PerformaSheetController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed!',
-                'errors'  => $e->errors()
+                'errors' => $e->errors()
             ], 422);
         }
 
@@ -203,7 +202,7 @@ class PerformaSheetController extends Controller
             $data['is_fillable'] = 1;
 
             $sheet->update([
-                'data'   => json_encode($data),
+                'data' => json_encode($data),
                 'status' => 'pending',
             ]);
             $sheet_data = json_decode($sheet->data);
@@ -221,14 +220,14 @@ class PerformaSheetController extends Controller
                 'project_type' => $sheet_data->project_type,
                 'project_type_status' => $sheet_data->project_type_status,
             ];
-            if($sheet->is_tracking){
+            if ($sheet->is_tracking) {
                 $sheetsWithDetails['is_tracking'] = $sheet_data->is_tracking;
-                $sheetsWithDetails['tracking_mode']= $sheet_data->tracking_mode;
-                $sheetsWithDetails['tracked_hours']= $sheet_data->tracked_hours;
+                $sheetsWithDetails['tracking_mode'] = $sheet_data->tracking_mode;
+                $sheetsWithDetails['tracked_hours'] = $sheet_data->tracked_hours;
             }
             ActivityService::log([
-                'project_id'  => $sheet_data->project_id,
-                'type'        => 'activity',
+                'project_id' => $sheet_data->project_id,
+                'type' => 'activity',
                 'description' => 'Performa Sheets submitted for approval by ' . $user->name,
             ]);
         }
@@ -293,13 +292,13 @@ class PerformaSheetController extends Controller
             unset($structuredData['sheets']);
         }
         $structuredData['pagination'] = [
-                'current_page' => $sheets->currentPage(),
-                'per_page'     => $sheets->perPage(),
-                'total'        => $sheets->total(),
-                'last_page'    => $sheets->lastPage(),
-                'from'         => $sheets->firstItem(),
-                'to'           => $sheets->lastItem(),
-            ];
+            'current_page' => $sheets->currentPage(),
+            'per_page' => $sheets->perPage(),
+            'total' => $sheets->total(),
+            'last_page' => $sheets->lastPage(),
+            'from' => $sheets->firstItem(),
+            'to' => $sheets->lastItem(),
+        ];
         return response()->json([
             'success' => true,
             'message' => 'Performa Sheets fetched successfully',
@@ -397,13 +396,13 @@ class PerformaSheetController extends Controller
         }
         $structuredData = array_values($structuredData);
         $structuredData['pagination'] = [
-                'current_page' => $sheets->currentPage(),
-                'per_page'     => $sheets->perPage(),
-                'total'        => $sheets->total(),
-                'last_page'    => $sheets->lastPage(),
-                'from'         => $sheets->firstItem(),
-                'to'           => $sheets->lastItem(),
-            ];
+            'current_page' => $sheets->currentPage(),
+            'per_page' => $sheets->perPage(),
+            'total' => $sheets->total(),
+            'last_page' => $sheets->lastPage(),
+            'from' => $sheets->firstItem(),
+            'to' => $sheets->lastItem(),
+        ];
         return response()->json([
             'success' => true,
             'message' => 'All Performa Sheets fetched successfully',
@@ -755,7 +754,7 @@ class PerformaSheetController extends Controller
                 'data.project_id' => [
                     'required',
                     Rule::exists('project_relations', 'project_id')->where(function ($query) use ($user) {
-                    $query->whereRaw(
+                        $query->whereRaw(
                             'JSON_CONTAINS(assignees, ?, "$")',
                             [json_encode((int) $user->id)]
                         );
@@ -765,10 +764,10 @@ class PerformaSheetController extends Controller
                 'data.time' => 'required|date_format:H:i',
                 'data.work_type' => 'required|string|max:255',
                 'data.narration' => 'nullable|string',
-                'data.is_tracking'=>'required|in:yes,no',
-                'data.tracking_mode'=>'nullable|in:all,partial',
-                'data.tracked_hours'=>'nullable',
-                'data.is_fillable'=>'nullable|boolean',
+                'data.is_tracking' => 'required|in:yes,no',
+                'data.tracking_mode' => 'nullable|in:all,partial',
+                'data.tracked_hours' => 'nullable',
+                'data.is_fillable' => 'nullable|boolean',
                 'data.status' => 'nullable',
             ]);
 
@@ -817,12 +816,11 @@ class PerformaSheetController extends Controller
             if ($isChanged) {
                 if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                     $performaSheet->status = 'pending';
-                }
-                else if(isset($newData['is_fillable']) && !$newData['is_fillable']){
+                } else if (isset($newData['is_fillable']) && !$newData['is_fillable']) {
                     $performaSheet->status = 'draft';
-                }else{
+                } else {
                     /**if status does not include draft approved rejected then status will be pending */
-                    if(!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['draft', 'approved', 'rejected'])){
+                    if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['draft', 'approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
                     }
                 }
@@ -1220,8 +1218,8 @@ class PerformaSheetController extends Controller
         $user = $request->user();
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
-        $isFillable = $request->has('is_fillable') ? (int)$request->query('is_fillable') : null;
-        
+        $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
+
         $baseQuery = PerformaSheet::with('user:id,name');
 
         if ($role_id == 1 || $role_id == 4) {
@@ -1285,7 +1283,7 @@ class PerformaSheetController extends Controller
 
             // Skip if filter is applied and the row doesn't match
             if ($isFillable !== null) {
-                if (!isset($dataArray['is_fillable']) || (int)$dataArray['is_fillable'] !== $isFillable) {
+                if (!isset($dataArray['is_fillable']) || (int) $dataArray['is_fillable'] !== $isFillable) {
                     continue;
                 }
             }
@@ -1347,10 +1345,10 @@ class PerformaSheetController extends Controller
             /** is passed date fillable for performa sheet */
             $today = Carbon::today();
             $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
-            ->where('status', 'approved')
-            ->pluck('apply_date')
-            ->map(fn ($d) => Carbon::parse($d)->toDateString())
-            ->toArray();
+                ->where('status', 'approved')
+                ->pluck('apply_date')
+                ->map(fn($d) => Carbon::parse($d)->toDateString())
+                ->toArray();
 
             $sheets = PerformaSheet::with('user:id,name')
                 ->where('user_id', $user->id)
@@ -1369,7 +1367,7 @@ class PerformaSheetController extends Controller
             // Initialize weekly totals
             foreach ($period as $day) {
                 $carbonDay = Carbon::instance($day);
-                $dateKey   = $carbonDay->toDateString();
+                $dateKey = $carbonDay->toDateString();
 
                 /* is_fillable calculation per day*/
                 $isFillable = 1;
@@ -2174,17 +2172,18 @@ class PerformaSheetController extends Controller
         }
     }
 
-    public function applyToFillPerformaSheets(Request $request){
+    public function applyToFillPerformaSheets(Request $request)
+    {
         $submitting_user = auth()->user();
         $validatedData = $request->validate([
             'apply_date' => 'required|date_format:Y-m-d|before_or_equal:today',
             'performa_sheet' => 'nullable|exists:performa_sheets,id',
         ]);
         $application = ApplicationPerforma::create([
-            'user_id'    => $submitting_user->id,
-            'performa_sheet'=>$validatedData['performa_sheet'],
-            'status'     => 'pending',
-            'apply_date'    => $validatedData['apply_date'],
+            'user_id' => $submitting_user->id,
+            'performa_sheet' => $validatedData['performa_sheet'],
+            'status' => 'pending',
+            'apply_date' => $validatedData['apply_date'],
             'approval_date' => null,
         ]);
 
@@ -2200,7 +2199,8 @@ class PerformaSheetController extends Controller
             ]
         ], 201);
     }
-    public function approveApplicationPerformaSheets(Request $request, $id){
+    public function approveApplicationPerformaSheets(Request $request, $id)
+    {
         $approver = auth()->user();
         if (!in_array($approver->role_id, [4])) {
             return response()->json([
@@ -2232,8 +2232,8 @@ class PerformaSheetController extends Controller
         /**update performa with status pending */
         $performa_id = $application->performa_sheet;
         $performa_sheet_data = PerformaSheet::where('id', $performa_id)
-                ->where('user_id', $application->user_id)
-                ->first();
+            ->where('user_id', $application->user_id)
+            ->first();
 
         if (in_array(strtolower($performa_sheet_data->status), ['draft'])) {
             $performa_sheet_data->status = 'approved';
@@ -2272,8 +2272,8 @@ class PerformaSheetController extends Controller
         /**update performa with status pending */
         $performa_id = $application->performa_sheet;
         $performa_sheet_data = PerformaSheet::where('id', $performa_id)
-                ->where('user_id', $application->user_id)
-                ->first();
+            ->where('user_id', $application->user_id)
+            ->first();
         $performa_sheet_data->delete();
 
         return response()->json([
@@ -2282,7 +2282,7 @@ class PerformaSheetController extends Controller
             'data' => $application
         ]);
     }
-       
+
     public function getAllPerformaApplications(Request $request)
     {
         try {
@@ -2304,4 +2304,132 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
+    private function minutesToHours($minutes)
+    {
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+
+        return sprintf('%02d:%02d', $hours, $mins);
+    }
+
+
+    public function getUserPerformaData(Request $request)
+    {
+        if (!$request->user_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'user id is required'
+            ], 404);
+        }
+
+        try {
+
+            $startDate = $request->start_date
+                ? Carbon::parse($request->start_date)
+                : Carbon::today();
+
+            $endDate = $request->end_date
+                ? Carbon::parse($request->end_date)
+                : Carbon::today();
+
+            $performaSheets = DB::table('performa_sheets')
+                ->where('user_id', $request->user_id)
+                ->where('status', 'approved')
+                ->get();
+
+            $activityTotals = [
+                'Billable' => 0,
+                'In-House' => 0,
+                'No Work' => 0,
+                'Offline' => 0,
+            ];
+
+            foreach ($performaSheets as $row) {
+
+                $decoded = json_decode($row->data, true);
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+                foreach ($entries as $entry) {
+
+                    if (!isset($entry['activity_type'], $entry['time'], $entry['date'])) {
+                        continue;
+                    }
+
+                    $entryDate = Carbon::parse($entry['date']);
+
+                    if ($entryDate->lt($startDate) || $entryDate->gt($endDate)) {
+                        continue;
+                    }
+
+                    if (!isset($activityTotals[$entry['activity_type']])) {
+                        continue;
+                    }
+
+                    [$h, $m] = explode(':', $entry['time']);
+                    $activityTotals[$entry['activity_type']] += ((int) $h * 60) + (int) $m;
+                }
+            }
+
+            $leaves = LeavePolicy::where('user_id', $request->user_id)
+                ->where('status', 'Approved')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereBetween('start_date', [$startDate, $endDate])
+                        ->orWhereBetween('end_date', [$startDate, $endDate]);
+                })
+                ->get();
+
+            $totalLeaveMinutes = 0;
+
+            foreach ($leaves as $leave) {
+
+                switch ($leave->leave_type) {
+
+                    case 'Full Leave':
+                        $totalLeaveMinutes += 510;
+                        break;
+
+                    case 'Half Day':
+                        $totalLeaveMinutes += 255;
+                        break;
+
+                    case 'Short Leave':
+                        if ($leave->hours) {
+                            [$h, $m] = explode(':', $leave->hours);
+                            $totalLeaveMinutes += ((int) $h * 60) + (int) $m;
+                        }
+                        break;
+
+                    case 'Multiple Days Leave':
+                        $days = Carbon::parse($leave->start_date)
+                            ->diffInDays(Carbon::parse($leave->end_date)) + 1;
+                        $totalLeaveMinutes += $days * 510;
+                        break;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Performa & Leave summary fetched successfully',
+                'data' => [
+                    'activities' => collect($activityTotals)->map(function ($minutes) {
+                        return $this->minutesToHours($minutes);
+                    }),
+                    'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
 }
