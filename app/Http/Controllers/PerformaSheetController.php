@@ -132,10 +132,10 @@ class PerformaSheetController extends Controller
             }
 
             $isFillable = (bool) ($record['is_fillable'] ?? false);
-            if(isset($record['status']) && strtolower($record['status']) == 'draft'){
-                $status = 'draft';
+            if(isset($record['status']) && strtolower($record['status']) == 'standup'){
+                $status = 'standup';
             }else{
-               $status = $isFillable ? 'draft' : 'backdated';
+               $status = $isFillable ? 'standup' : 'backdated';
             }
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
@@ -816,8 +816,6 @@ class PerformaSheetController extends Controller
             if ($isChanged) {
                 if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                     $performaSheet->status = 'pending';
-                } else if (isset($newData['is_fillable']) && !$newData['is_fillable']) {
-                    $performaSheet->status = 'draft';
                 } else {
                     /**if status does not include draft approved rejected then status will be pending */
                     if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['draft', 'approved', 'rejected'])) {
