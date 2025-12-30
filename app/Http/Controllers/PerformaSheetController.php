@@ -53,7 +53,7 @@ class PerformaSheetController extends Controller
                 'data.*.tracking_mode'=>'nullable|in:all,partial',
                 'data.*.tracked_hours'=>'nullable',
                 'data.*.status' => 'nullable',
-                'data.*.is_fillable' => 'nullable|boolean',
+                'data.*.is_fillable' => 'required|boolean',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -195,11 +195,16 @@ class PerformaSheetController extends Controller
                 continue;
             }
 
-            $isFillable = (bool) ($record['is_fillable'] ?? false);
-            $status = $isFillable ? 'pending' : 'draft';
+            /*$record['is_fillable'] = 1;
+             $isFillable = (bool) ($record['is_fillable'] ?? false);
+            $status = $isFillable ? 'pending' : 'draft'; */
+
+            $data = json_decode($sheet->data, true) ?? [];
+            $data['is_fillable'] = 1;
 
             $sheet->update([
-                'status' => $status,
+                'data'   => json_encode($data),
+                'status' => 'pending',
             ]);
             $sheet_data = json_decode($sheet->data);
             $updatedCount++;
@@ -1091,9 +1096,6 @@ class PerformaSheetController extends Controller
         $role_id = $user->role_id;
         $team_id = $user->team_id ?? [];
 
-        // Force all sheets to pending
-        $status = 'pending';
-
         $baseQuery = PerformaSheet::with('user:id,name');
 
         if ($role_id == 1 || $role_id == 4) {
@@ -1155,10 +1157,10 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? Project::with('client:id,name')->find($projectId) : null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
 
             $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->name ?? 'No Client Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
             $deadline = $project->deadline ?? 'No Deadline Set';
 
             // Remove unwanted keys
@@ -1174,6 +1176,122 @@ class PerformaSheetController extends Controller
             $dataArray['created_at'] = $sheet->created_at
                 ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
 
+            $dataArray['updated_at'] = $sheet->updated_at
+                ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
+
+            // Group by user
+            if (!isset($structuredData[$sheet->user_id])) {
+                $structuredData[$sheet->user_id] = [
+                    'user_id' => $sheet->user_id,
+                    'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+                    'sheets' => []
+                ];
+            }
+
+            $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
+        }
+
+        $structuredData = array_values($structuredData);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All pending Performa Sheets fetched successfully',
+            'data' => $structuredData
+        ]);
+    }
+    public function getAllDraftPerformaSheets(Request $request)
+    {
+        $user = $request->user();
+        $role_id = $user->role_id;
+        $team_id = $user->team_id ?? [];
+        $isFillable = $request->has('is_fillable') ? (int)$request->query('is_fillable') : null;
+        
+        $baseQuery = PerformaSheet::with('user:id,name');
+
+        if ($role_id == 1 || $role_id == 4) {
+            $query = clone $baseQuery;
+
+        } else if ($role_id == 7) {
+            $query = clone $baseQuery;
+            $query->where('user_id', $user->id);
+
+        } else if ($role_id == 6) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else if ($role_id == 5 && $team_id) {
+            $teamMemberIds = User::where('role_id', 7)
+                ->where('id', '!=', $user->id)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        if ($t !== null) {
+                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        }
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $query = clone $baseQuery;
+            $query->whereIn('user_id', $teamMemberIds);
+
+        } else {
+            $query = clone $baseQuery;
+        }
+
+        $query->where('status', 'draft');
+
+        $query->orderBy('id', 'DESC');
+
+        $sheets = $query->get();
+
+        // Prepare structured data
+        $structuredData = [];
+
+        foreach ($sheets as $sheet) {
+            $dataArray = json_decode($sheet->data, true);
+
+            if (!is_array($dataArray)) {
+                continue;
+            }
+
+            // Skip if filter is applied and the row doesn't match
+            if ($isFillable !== null) {
+                if (!isset($dataArray['is_fillable']) || (int)$dataArray['is_fillable'] !== $isFillable) {
+                    continue;
+                }
+            }
+
+            $projectId = $dataArray['project_id'] ?? null;
+            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
+
+            $projectName = $project->project_name ?? 'No Project Found';
+            $clientName = $project->client->client_name ?? 'No Client Found';
+            $deadline = $project->deadline ?? 'No Deadline Set';
+
+            // Remove unwanted keys
+            unset($dataArray['user_id'], $dataArray['user_name']);
+
+            // Inject meta values
+            $dataArray['project_name'] = $projectName;
+            $dataArray['client_name'] = $clientName;
+            $dataArray['deadline'] = $deadline;
+            $dataArray['status'] = $sheet->status;
+            $dataArray['id'] = $sheet->id;
+            $dataArray['created_at'] = $sheet->created_at
+                ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
             $dataArray['updated_at'] = $sheet->updated_at
                 ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
 
@@ -2102,7 +2220,7 @@ class PerformaSheetController extends Controller
                 ->first();
 
         if (in_array(strtolower($performa_sheet_data->status), ['draft'])) {
-            $performa_sheet_data->status = 'pending';
+            $performa_sheet_data->status = 'approved';
         }
         $performa_sheet_data->save();
 

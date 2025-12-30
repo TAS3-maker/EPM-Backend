@@ -44,7 +44,7 @@ class ProjectMaster extends Model
     public function client()
     {
         return $this->hasOneThrough(
-            Client::class,
+            ClientMaster::class,
             ProjectRelation::class,
             'project_id',
             'id',

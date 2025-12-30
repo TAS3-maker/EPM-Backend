@@ -119,6 +119,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 'getMissingUserPerformaSheets']);
         Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
         Route::get('/get-all-pending-performa-sheets', [PerformaSheetController::class, 'getAllPendingPerformaSheets']);
+        Route::get('/get-all-draft-performa-sheets', [PerformaSheetController::class, 'getAllDraftPerformaSheets']);
         Route::get('/get-performa-sheet-daterange', [PerformaSheetController::class, 'getUserDaterangePerformaSheets']);
         
         Route::post('/apply-performa', [PerformaSheetController::class, 'applyToFillPerformaSheets']);
@@ -142,7 +143,7 @@ Route::middleware('auth:api')->group(function () {
         // App => Http => Controllers =>TaskController
         Route::post('/add-task', [TaskController::class, 'AddTasks']);
         Route::put('/getalltaskofprojectbyid/{id}', [TaskController::class, 'getAllTaskofProjectById']);
-        Route::get('/getproject/{id}', [ProjectController::class, 'getProjectById']);
+        // Route::get('/getproject/{id}', [ProjectController::class, 'getProjectById']);
         Route::post('/get-emp-tasksby-project', [TaskController::class, 'getEmployeTasksbyProject']);
         Route::post('/approve-task-ofproject', [TaskController::class, 'ApproveTaskofProject']);
         Route::put('/edit-task/{id}', [TaskController::class, 'EditTasks']);
@@ -217,6 +218,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/remove-project-tl/{project_id}/{tl_ids}', [ProjectMasterController::class, 'removeprojecttlMaster']);
         Route::post('/assign-project-tl-to-employee', [ProjectMasterController::class, 'assignProjectManagerProjectToEmployeeMaster']);
         Route::delete('/remove-project-employee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeprojectemployeeMaster']);
+
         // Route::post('/update-assignee', [ProjectMasterController::class, 'updateAssignee']);
         Route::delete('/remove-assignee/{project_id}/{user_ids}', [ProjectMasterController::class, 'removeAssignee']);
         Route::post('/assign-project-manager', [ProjectMasterController::class, 'assignProjectToManagerMaster']);

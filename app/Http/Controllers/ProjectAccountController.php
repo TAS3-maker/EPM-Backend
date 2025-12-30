@@ -13,7 +13,12 @@ class ProjectAccountController extends Controller
 {
     public function index()
     {
-        return ProjectAccountResource::collection(ProjectAccount::all());
+        $accounts = ProjectAccount::with([
+        'projects',
+        'projectRelations.project'
+        ])->get();
+
+        return ProjectAccountResource::collection($accounts);
     }
 
 
