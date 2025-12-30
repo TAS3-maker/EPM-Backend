@@ -24,6 +24,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Models\Task;
 use App\Models\TagsActivity;
 use App\Models\PerformaSheet;
+use App\Models\ClientMaster;
 
 
 class ProjectMasterController extends Controller
@@ -1175,18 +1176,52 @@ class ProjectMasterController extends Controller
             ], 422);
         }
 
+        $client = ClientMaster::find($request->client_id);
+
+        if (!$client) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client not found',
+            ], 404);
+        }
+
         $projectIds = ProjectRelation::where('client_id', $request->client_id)
-            ->pluck('project_id');
+            ->pluck('project_id')
+            ->unique()
+            ->toArray();
 
         $projects = ProjectMaster::whereIn('id', $projectIds)
-            ->select('id', 'project_name')
+            ->select([
+                'id',
+                'project_name',
+                'project_tracking',
+                'project_status',
+                'project_budget',
+                'project_hours',
+                'project_used_hours',
+                'project_used_budget',
+                'project_tag_activity',
+            ])
             ->get();
+
+        $projects->each(function ($project) {
+            $project->project_tag_activity_data = $project->tagActivity()->pluck('name')->first();
+        });
 
         return response()->json([
             'success' => true,
-            'data' => $projects,
+            'client' => [
+                'id' => $client->id,
+                'client_name' => $client->client_name,
+                'client_email' => $client->client_email,
+                'client_number' => $client->client_number,
+            ],
+            'projects' => $projects,
         ]);
     }
+
+
+
     public function GetProjectFullDetailByUserId(Request $request)
     {
         if (!$request->user_id) {
@@ -1460,6 +1495,5 @@ class ProjectMasterController extends Controller
             'data' => $projects,
         ]);
     }
-
 
 }
