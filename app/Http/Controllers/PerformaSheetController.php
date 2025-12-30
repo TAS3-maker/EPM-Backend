@@ -881,7 +881,7 @@ class PerformaSheetController extends Controller
                 'message' => 'You can only delete rejected sheets.',
             ], 403);
         }
-        if ($sheet->status === 'rejected' || $sheet->status === 'draft') {
+        if ($sheet->status === 'rejected' || $sheet->status === 'standup') {
             $sheet->delete();
 
             return response()->json([
@@ -891,7 +891,7 @@ class PerformaSheetController extends Controller
         }
         return response()->json([
             'success' => false,
-            'message' => 'Only rejected and draft sheets can be deleted.',
+            'message' => 'Only rejected and standup sheets can be deleted.',
         ], 403);
     }
 
