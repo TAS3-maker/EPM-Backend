@@ -818,7 +818,7 @@ class PerformaSheetController extends Controller
                     $performaSheet->status = 'pending';
                 } else {
                     /**if status does not include draft approved rejected then status will be pending */
-                    if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['draft', 'approved', 'rejected'])) {
+                    if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
                     }
                 }
