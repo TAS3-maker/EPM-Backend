@@ -1496,4 +1496,118 @@ class ProjectMasterController extends Controller
         ]);
     }
 
+
+    public function getFullDetailsOfProjectById(Request $request)
+    {
+        if (!$request->project_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project Id is required',
+            ], 422);
+        }
+
+        $project = ProjectMaster::select('id', 'project_name')
+            ->where('id', $request->project_id)
+            ->with([
+                'tasks:id,project_id,title,status,hours',
+                'relation:id,project_id,assignees'
+            ])
+            ->first();
+
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found',
+            ], 404);
+        }
+
+        $assignees = [];
+
+        if ($project->relation && $project->relation->assignees) {
+            $assignees = is_string($project->relation->assignees)
+                ? json_decode($project->relation->assignees, true)
+                : (array) $project->relation->assignees;
+        }
+
+        if (empty($assignees)) {
+            unset($project->relation); 
+            return response()->json([
+                'success' => true,
+                'data' => $project,
+            ]);
+        }
+
+        $usersMap = User::whereIn('id', $assignees)
+            ->pluck('name', 'id')
+            ->toArray();
+
+        $taskIds = $project->tasks->pluck('id')->toArray();
+
+        $performaSheets = PerformaSheet::whereIn('user_id', $assignees)
+            ->where('status', 'approved')
+            ->get();
+
+        $taskUserMinutes = [];
+
+        foreach ($performaSheets as $sheet) {
+            $decoded = json_decode($sheet->data, true);
+
+            if (is_string($decoded)) {
+                $decoded = json_decode($decoded, true);
+            }
+
+            $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+            foreach ($entries as $entry) {
+                if (!isset($entry['task_id'], $entry['time'])) {
+                    continue;
+                }
+
+                $taskId = (int) $entry['task_id'];
+
+                if (!in_array($taskId, $taskIds)) {
+                    continue;
+                }
+
+                [$h, $m] = array_map('intval', explode(':', $entry['time']));
+                $minutes = ($h * 60) + $m;
+
+                $taskUserMinutes[$taskId][$sheet->user_id] =
+                    ($taskUserMinutes[$taskId][$sheet->user_id] ?? 0) + $minutes;
+            }
+        }
+
+        $project->tasks = $project->tasks->map(function ($task) use ($taskUserMinutes, $usersMap) {
+
+            $totalMinutes = 0;
+            $users = [];
+
+            if (isset($taskUserMinutes[$task->id])) {
+                foreach ($taskUserMinutes[$task->id] as $userId => $minutes) {
+                    $totalMinutes += $minutes;
+
+                    $users[] = [
+                        'id' => $userId,
+                        'name' => $usersMap[$userId] ?? 'Unknown',
+                        'hours' => round($minutes / 60, 2),
+                    ];
+                }
+            }
+
+            $task->used_hours = round($totalMinutes / 60, 2);
+            $task->users = $users;
+
+            return $task;
+        });
+
+        unset($project->relation); 
+
+        return response()->json([
+            'success' => true,
+            'data' => $project,
+        ]);
+    }
+
+
+
 }
