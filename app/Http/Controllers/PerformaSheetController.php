@@ -1535,55 +1535,13 @@ class PerformaSheetController extends Controller
         $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
 
         $baseQuery = PerformaSheet::with('user:id,name');
+        $baseQuery->where('user_id', $user->id);
 
-        if ($role_id == 1 || $role_id == 4) {
-            $query = clone $baseQuery;
+        $baseQuery->where('status', 'standup');
 
-        } else if ($role_id == 7) {
-            $query = clone $baseQuery;
-            $query->where('user_id', $user->id);
+        $baseQuery->orderBy('id', 'DESC');
 
-        } else if ($role_id == 6) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
-
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-
-        } else if ($role_id == 5 && $team_id) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
-
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-
-        } else {
-            $query = clone $baseQuery;
-        }
-
-        $query->where('status', 'standup');
-
-        $query->orderBy('id', 'DESC');
-
-        $sheets = $query->get();
+        $sheets = $baseQuery->get();
 
         // Prepare structured data
         $structuredData = [];
