@@ -436,6 +436,7 @@ class LeaveController extends Controller
             'data' => $leaveData
         ]);
     }
+
     public function GetUsersAttendance(Request $request)
     {
         $current_user = auth()->user();
@@ -458,18 +459,48 @@ class LeaveController extends Controller
             $startDate = Carbon::parse($request->start_date)->startOfDay();
             $endDate = Carbon::parse($request->end_date)->endOfDay();
         } else {
-            if (Carbon::now()->isMonday()) {
-                $startDate = Carbon::now()->subWeek()->startOfWeek();
-                $endDate = Carbon::now()->subWeek()->endOfWeek();
-            } else {
-                $startDate = Carbon::now()->startOfWeek();
-                $endDate = Carbon::now()->endOfWeek();
-            }
+            $minDate = DB::table('leavespolicy')->min('start_date');
+
+            $startDate = $minDate
+                ? Carbon::parse($minDate)->startOfDay()
+                : Carbon::now()->startOfMonth(); // fallback safety
+
+            $endDate = Carbon::now()->endOfDay();
         }
 
-        $users = User::select('id', 'name')
+        $users = User::select('id', 'name', 'team_id')
             ->whereNotIn('role_id', [1, 2])
             ->get();
+
+        $teamIds = $users->pluck('team_id')
+            ->flatMap(function ($teamIds) {
+                if (is_array($teamIds)) {
+                    return $teamIds;
+                }
+
+                return json_decode($teamIds, true) ?? [];
+            })
+            ->unique()
+            ->values();
+
+        $teams = DB::table('teams')
+            ->whereIn('id', $teamIds)
+            ->pluck('name', 'id');
+
+        $users = $users->map(function ($user) use ($teams) {
+
+            $teamIds = is_array($user->team_id)
+                ? $user->team_id
+                : json_decode($user->team_id, true);
+
+            $user->team_name = collect($teamIds)
+                ->map(fn($id) => $teams[$id] ?? null)
+                ->filter()
+                ->values()
+                ->toArray();
+
+            return $user;
+        });
 
         $leaves = DB::table('leavespolicy')
             ->where('status', 'Approved')
@@ -511,12 +542,9 @@ class LeaveController extends Controller
 
                 foreach ($leaves[$user->id] as $leave) {
 
-                    $leaveStart = Carbon::parse($leave->start_date);
-                    $leaveEnd = Carbon::parse($leave->end_date);
-
                     $leavePeriod = CarbonPeriod::create(
-                        $leaveStart,
-                        $leaveEnd
+                        Carbon::parse($leave->start_date),
+                        Carbon::parse($leave->end_date)
                     );
 
                     foreach ($leavePeriod as $day) {
@@ -533,13 +561,11 @@ class LeaveController extends Controller
                         }
 
                         if ($leave->leave_type === 'Half Day') {
-                            $attendanceData[$dayStr]['present'] = 1;
                             $attendanceData[$dayStr]['leave_type'] = 'Half Day';
                             $attendanceData[$dayStr]['halfday_period'] = $leave->halfday_period;
                         }
 
                         if ($leave->leave_type === 'Short Leave') {
-                            $attendanceData[$dayStr]['present'] = 1;
                             $attendanceData[$dayStr]['leave_type'] = 'Short Leave';
                             $attendanceData[$dayStr]['hours'] = $leave->hours;
                         }
@@ -553,13 +579,15 @@ class LeaveController extends Controller
             $response[] = [
                 'user_id' => $user->id,
                 'user_name' => $user->name,
+                'team_name' => $user->team_name ?? '',
                 'attendance_data' => $attendanceData
             ];
         }
 
         return ApiResponse::success(
-            'User availability fetched successfully',
+            'User attendance fetched successfully',
             $response
         );
     }
+
 }
