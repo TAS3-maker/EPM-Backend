@@ -107,6 +107,7 @@ class ProjectMasterController extends Controller
             'project_tag_activity' => 'required|integer',
             'project_used_hours' => 'nullable|string',
             'project_used_budget' => 'nullable|string',
+            'offline_hours' => 'nullable|integer',
         ], [
             'client_id.exists' => 'Client does not exist',
             'source_id.exists' => 'Source does not exist',
@@ -186,6 +187,7 @@ class ProjectMasterController extends Controller
                 'project_tag_activity' => $request->project_tag_activity,
                 'project_used_hours' => $request->project_used_hours,
                 'project_used_budget' => $request->project_used_budget,
+                'offline_hours' => $request->offline_hours,
             ]);
 
             $relation = ProjectRelation::create([
@@ -278,6 +280,7 @@ class ProjectMasterController extends Controller
             'project_tag_activity' => 'sometimes|required|integer',
             'project_used_hours' => 'sometimes|nullable|string',
             'project_used_budget' => 'sometimes|nullable|string',
+            'offline_hours' => 'sometimes|nullable|integer',
         ], [
             'client_id.exists' => 'Client does not exist',
             'source_id.exists' => 'Source does not exist',
@@ -324,6 +327,7 @@ class ProjectMasterController extends Controller
                 'project_tag_activity',
                 'project_used_hours',
                 'project_used_budget',
+                'offline_hours',
             ]);
 
             if (!empty($projectData)) {
@@ -591,6 +595,7 @@ class ProjectMasterController extends Controller
             'project_tag_activity' => 'sometimes|integer|exists:tag_activity,id',
             'project_used_hours' => 'sometimes|nullable|string',
             'project_used_budget' => 'sometimes|nullable|string',
+            'offline_hours' => 'sometimes|nullable|string',
         ], [
             'project_tag_activity.exists' => 'Tag activity does not exist',
         ]);
@@ -612,6 +617,7 @@ class ProjectMasterController extends Controller
             'project_tag_activity',
             'project_used_hours',
             'project_used_budget',
+            'offline_hours',
         ]));
 
         ActivityService::log([

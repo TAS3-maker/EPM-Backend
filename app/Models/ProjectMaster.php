@@ -19,6 +19,7 @@ class ProjectMaster extends Model
         'project_tag_activity',
         'project_used_hours',
         'project_used_budget',
+        'offline_hours',
     ];
     // ProjectMaster.php
     public function tagActivity()

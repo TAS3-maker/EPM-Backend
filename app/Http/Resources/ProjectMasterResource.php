@@ -21,6 +21,7 @@ class ProjectMasterResource extends JsonResource
             'project_tag_activity_data' => $this->tagActivity(),
             'project_used_hours' => $this->project_used_hours,
             'project_used_budget' => $this->project_used_budget,
+            'offline_hours' => $this->offline_hours,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

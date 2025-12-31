@@ -52,6 +52,7 @@ class PerformaSheetController extends Controller
                 'data.*.is_tracking' => 'required|in:yes,no',
                 'data.*.tracking_mode' => 'nullable|in:all,partial',
                 'data.*.tracked_hours' => 'nullable',
+                'data.*.offline_hours' => 'nullable',
                 'data.*.status' => 'nullable',
                 'data.*.is_fillable' => 'required|boolean',
             ]);
@@ -66,6 +67,12 @@ class PerformaSheetController extends Controller
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
+            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                ], 422);
+            }
             /**
              * Force every record to be Billable
              * - If user selected Non Billable, convert to Billable
@@ -132,10 +139,10 @@ class PerformaSheetController extends Controller
             }
 
             $isFillable = (bool) ($record['is_fillable'] ?? false);
-            if(isset($record['status']) && strtolower($record['status']) == 'standup'){
+            if (isset($record['status']) && strtolower($record['status']) == 'standup') {
                 $status = 'standup';
-            }else{
-               $status = $isFillable ? 'standup' : 'backdated';
+            } else {
+                $status = $isFillable ? 'standup' : 'backdated';
             }
             // Create Performa Sheet
             $insertedSheet = PerformaSheet::create([
@@ -385,7 +392,7 @@ class PerformaSheetController extends Controller
             $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
         }
         $structuredData = array_values($structuredData);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'All Performa Sheets fetched successfully',
