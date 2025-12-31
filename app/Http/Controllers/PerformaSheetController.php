@@ -1243,8 +1243,8 @@ class PerformaSheetController extends Controller
                             $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
 
                             if ($submittedHours > 0) {
-                                $project->total_working_hours = max(0, $project->total_working_hours - $submittedHours);
-                                $project->remaining_hours = ($project->remaining_hours ?? 0) + $submittedHours;
+                                $project->project_used_hours = max(0, $project->project_used_hours - $submittedHours);
+                                $remaining_hours = ($project->project_hours - $project->project_used_hours) + $submittedHours;
 
                                 if (isset($project->total_hours)) {
                                     $project->total_hours = ($project->total_hours ?? 0) + $submittedHours;
