@@ -1097,6 +1097,211 @@ class PerformaSheetController extends Controller
             'results' => $results
         ]);
     }
+    public function approveRejectPerformaSheetsMaster(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required',
+            'status' => 'required|string|in:approved,rejected'
+        ]);
+
+        $ids = is_array($request->ids) ? $request->ids : [$request->ids];
+        $performaSheets = PerformaSheet::whereIn('id', $ids)->get();
+
+        if ($performaSheets->isEmpty()) {
+            return response()->json(['message' => 'Invalid performa sheet ID(s).'], 404);
+        }
+
+        $results = [];
+        foreach ($performaSheets as $performa) {
+            $originalData = json_decode($performa->data, true);
+            $oldStatus = $performa->status;
+
+            // === CASE 1: Reject flow with reverse approved ===
+            if ($request->status === 'rejected') {
+
+                if ($oldStatus === 'approved') {
+                    $project = ProjectMaster::find($originalData['project_id']);
+
+                    if ($project && !empty($originalData['time'])) {
+                        try {
+                            $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
+                            $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
+
+                            if ($submittedHours > 0) {
+                                $project->total_working_hours = max(0, $project->total_working_hours - $submittedHours);
+                                $project->remaining_hours = ($project->remaining_hours ?? 0) + $submittedHours;
+
+                                if (isset($project->total_hours)) {
+                                    $project->total_hours = ($project->total_hours ?? 0) + $submittedHours;
+                                }
+
+                                $project->save();
+                            }
+                        } catch (\Exception $e) {
+                        }
+                    }
+                }
+                $performa->status = 'rejected';
+                $performa->save();
+
+                $results[] = [
+                    'performa_id' => $performa->id,
+                    'status' => 'rejected',
+                    'note' => 'Status updated to rejected' . ($oldStatus === 'approved' ? ' and project hours reversed' : '')
+                ];
+                continue;
+            }
+
+            // === CASE 2: Inhouse approved ===
+
+            // if (strtolower($originalData['activity_type']) === 'inhouse' && $request->status === 'approved') {
+            if ((strtolower($originalData['activity_type']) == 'inhouse' || strtolower($originalData['activity_type']) == 'in-house') && $request->status === 'approved') {
+                // $originalData['activity_type'] = 'inhouse';
+                $performa->status = 'approved';
+                $performa->data = json_encode($originalData);
+                $performa->save();
+
+                $results[] = [
+                    'performa_id' => $performa->id,
+                    'status' => 'approved',
+                    'note' => 'Inhouse activity approved as inhouse (no billable/non-billable change)'
+                ];
+                continue;
+            }
+
+            // === Get project for approved cases ===
+            $project = ProjectMaster::find($originalData['project_id']);
+            if (!$project) {
+                $results[] = [
+                    'performa_id' => $performa->id,
+                    'status' => 'skipped',
+                    'note' => 'Project not found'
+                ];
+                continue;
+            }
+            if (!$project->project_tracking) {
+                $submittedTime = \Carbon\Carbon::createFromFormat('H:i', trim($originalData['time']));
+                $submittedHours = $submittedTime->hour + ($submittedTime->minute / 60);
+
+                if (strtolower($originalData['activity_type']) === 'non billable') {
+                    $performa->data = json_encode($originalData);
+                    $performa->status = 'approved';
+                    $performa->save();
+
+                    $project->project_used_hours += (float) $submittedHours;
+                    $project->save();
+
+                    $results[] = [
+                        'performa_id' => $performa->id,
+                        'status' => 'approved',
+                        'note' => 'Non Billable entry for fixed project - added to total working hours only'
+                    ];
+                } else {
+                    $remainingHours = (float) ($project->project_hours - $project->project_used_hours) ?? 0;
+                    $total = max(0, $remainingHours - $submittedHours);
+
+                    if ($submittedHours <= $remainingHours) {
+                        $billableHours = $submittedHours;
+                        $extraHours = 0;
+                    } else {
+                        $billableHours = $remainingHours;
+                        $extraHours = $submittedHours - $remainingHours;
+                    }
+
+                    $formatTime = function ($hours) {
+                        return sprintf('%02d:%02d', floor($hours), round(($hours - floor($hours)) * 60));
+                    };
+
+                    if ($billableHours > 0) {
+                        $billableData = $originalData;
+                        $billableData['time'] = $formatTime($billableHours);
+                        // $billableData['activity_type'] = 'Billable';
+                        $billableData['message'] = 'Billable - within remaining hours';
+                        $performa->data = json_encode($billableData);
+                        $performa->status = 'approved';
+                        $performa->save();
+                        // $project->remaining_hours = $total;
+                        $results[] = [
+                            'performa_id' => $performa->id,
+                            'status' => 'approved',
+                            'note' => 'Billable portion updated based on remaining hours'
+                        ];
+                    }
+                    // if ($extraHours > 0) {
+                    //     $nonBillableData = $originalData;
+                    //     $nonBillableData['time'] = $formatTime($extraHours);
+                    //     $nonBillableData['activity_type'] = 'Non Billable';
+                    //     $nonBillableData['message'] = 'Non Billable - extra time beyond remaining hours';
+                    //     $newPerforma = new PerformaSheet();
+                    //     $newPerforma->user_id = $performa->user_id;
+                    //     $newPerforma->status = 'approved';
+                    //     $newPerforma->data = json_encode($nonBillableData);
+                    //     $newPerforma->save();
+                    //     $results[] = [
+                    //         'performa_id' => $newPerforma->id,
+                    //         'status' => 'approved',
+                    //         'note' => 'New non-billable entry created for extra hours'
+                    //     ];
+                    // }
+                    if ($extraHours > 0 && $remainingHours == 0) {
+                        // Update existing performa sheet instead of creating new
+                        $originalData['time'] = $formatTime($submittedHours);  // full submitted hours
+                        // $originalData['activity_type'] = 'Billable';
+                        $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
+                        $performa->data = json_encode($originalData);
+                        $performa->status = 'approved';
+                        $performa->save();
+
+                        $results[] = [
+                            'performa_id' => $performa->id,
+                            'status' => 'approved',
+                            'note' => 'Existing performa updated to billable as remaining hours are finished'
+                        ];
+                    } elseif ($extraHours > 0) {
+                        // Existing logic for when remainingHours > 0 and extraHours exist
+                        $nonBillableData = $originalData;
+                        $nonBillableData['time'] = $formatTime($extraHours);
+                        // $nonBillableData['activity_type'] = 'Billable';
+                        $nonBillableData['message'] = 'Billable - extra time beyond remaining hours';
+                        $newPerforma = new PerformaSheet();
+                        $newPerforma->user_id = $performa->user_id;
+                        $newPerforma->status = 'approved';
+                        $newPerforma->data = json_encode($nonBillableData);
+                        $newPerforma->save();
+                        $results[] = [
+                            'performa_id' => $newPerforma->id,
+                            'status' => 'approved',
+                            'note' => 'New billable entry created for extra hours'
+                        ];
+                    }
+
+                    $project->project_used_hours += (float) $submittedHours;
+                    $project->save();
+                }
+                continue;
+            }
+            $originalData['message'] = $originalData['activity_type'] === 'non billable'
+                ? 'Non Billable - approved'
+                : 'Billable - approved';
+            $performa->status = 'approved';
+            $performa->data = json_encode($originalData);
+            $performa->save();
+            $results[] = [
+                'performa_id' => $performa->id,
+                'status' => 'approved',
+                'note' => 'Performa updated with activity type'
+            ];
+        }
+        ActivityService::log([
+            'project_id' => $project->id,
+            'type' => 'activity',
+            'description' => 'Performa Sheets Status updated by ' . auth()->user()->name,
+        ]);
+        return response()->json([
+            'message' => 'Performa sheets processed successfully.',
+            'results' => $results
+        ]);
+    }
 
     public function getAllPendingPerformaSheets(Request $request)
     {
