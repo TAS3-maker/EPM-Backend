@@ -757,6 +757,7 @@ class PerformaSheetController extends Controller
                 'data.is_tracking' => 'required|in:yes,no',
                 'data.tracking_mode' => 'nullable|in:all,partial',
                 'data.tracked_hours' => 'nullable',
+                'data.offline_hours' => 'nullable',
                 'data.is_fillable' => 'nullable|boolean',
                 'data.status' => 'nullable',
             ]);
@@ -764,7 +765,12 @@ class PerformaSheetController extends Controller
             $projectId = $validatedData['data']['project_id'];
             $project = ProjectMaster::find($projectId);
             $projectName = $project ? $project->name : "Unknown Project";
-
+            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                ], 422);
+            }
             $tasks = Task::where('project_id', $projectId)->get();
 
             if ($tasks->isEmpty()) {
