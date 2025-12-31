@@ -2425,5 +2425,127 @@ class PerformaSheetController extends Controller
         }
     }
 
+    public function getUsersOfflineHours(Request $request)
+    {
+        try {
+
+            $startDate = $request->start_date
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::today()->startOfDay();
+
+            $endDate = $request->end_date
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::today()->endOfDay();
+
+            $performaSheets = DB::table('performa_sheets')
+                ->where('status', 'approved')
+                ->get();
+
+            $data = [];
+
+            foreach ($performaSheets as $row) {
+
+                $decoded = json_decode($row->data, true);
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+                foreach ($entries as $entry) {
+
+                    if (
+                        empty($entry['offline_hours']) ||
+                        empty($entry['date']) ||
+                        empty($entry['project_id'])
+                    ) {
+                        continue;
+                    }
+
+                    $entryDate = Carbon::parse($entry['date']);
+                    if ($entryDate->lt($startDate) || $entryDate->gt($endDate)) {
+                        continue;
+                    }
+
+                    [$h, $m] = explode(':', $entry['offline_hours']);
+                    $minutes = ((int) $h * 60) + (int) $m;
+
+                    $data[$row->user_id][$entry['project_id']] =
+                        ($data[$row->user_id][$entry['project_id']] ?? 0) + $minutes;
+                }
+            }
+
+            if (empty($data)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            $users = User::whereIn('id', array_keys($data))
+                ->pluck('name', 'id');
+
+            $projectIds = collect($data)
+                ->flatMap(fn($projects) => array_keys($projects))
+                ->unique()
+                ->values();
+
+            $projects = DB::table('projects_master')
+                ->whereIn('id', $projectIds)
+                ->pluck('project_name', 'id');
+
+            $projectRelations = DB::table('project_relations')
+                ->whereIn('project_id', $projectIds)
+                ->pluck('tracking_id', 'project_id');
+
+            $trackingIds = $projectRelations
+                ->filter()
+                ->unique()
+                ->values();
+
+            $accounts = DB::table('project_accounts')
+                ->whereIn('id', $trackingIds)
+                ->pluck('account_name', 'id');
+
+            $response = [];
+
+            foreach ($data as $userId => $projectsData) {
+
+                $userTotalMinutes = array_sum($projectsData);
+                $projectArray = [];
+
+                foreach ($projectsData as $projectId => $minutes) {
+
+                    $trackingId = $projectRelations[$projectId] ?? null;
+
+                    $projectArray[] = [
+                        'project_name' => $projects[$projectId] ?? '',
+                        'traking_id' => $accounts[$trackingId] ?? '',
+                        'total_offline_hours' => $this->minutesToHours($minutes)
+                    ];
+                }
+
+                $response[] = [
+                    'user_id' => $userId,
+                    'user_name' => $users[$userId] ?? '',
+                    'total_offline_hours' => $this->minutesToHours($userTotalMinutes),
+                    'projects' => $projectArray
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $response
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
 }

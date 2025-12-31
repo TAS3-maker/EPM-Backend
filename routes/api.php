@@ -230,6 +230,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-project-task-performa-by-user', [ProjectMasterController::class,'GetProjectTaskPerformaByUser']);
         Route::get('/get-full-details-of-project-by-id', [ProjectMasterController::class,'getFullDetailsOfProjectById']);
         Route::get('/get-user-performa-data', [PerformaSheetController::class,'getUserPerformaData']);
+        Route::get('/get-users-offline-hours', [PerformaSheetController::class,'getUsersOfflineHours']);
 
     });
 });
