@@ -1142,6 +1142,7 @@ class ProjectMasterController extends Controller
                         'project_hours' => $project->project_hours,
                         'project_used_hours' => $project->project_used_hours,
                         'project_used_budget' => $project->project_used_budget,
+                        'offline_hours' => $project->offline_hours,
                         'created_at' => optional($project->created_at)->toDateString(),
                         'updated_at' => optional($project->updated_at)->toDateString(),
 
