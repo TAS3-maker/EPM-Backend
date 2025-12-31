@@ -2549,7 +2549,7 @@ class PerformaSheetController extends Controller
             ->where('user_id', $application->user_id)
             ->first();
 
-        if (in_array(strtolower($performa_sheet_data->status), ['draft'])) {
+        if (in_array(strtolower($performa_sheet_data->status), ['standup','backdated'])) {
             $performa_sheet_data->status = 'approved';
         }
         $performa_sheet_data->save();
