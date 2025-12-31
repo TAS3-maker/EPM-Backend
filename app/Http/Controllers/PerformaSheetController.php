@@ -643,6 +643,121 @@ class PerformaSheetController extends Controller
             'remaining_after_conversion' => max(0, $totalHours - $workingHours),
         ]);
     }
+    public function SinkPerformaAPIMaster(Request $request)
+    {
+        $request->validate([
+            'project_id' => 'required|integer',
+        ]);
+
+        $projectId = $request->project_id;
+
+        // 1. Get all task statuses
+        $statuses = DB::table('tasks')
+            ->where('project_id', $projectId)
+            ->pluck('status');
+
+        // 2. Check if all tasks are "Completed"
+        $allTasksCompleted = !$statuses->contains(function ($status) {
+            return strtolower($status) !== 'completed';
+        });
+
+        if (!$allTasksCompleted) {
+            return response()->json([
+                'success' => true,
+                'message' => 'All tasks are not completed',
+                'all_completed' => false,
+                'remaining_hours' => 0
+            ]);
+        }
+
+        // 3. Get project details
+        $project = DB::table('projects_master')->where('id', $projectId)->first();
+
+        if (!$project) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found'
+            ], 404);
+        }
+
+        $totalHours = (float) $project->project_hours;
+        $workingHours = (float) $project->project_used_hours;
+        $remainingHours = max(0, $totalHours - $workingHours);
+
+        // 4. Get all Non Billable entries for this project from performa_sheets
+        $entries = PerformaSheet::where('status', 'approved')->get()->filter(function ($entry) use ($projectId) {
+            $data = json_decode($entry->data, true);
+            return isset($data['project_id'], $data['activity_type']) &&
+                $data['project_id'] == $projectId &&
+                $data['activity_type'] == 'Non Billable';
+        });
+
+        $converted = [];
+        $remaining = $remainingHours;
+
+        foreach ($entries as $entry) {
+            $data = json_decode($entry->data, true);
+            $entryHours = timeToFloat($data['time']); // helper to convert HH:MM to float
+            if ($remaining <= 0)
+                break;
+
+            if ($entryHours <= $remaining) {
+                // Fully convert to Billable
+                // $data['activity_type'] = 'Billable';
+                $data['message'] = 'Converted from Non Billable to Billable via Sync';
+                $entry->data = json_encode($data);
+                $entry->save();
+
+                $converted[] = $entry;
+                $remaining -= $entryHours;
+                $workingHours += $entryHours;
+            } else {
+                // Partially convert: update existing with Billable, create new with leftover Non Billable
+                $billableTime = floatToTime($remaining);
+                $nonBillableTime = floatToTime($entryHours - $remaining);
+
+                // Update current entry
+                $data['time'] = $billableTime;
+                // $data['activity_type'] = 'Billable';
+                $data['message'] = 'Partially converted to Billable via Sync';
+                $entry->data = json_encode($data);
+                $entry->save();
+
+                $workingHours += $remaining;
+
+                // Create new Non Billable entry with leftover
+                //code changed to billable
+                $newData = $data;
+                // $newData['activity_type'] = 'Billable';
+                $newData['time'] = $nonBillableTime;
+                $newData['message'] = 'Remaining Billable after partial conversion';
+
+                $newEntry = PerformaSheet::create([
+                    'user_id' => $entry->user_id,
+                    'data' => json_encode($newData),
+                    'status' => 'approved',
+                ]);
+
+                $converted[] = $entry;
+                $converted[] = $newEntry;
+
+                $remaining = 0;
+            }
+        }
+
+        // Update project total_working_hours
+        DB::table('projects_master')->where('id', $projectId)->update([
+            'project_used_hours' => $workingHours
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Billable entries converted based on remaining hours',
+            'converted' => $converted,
+            'updated_total_working_hours' => $workingHours,
+            'remaining_after_conversion' => max(0, $totalHours - $workingHours),
+        ]);
+    }
 
     // Helper: convert "HH:MM" to float (like "01:30" => 1.5)
     private function convertTimeToFloat($time)

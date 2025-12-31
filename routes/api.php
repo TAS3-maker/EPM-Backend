@@ -114,7 +114,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-performa-sheet', [PerformaSheetController::class, 'getUserPerformaSheets']);
         Route::get('/get-all-performa-sheets', [PerformaSheetController::class, 'getAllPerformaSheets']);
         Route::get('/get-performa-manager-emp', [PerformaSheetController::class, 'getPerformaManagerEmp']);
-        Route::post('/sink-performaapi', [PerformaSheetController::class, 'SinkPerformaAPI']);
+        // Route::post('/sink-performaapi', [PerformaSheetController::class, 'SinkPerformaAPI']);
+        Route::post('/sink-performaapi', [PerformaSheetController::class, 'SinkPerformaAPIMaster']);
         Route::get('/get-weekly-performa-sheet', [PerformaSheetController::class, 'getUserWeeklyPerformaSheets']);
         Route::get('/get-allusers-unfilled-performa-sheet', [PerformaSheetController::class, 'getAllUsersWithUnfilledPerformaSheets']);
         Route::get('/get-missing-user-performa-sheet', [PerformaSheetController::class, 'getMissingUserPerformaSheets']);
