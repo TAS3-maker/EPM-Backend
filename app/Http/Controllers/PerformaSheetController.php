@@ -1665,7 +1665,7 @@ class PerformaSheetController extends Controller
                 ->toArray();
 
             $sheets = PerformaSheet::with('user:id,name')
-                ->where('user_id', $user->id)
+                ->where('user_id', $user->id)->whereIn('status', ['approved','pending'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
