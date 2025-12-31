@@ -1579,7 +1579,7 @@ class PerformaSheetController extends Controller
             $query = clone $baseQuery;
         }
 
-        $query->where('status', 'draft');
+        $query->where('status', 'standup');
 
         $query->orderBy('id', 'DESC');
 
