@@ -1613,7 +1613,7 @@ class PerformaSheetController extends Controller
                 ->get();
 
             $structuredData = $sheets
-                ->map(function ($sheet) use ($start, $end) {
+                ->map(function ($sheet) use ($team_id, $start, $end) {
 
                     $data = json_decode($sheet->data, true);
                     if (!is_array($data) || !isset($data['date'])) {
@@ -1646,6 +1646,16 @@ class PerformaSheetController extends Controller
                     }
                     $project_manager_ids = User::whereIn('id', $assignees)
                         ->where('role_id', 5)->where("is_active", 1)
+                        ->where(function ($q) use ($team_id) {
+                            foreach ($team_id as $t) {
+                                if ($t !== null) {
+                                    $q->orWhereRaw(
+                                        'JSON_CONTAINS(team_id, ?)',
+                                        [json_encode($t)]
+                                    );
+                                }
+                            }
+                        })
                         ->get();
 
                     $teamIds = collect($project_manager_ids)
@@ -1683,7 +1693,6 @@ class PerformaSheetController extends Controller
                             'project_id' => $data['project_id'] ?? null,
                             'project_name' => $project->project_name ?? 'No Project',
                             'client_name' => $project->client->client_name ?? 'No Client',
-                            'deadline' => $project->deadline ?? null,
                             'work_type' => $data['work_type'] ?? null,
                             'activity_type' => $data['activity_type'] ?? null,
                             'narration' => $data['narration'] ?? null,
