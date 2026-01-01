@@ -649,6 +649,7 @@ class UserController extends Controller
             'Project Manager' => 5,
             'TL' => 6,
             'Team' => 7,
+            'Sales' => 14,
         ];
 
         $teamsMap = [
@@ -687,8 +688,21 @@ class UserController extends Controller
                 }
                 $tlId = null;
                 if (!empty($teamId)) {
-                    $existingTl = User::where('team_id', $teamId)
-                        ->where('role_id', 6)
+                    if (is_string($teamId)) {
+                        $teamId = array_filter(array_map('intval', explode(',', $teamId)));
+                    }
+                    if (!is_array($teamId)) {
+                        $teamId = [];
+                    }
+                    $existingTl = User::where('role_id', 6)
+                        ->where(function ($q) use ($teamId) {
+                            foreach ($teamId as $t) {
+                                $q->orWhereRaw(
+                                    'JSON_CONTAINS(team_id, ?)',
+                                    [json_encode($t)]
+                                );
+                            }
+                        })
                         ->first();
                     if ($existingTl) {
                         $tlId = $existingTl->id;
