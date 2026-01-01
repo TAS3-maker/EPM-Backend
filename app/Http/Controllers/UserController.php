@@ -395,9 +395,17 @@ class UserController extends Controller
     }
 
 
-    public function GetFullProileEmployee($id)
+    public function GetFullProileEmployee(Request $request, $id)
     {
         $user = User::with('role')->find($id);
+        $startDate = $request->start_date
+            ? Carbon::parse($request->start_date)->toDateString()
+            : null;
+
+        $endDate = $request->end_date
+            ? Carbon::parse($request->end_date)->toDateString()
+            : null;
+
 
         if (!$user) {
             return ApiResponse::error('User not found', [], 404);
@@ -453,6 +461,20 @@ class UserController extends Controller
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
+
+                // 🔴 ADD DATE FILTER HERE
+                if (isset($entry['date']) && ($startDate || $endDate)) {
+                    $entryDate = $entry['date'];
+
+                    if ($startDate && $entryDate < $startDate) {
+                        continue;
+                    }
+
+                    if ($endDate && $entryDate > $endDate) {
+                        continue;
+                    }
+                }
+
                 if (!isset($entry['activity_type'], $entry['time'])) {
                     continue;
                 }
@@ -479,6 +501,7 @@ class UserController extends Controller
                 $activityData[$projectId][$activityType] += $minutes;
             }
         }
+
 
         $projectUserData = [];
 
