@@ -1683,9 +1683,36 @@ class PerformaSheetController extends Controller
                         $assignees = [];
                     }
                     $project_manager_ids = User::whereIn('id', $assignees)
-                    ->where('role_id', 5)
+                    ->where('role_id', 5)->where("is_active", 1)
                     ->get();
 
+                    $managerIds = collect($project_manager_ids)->pluck('id')->toArray();
+                    
+                    $teamIds = collect($project_manager_ids)
+                    ->pluck('team_id')
+                    ->flatten()
+                    ->unique()
+                    ->values()
+                    ->toArray();
+
+                    $users_on_leave = User::whereIn("role_id", ['6','7'])
+                    ->where("is_active", 1)
+                    ->where(function ($q) use ($teamIds) {
+                        foreach ($teamIds as $t) {
+                            if ($t !== null) {
+                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                            }
+                        }
+                    })
+                    ->whereHas('leaves', function ($q) use ($sheetDate) {
+                        $q->whereDate('start_date', '<=', $sheetDate)
+                        ->whereDate('end_date', '>=', $sheetDate)
+                        ->where('status', 'approved');
+                    })
+                    ->with(['leaves' => function ($q) use ($sheetDate) {
+                        $q->whereDate('start_date', '<=', $sheetDate)
+                        ->whereDate('end_date', '>=', $sheetDate);
+                    }])->get();
 
                     return [
                         'user_id' => $sheet->user_id,
@@ -1697,11 +1724,12 @@ class PerformaSheetController extends Controller
                             'project_name' => $project->project_name ?? 'No Project',
                             'client_name' => $project->client->client_name ?? 'No Client',
                             'deadline' => $project->deadline ?? null,
-                            'project_managers' => $project_manager_ids ?? null,
                             'work_type' => $data['work_type'] ?? null,
                             'activity_type' => $data['activity_type'] ?? null,
                             'narration' => $data['narration'] ?? null,
                             'status' => $sheet->status,
+                            'project_managers' => $project_manager_ids ?? null,
+                            'users_on_leave' => $users_on_leave ?? null,
                             'created_at' => $sheet->created_at?->format('Y-m-d H:i:s'),
                             'updated_at' => $sheet->updated_at?->format('Y-m-d H:i:s'),
                         ]
