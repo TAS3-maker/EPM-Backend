@@ -1494,28 +1494,7 @@ class PerformaSheetController extends Controller
         $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
 
         $baseQuery = PerformaSheet::with('user:id,name');
-
-        if ($role_id == 7) {
-            $baseQuery->where('user_id', $user->id);
-        } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
-            //for admins, hr
-            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)->pluck('id')
-                    ->toArray();
-            $baseQuery->whereIn('user_id', $teamMemberIds);
-
-        } else if (!empty($team_id)) {
-            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
-
-            $baseQuery->whereIn('user_id', $teamMemberIds);
-        }
-
+        $baseQuery->where('user_id', $user->id);
         $baseQuery->where('status', 'standup');
 
         $baseQuery->orderBy('id', 'DESC');
