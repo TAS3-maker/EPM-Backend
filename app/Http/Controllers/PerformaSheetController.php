@@ -1650,9 +1650,6 @@ class PerformaSheetController extends Controller
                 ->orderBy('id', 'DESC')
                 ->get();
 
-            /** -------------------------
-             * MAP + FILTER (JSON DATE)
-             * ------------------------- */
             $structuredData = $sheets
                 ->map(function ($sheet) use ($start, $end) {
 
@@ -1663,7 +1660,7 @@ class PerformaSheetController extends Controller
 
                     $sheetDate = $data['date'];
 
-                    // Date filtering
+                    //date filtering
                     if ($start && $end) {
                         if ($sheetDate < $start || $sheetDate > $end) {
                             return null;
@@ -1673,8 +1670,22 @@ class PerformaSheetController extends Controller
                     }
 
                     $project = isset($data['project_id'])
-                        ? ProjectMaster::with('client')->find($data['project_id'])
+                        ? ProjectMaster::with(['relation', 'client'])->find($data['project_id'])
                         : null;
+
+                    $assignees = $project->relation->assignees ?? [];
+
+                    if (is_string($assignees)) {
+                        $assignees = json_decode($assignees, true) ?? [];
+                    }
+
+                    if (!is_array($assignees)) {
+                        $assignees = [];
+                    }
+                    $project_manager_ids = User::whereIn('id', $assignees)
+                    ->where('role_id', 5)
+                    ->get();
+
 
                     return [
                         'user_id' => $sheet->user_id,
@@ -1686,6 +1697,7 @@ class PerformaSheetController extends Controller
                             'project_name' => $project->project_name ?? 'No Project',
                             'client_name' => $project->client->client_name ?? 'No Client',
                             'deadline' => $project->deadline ?? null,
+                            'project_managers' => $project_manager_ids ?? null,
                             'work_type' => $data['work_type'] ?? null,
                             'activity_type' => $data['activity_type'] ?? null,
                             'narration' => $data['narration'] ?? null,
@@ -1695,7 +1707,7 @@ class PerformaSheetController extends Controller
                         ]
                     ];
                 })
-                ->filter() // remove nulls
+                ->filter()
                 ->groupBy('user_id')
                 ->map(function ($items) {
                     return [
