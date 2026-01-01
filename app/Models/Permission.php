@@ -45,6 +45,7 @@ class Permission extends Model
         'team_reporting',
         'leave_reporting',
         'previous_sheets',
+        'offline_hours',
     ];
 
     // Relationship to User
