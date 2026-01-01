@@ -33,58 +33,56 @@ class RoleController extends Controller
         try {
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:roles',
-                'roles_permissions' => 'nullable',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
         }
 
+        $roles_permissions = [
+            "team" => "0",
+            "roles" => "0",
+            "teams" => "0",
+            "leaves" => "0",
+            "clients" => "0",
+            "projects" => "0",
+            "dashboard" => "0",
+            "department" => "0",
+            "permission" => "0",
+            "activity_tags" => "0",
+            "manage_leaves" => "0",
+            "leave_management" => "0",
+            "performance_sheet" => "0",
+            "projects_assigned" => "0",
+            "performance_sheets" => "0",
+            "project_management" => "0",
+            "employee_management" => "0",
+            "performance_history" => "0",
+            "manage_sheets_inside_performance_sheets" => "0",
+            "pending_sheets_inside_performance_sheets" => "0",
+            "unfilled_sheets_inside_performance_sheets" => "0",
+            "assigned_projects_inside_projects_assigned" => "0",
+            "assigned_projects_inside_project_management" => "0",
+            "unassigned_projects_inside_projects_assigned" => "0",
+            "unassigned_projects_inside_project_management" => "0",
+            "project_master" => "0",
+            "client_master" => "0",
+            "project_source" => "0",
+            "communication_type" => "0",
+            "account_master" => "0",
+            "notes_management" => "0",
+            "team_reporting" => "0",
+            "leave_reporting" => "0",
+            "previous_sheets" => "0",
+            "offline_hours" => "0",
+        ];
+
         $role = Role::create([
             'name' => $request->name,
-            'roles_permissions' => $request->roles_permissions,
+            'roles_permissions' => $roles_permissions,
         ]);
 
         return ApiResponse::success('Role created successfully', $role, 201);
     }
-
-    // public function update(Request $request, $id)
-    // {
-    //     $role = Role::find($id);
-
-    //     if (!$role) {
-    //         return ApiResponse::error('Role not found', [], 404);
-    //     }
-
-    //     try {
-    //         $validatedData = $request->validate([
-    //             'name' => 'required|string|max:255|unique:roles,name,' . $id,
-    //             'roles_permissions' =>'nullable',
-    //         ]);
-    //     } catch (\Illuminate\Validation\ValidationException $e) {
-    //         return ApiResponse::error('Validation Error', $e->errors(), 422);
-    //     }
-
-    //     $role->update([
-    //         'name' => $request->name,
-    //         'roles_permissions' => $request->roles_permissions,
-    //     ]);
-
-    //     return ApiResponse::success('Role updated successfully', $role);
-    // }
-
-    // public function destroy($id)
-    // {
-    //     $role = Role::find($id);
-
-    //     if (!$role) {
-    //         return ApiResponse::error('Role not found', [], 404);
-    //     }
-
-    //     $role->delete();
-    //     return ApiResponse::success('Role deleted successfully');
-    // }
-
-
 
     public function update(Request $request, $id)
     {
@@ -161,6 +159,7 @@ class RoleController extends Controller
                 'team_reporting',
                 'leave_reporting',
                 'previous_sheets',
+                'offline_hours',
             ];
             foreach ($users as $user) {
                 $permission = Permission::where('user_id', $user->id)->first();

@@ -244,6 +244,7 @@ class UserController extends Controller
                     'team_reporting' => $rolePermissions['team_reporting'] ?? 0,
                     'leave_reporting' => $rolePermissions['leave_reporting'] ?? 0,
                     'previous_sheets' => $rolePermissions['previous_sheets'] ?? 0,
+                    'offline_hours' => $rolePermissions['offline_hours'] ?? 0,
                 ]);
             }
             return ApiResponse::success(
