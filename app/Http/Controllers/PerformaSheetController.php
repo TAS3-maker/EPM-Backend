@@ -1603,116 +1603,123 @@ class PerformaSheetController extends Controller
     }
     public function getAllStandupPerformaSheets(Request $request)
     {
-        $user = $request->user();
-        $role_id = $user->role_id;
-        $team_id = $user->team_id ?? [];
-        $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
+        try {
+            $user = $request->user();
+            $role_id = $user->role_id;
+            $team_id = $user->team_id ?? [];
 
-        $baseQuery = PerformaSheet::with('user:id,name');
+           if ($request->has('date')) {
+                $start = $end = Carbon::parse($request->date)->toDateString();
+            } elseif ($request->has('start_date') && !$request->has('end_date')) {
+                $start = Carbon::parse($request->start_date)->toDateString();
+                $end   = Carbon::today()->toDateString();
+            } elseif (!$request->has('start_date') && $request->has('end_date')) {
+                $start = '1970-01-01';
+                $end = Carbon::parse($request->end_date)->toDateString();
+            } else {
+                $start = $request->start_date
+                    ? Carbon::parse($request->start_date)->toDateString()
+                    : null;
+                $end = $request->end_date
+                    ? Carbon::parse($request->end_date)->toDateString()
+                    : null;
+            }
 
-        if ($role_id == 1 || $role_id == 4) {
-            $query = clone $baseQuery;
-        } else if ($role_id == 7) {
-            $query = clone $baseQuery;
-            $query->where('user_id', $user->id);
-        } else if ($role_id == 6) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
+
+            $baseQuery = PerformaSheet::with('user:id,name')
+                ->where('status', 'standup');
+
+            if ($role_id == 7) {
+                $baseQuery->where('user_id', $user->id);
+            }
+
+            if (in_array($role_id, [5, 6]) && !empty($team_id)) {
+                $teamMemberIds = User::where('role_id', 7)
+                    ->where(function ($q) use ($team_id) {
+                        foreach ($team_id as $t) {
                             $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                         }
+                    })
+                    ->pluck('id')
+                    ->toArray();
+
+                $baseQuery->whereIn('user_id', $teamMemberIds);
+            }
+
+            $sheets = $baseQuery
+                ->orderBy('id', 'DESC')
+                ->get();
+
+            /** -------------------------
+             * MAP + FILTER (JSON DATE)
+             * ------------------------- */
+            $structuredData = $sheets
+                ->map(function ($sheet) use ($start, $end) {
+
+                    $data = json_decode($sheet->data, true);
+                    if (!is_array($data) || !isset($data['date'])) {
+                        return null;
                     }
-                })
-                ->pluck('id')
-                ->toArray();
 
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
+                    $sheetDate = $data['date'];
 
-        } else if ($role_id == 5 && $team_id) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    // Date filtering
+                    if ($start && $end) {
+                        if ($sheetDate < $start || $sheetDate > $end) {
+                            return null;
                         }
+                    } elseif ($start && $sheetDate !== $start) {
+                        return null;
                     }
+
+                    $project = isset($data['project_id'])
+                        ? ProjectMaster::with('client')->find($data['project_id'])
+                        : null;
+
+                    return [
+                        'user_id' => $sheet->user_id,
+                        'user_name' => $sheet->user?->name ?? 'No User',
+                        'sheet' => [
+                            'id' => $sheet->id,
+                            'date' => $sheetDate,
+                            'project_id' => $data['project_id'] ?? null,
+                            'project_name' => $project->project_name ?? 'No Project',
+                            'client_name' => $project->client->client_name ?? 'No Client',
+                            'deadline' => $project->deadline ?? null,
+                            'work_type' => $data['work_type'] ?? null,
+                            'activity_type' => $data['activity_type'] ?? null,
+                            'narration' => $data['narration'] ?? null,
+                            'status' => $sheet->status,
+                            'created_at' => $sheet->created_at?->format('Y-m-d H:i:s'),
+                            'updated_at' => $sheet->updated_at?->format('Y-m-d H:i:s'),
+                        ]
+                    ];
                 })
-                ->pluck('id')
-                ->toArray();
+                ->filter() // remove nulls
+                ->groupBy('user_id')
+                ->map(function ($items) {
+                    return [
+                        'user_id' => $items->first()['user_id'],
+                        'user_name' => $items->first()['user_name'],
+                        'sheets' => $items->pluck('sheet')->values()
+                    ];
+                })
+                ->values();
 
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
+            return response()->json([
+                'success' => true,
+                'message' => 'Standup performa sheets fetched successfully',
+                'data' => $structuredData
+            ]);
 
-        } else {
-            $query = clone $baseQuery;
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
         }
 
-        $query->where('status', 'standup');
-
-        $query->orderBy('id', 'DESC');
-
-        $sheets = $query->get();
-
-        // Prepare structured data
-        $structuredData = [];
-        foreach ($sheets as $sheet) {
-            $dataArray = json_decode($sheet->data, true);
-
-            if (!is_array($dataArray)) {
-                continue;
-            }
-
-            // Skip if filter is applied and the row doesn't match
-            if ($isFillable !== null) {
-                if (!isset($dataArray['is_fillable']) || (int) $dataArray['is_fillable'] !== $isFillable) {
-                    continue;
-                }
-            }
-
-            $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
-
-            $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->client_name ?? 'No Client Found';
-            $deadline = $project->deadline ?? 'No Deadline Set';
-
-            // Remove unwanted keys
-            unset($dataArray['user_id'], $dataArray['user_name']);
-
-            // Inject meta values
-            $dataArray['project_name'] = $projectName;
-            $dataArray['client_name'] = $clientName;
-            $dataArray['deadline'] = $deadline;
-            $dataArray['status'] = $sheet->status;
-            $dataArray['id'] = $sheet->id;
-            $dataArray['created_at'] = $sheet->created_at
-                ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
-            $dataArray['updated_at'] = $sheet->updated_at
-                ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
-
-            // Group by user
-            if (!isset($structuredData[$sheet->user_id])) {
-                $structuredData[$sheet->user_id] = [
-                    'user_id' => $sheet->user_id,
-                    'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
-                    'sheets' => []
-                ];
-            }
-
-            $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
-        }
-
-        $structuredData = array_values($structuredData);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'All Standup Performa Sheets fetched successfully',
-            'data' => $structuredData
-        ]);
     }
 
     public function getUserWeeklyPerformaSheets(Request $request)
