@@ -314,52 +314,34 @@ class PerformaSheetController extends Controller
             $status = $request->status;
 
         $baseQuery = PerformaSheet::with('user:id,name');
-        if ($role_id == 1 || $role_id == 4) {
-            $query = clone $baseQuery;
-        } else if ($role_id == 7) {
-            $query = clone $baseQuery;
-            $query->where('user_id', $user->id);
-        } else if ($role_id == 6) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
+        if ($role_id == 7) {
+            $baseQuery->where('user_id', $user->id);
+        }
+        else if($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4){
+            //for admins, hr
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1);
+            $baseQuery->whereIn('user_id', $teamMemberIds);
 
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-        } else if ($role_id == 5 && $team_id) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
-
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-        } else {
-            $query = clone $baseQuery;
+        }else if(!empty($team_id)){
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
+            ->where(function ($q) use ($team_id) {
+                foreach ($team_id as $t) {
+                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                }
+            })
+            ->pluck('id')
+            ->toArray();
+            
+            $baseQuery->whereIn('user_id', $teamMemberIds);
         }
         if (!empty($status)) {
-            $query->where('status', $status);
+            $baseQuery->where('status', $status);
         } else {
-            $query->whereIn('status', ['approved', 'rejected']);
+            $baseQuery->whereIn('status', ['approved', 'rejected']);
         }
 
         // Fetch sheets after all filters
-        $sheets = $query->get();
+        $sheets = $baseQuery->get();
         $structuredData = [];
         foreach ($sheets as $sheet) {
             $dataArray = json_decode($sheet->data, true);
@@ -955,7 +937,6 @@ class PerformaSheetController extends Controller
                     'data' => $performaSheet
                 ]);
             }
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1426,54 +1407,31 @@ class PerformaSheetController extends Controller
 
         $baseQuery = PerformaSheet::with('user:id,name');
 
-        if ($role_id == 1 || $role_id == 4) {
-            $query = clone $baseQuery;
+        if ($role_id == 7) {
+            $baseQuery->where('user_id', $user->id);
+        } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
+            //for admins, hr
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1);
+            $baseQuery->whereIn('user_id', $teamMemberIds);
 
-        } else if ($role_id == 7) {
-            $query = clone $baseQuery;
-            $query->where('user_id', $user->id);
-
-        } else if ($role_id == 6) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
+        } else if (!empty($team_id)) {
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
                 ->where(function ($q) use ($team_id) {
                     foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                     }
                 })
                 ->pluck('id')
                 ->toArray();
 
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-
-        } else if ($role_id == 5 && $team_id) {
-            $teamMemberIds = User::where('role_id', 7)
-                ->where('id', '!=', $user->id)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
-
-            $query = clone $baseQuery;
-            $query->whereIn('user_id', $teamMemberIds);
-
-        } else {
-            $query = clone $baseQuery;
+            $baseQuery->whereIn('user_id', $teamMemberIds);
         }
 
-        $query->where('status', 'pending');
+        $baseQuery->where('status', 'pending');
 
-        $query->orderBy('id', 'DESC');
+        $baseQuery->orderBy('id', 'DESC');
 
-        $sheets = $query->get();
+        $sheets = $baseQuery->get();
 
         $structuredData = [];
 
@@ -1535,7 +1493,26 @@ class PerformaSheetController extends Controller
         $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
 
         $baseQuery = PerformaSheet::with('user:id,name');
-        $baseQuery->where('user_id', $user->id);
+
+        if ($role_id == 7) {
+            $baseQuery->where('user_id', $user->id);
+        } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
+            //for admins, hr
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1);
+            $baseQuery->whereIn('user_id', $teamMemberIds);
+
+        } else if (!empty($team_id)) {
+            $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
+            $baseQuery->whereIn('user_id', $teamMemberIds);
+        }
 
         $baseQuery->where('status', 'standup');
 
@@ -1608,7 +1585,7 @@ class PerformaSheetController extends Controller
             $role_id = $user->role_id;
             $team_id = $user->team_id ?? [];
 
-           if ($request->has('date')) {
+            if ($request->has('date')) {
                 $start = $end = Carbon::parse($request->date)->toDateString();
             } elseif ($request->has('start_date') && !$request->has('end_date')) {
                 $start = Carbon::parse($request->start_date)->toDateString();
@@ -1631,10 +1608,13 @@ class PerformaSheetController extends Controller
 
             if ($role_id == 7) {
                 $baseQuery->where('user_id', $user->id);
-            }
+            } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
+                //for admins, hr
+                $teamMemberIds = User::where('role_id', 7)->where("is_active", 1);
+                $baseQuery->whereIn('user_id', $teamMemberIds);
 
-            if (in_array($role_id, [5, 6]) && !empty($team_id)) {
-                $teamMemberIds = User::where('role_id', 7)
+            } else if (!empty($team_id)) {
+                $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
                     ->where(function ($q) use ($team_id) {
                         foreach ($team_id as $t) {
                             $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
@@ -1683,36 +1663,34 @@ class PerformaSheetController extends Controller
                         $assignees = [];
                     }
                     $project_manager_ids = User::whereIn('id', $assignees)
-                    ->where('role_id', 5)->where("is_active", 1)
-                    ->get();
+                        ->where('role_id', 5)->where("is_active", 1)
+                        ->get();
 
-                    $managerIds = collect($project_manager_ids)->pluck('id')->toArray();
-                    
                     $teamIds = collect($project_manager_ids)
-                    ->pluck('team_id')
-                    ->flatten()
-                    ->unique()
-                    ->values()
-                    ->toArray();
+                        ->pluck('team_id')
+                        ->flatten()
+                        ->unique()
+                        ->values()
+                        ->toArray();
 
-                    $users_on_leave = User::whereIn("role_id", ['6','7'])
-                    ->where("is_active", 1)
-                    ->where(function ($q) use ($teamIds) {
-                        foreach ($teamIds as $t) {
-                            if ($t !== null) {
-                                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    $users_on_leave = User::whereIn("role_id", ['6', '7'])
+                        ->where("is_active", 1)
+                        ->where(function ($q) use ($teamIds) {
+                            foreach ($teamIds as $t) {
+                                if ($t !== null) {
+                                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                                }
                             }
-                        }
-                    })
-                    ->whereHas('leaves', function ($q) use ($sheetDate) {
-                        $q->whereDate('start_date', '<=', $sheetDate)
-                        ->whereDate('end_date', '>=', $sheetDate)
-                        ->where('status', 'approved');
-                    })
-                    ->with(['leaves' => function ($q) use ($sheetDate) {
-                        $q->whereDate('start_date', '<=', $sheetDate)
-                        ->whereDate('end_date', '>=', $sheetDate);
-                    }])->get();
+                        })
+                        ->whereHas('leaves', function ($q) use ($sheetDate) {
+                            $q->whereDate('start_date', '<=', $sheetDate)
+                                ->whereDate('end_date', '>=', $sheetDate)
+                                ->where('status', 'approved');
+                        })
+                        ->with(['leaves' => function ($q) use ($sheetDate) {
+                            $q->whereDate('start_date', '<=', $sheetDate)
+                                ->whereDate('end_date', '>=', $sheetDate);
+                        }])->get();
 
                     return [
                         'user_id' => $sheet->user_id,
@@ -1751,7 +1729,6 @@ class PerformaSheetController extends Controller
                 'message' => 'Standup performa sheets fetched successfully',
                 'data' => $structuredData
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1759,7 +1736,6 @@ class PerformaSheetController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-
     }
 
     public function getUserWeeklyPerformaSheets(Request $request)
@@ -1783,7 +1759,7 @@ class PerformaSheetController extends Controller
                 ->toArray();
 
             $sheets = PerformaSheet::with('user:id,name')
-                ->where('user_id', $user->id)->whereIn('status', ['approved','pending'])
+                ->where('user_id', $user->id)->whereIn('status', ['approved', 'pending'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
@@ -2026,7 +2002,6 @@ class PerformaSheetController extends Controller
                 "count" => count($userResult),
                 "data" => $userResult
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 "success" => false,
@@ -2094,7 +2069,6 @@ class PerformaSheetController extends Controller
                 'total_missing_days' => $missingDates->count(),
                 'data' => $missingDates
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -2415,7 +2389,6 @@ class PerformaSheetController extends Controller
                 "message" => "Team-wise working hours",
                 "data" => $response
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 "success" => false,
@@ -2667,7 +2640,7 @@ class PerformaSheetController extends Controller
             ->where('user_id', $application->user_id)
             ->first();
 
-        if (in_array(strtolower($performa_sheet_data->status), ['standup','backdated'])) {
+        if (in_array(strtolower($performa_sheet_data->status), ['standup', 'backdated'])) {
             $performa_sheet_data->status = 'approved';
         }
         $performa_sheet_data->save();
@@ -2727,7 +2700,6 @@ class PerformaSheetController extends Controller
                 'message' => 'Performa applications fetched successfully',
                 'data' => $applications
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -2853,7 +2825,6 @@ class PerformaSheetController extends Controller
                     'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
                 ]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -2920,7 +2891,7 @@ class PerformaSheetController extends Controller
                 ]);
             }
 
-            $users = User::whereIn('id', array_keys($data))
+            $users = User::whereIn('id', array_keys($data))->where("is_active", 1)
                 ->pluck('name', 'id');
 
             $projectIds = collect($data)
@@ -2975,7 +2946,6 @@ class PerformaSheetController extends Controller
                 'success' => true,
                 'data' => $response
             ]);
-
         } catch (\Exception $e) {
 
             return response()->json([
@@ -2985,5 +2955,4 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-
 }
