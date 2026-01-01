@@ -1710,7 +1710,7 @@ class PerformaSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'All pending Performa Sheets fetched successfully',
+            'message' => 'All Standup Performa Sheets fetched successfully',
             'data' => $structuredData
         ]);
     }
