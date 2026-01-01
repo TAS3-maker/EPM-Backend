@@ -122,6 +122,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/team-wise-daily-working-hours', [PerformaSheetController::class, 'TeamWiseDailyWorkingHours']);
         Route::get('/get-all-pending-performa-sheets', [PerformaSheetController::class, 'getAllPendingPerformaSheets']);
         Route::get('/get-all-draft-performa-sheets', [PerformaSheetController::class, 'getAllDraftPerformaSheets']);
+        Route::get('/get-all-standup-performa-sheets-admin', [PerformaSheetController::class, 'getAllStandupPerformaSheets']);
         Route::get('/get-performa-sheet-daterange', [PerformaSheetController::class, 'getUserDaterangePerformaSheets']);
         
         Route::post('/apply-performa', [PerformaSheetController::class, 'applyToFillPerformaSheets']);
