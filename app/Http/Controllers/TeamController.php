@@ -47,7 +47,7 @@ class TeamController extends Controller
 
         // Fetch users dynamically
         $team->users = User::whereJsonContains('team_id', $team->id)
-            //    ->where('role_id', 7)
+            ->where('is_active', 1)
             ->get();
 
         return ApiResponse::success('Team details fetched successfully', new TeamResource($team));

@@ -87,8 +87,12 @@ class PermissionController extends Controller
                     "standup_sheet" => "0",
                 ];
 
+                // $users = User::with('permission')
+                //     ->where('id', '!=', 1)
+                //     ->get();
                 $users = User::with('permission')
                     ->where('id', '!=', 1)
+                    ->where('is_active', 1)
                     ->get();
 
                 $final_data = $users->map(function ($user) use ($predefined_permission) {

@@ -29,231 +29,238 @@ class ProjectController extends Controller
 {
     public function index()
     {
-        return ApiResponse::success('Projects fetched successfully', ProjectResource::collection(Project::with('client', 'salesTeam')->orderBy('id','DESC')->get()));
+        return ApiResponse::success('Projects fetched successfully', ProjectResource::collection(Project::with('client', 'salesTeam')->orderBy('id', 'DESC')->get()));
     }
     public function store(Request $request)
-{
-    $messages = [
-        'project_name.unique' => 'The project name has already been taken.',
-    ];
-
-    $validator = Validator::make($request->all(), [
-        'sales_team_id' => 'required',
-        'client_id' => 'required|exists:clients,id',
-        'project_name' => 'required|string|max:255|unique:projects,project_name',
-        'requirements' => 'nullable|string',
-        'project_type' => 'nullable|string|in:fixed,hourly',
-        'budget' => 'nullable|numeric',
-        'used_budgets' => 'nullable|numeric',
-        'deadline' => 'nullable|date',
-        'total_hours' => 'nullable|numeric',
-        'used_hours' => 'nullable|numeric', 
-        'tags_activitys' => 'nullable|array',
-        'technology' => 'nullable|array',
-        'project_status' => 'required|string|in:online,offline',
-        'status' => 'nullable|string|in:Active,Inactive', 
-    ], $messages);
-
-    if ($validator->fails()) {
-        return ApiResponse::error('Validation failed', $validator->errors(), 422);
-    }
-
-    $validatedData = $validator->validated();
-
-    if ($request->has('tags_activitys')) {
-        $validatedData['tags_activitys'] = json_encode($request->tags_activitys);
-    }
-
-    if ($request->has('technology')) {
-        $validatedData['technology'] = json_encode($request->technology);
-    }
-
-    $project = Project::create($validatedData);
-    
-    return ApiResponse::success('Project created successfully', $project, 201);
-}
-
-
-
-public function assignProjectToManager(Request $request)
-{
-    $validatedData = $request->validate([
-        'project_id' => 'required|exists:projects,id',
-        'project_manager_ids' => 'required|array',
-        'project_manager_ids.*' => 'exists:users,id'
-    ]);
-
-    $project = Project::findOrFail($validatedData['project_id']);
-
-    $existingManagerIds = json_decode($project->project_manager_id, true);
-    if (!is_array($existingManagerIds)) {
-        $existingManagerIds = $existingManagerIds ? [$existingManagerIds] : [];
-    }
-
-    $mergedManagerIds = array_unique(array_merge($existingManagerIds, $validatedData['project_manager_ids']));
-
-
-    $project->project_manager_id = json_encode($mergedManagerIds);
-    $project->assigned_by = auth()->user()->id;
-    $project->save();
-
-    $newlyAssignedIds = array_diff($validatedData['project_manager_ids'], $existingManagerIds);
-
-    $assigner = auth()->user();
-    foreach ($newlyAssignedIds as $managerId) {
-        $manager = User::find($managerId);
-        if ($manager && $manager->email) {
-            $mail = (new ProjectAssignedMail($manager, $project, $assigner))
-                ->replyTo($assigner->email, $assigner->name);
-
-            // Mail::to($manager->email)->send($mail);
-        }
-    }
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Project assigned successfully and emails sent to new managers.',
-        'data' => [
-            'project_id' => $project->id,
-            'project_manager_ids' => $mergedManagerIds,
-            'emails_sent_to' => $newlyAssignedIds
-        ]
-    ]);
-}
-
-
-	public function assignProjectManagerProjectToEmployee(Request $request)
-	{
-		$projectManagerId = auth()->user()->id;
-    $validatedData = $request->validate([
-        'project_id' => 'required|exists:projects,id',
-        'employee_ids' => 'required|array|min:1',
-        'employee_ids.*' => 'exists:users,id'
-    ]);
-
-    $project = Project::find($validatedData['project_id']);
-
-    if (!$project) {
-        return ApiResponse::error('Invalid project_id. Project does not exist.', [], 404);
-    }
-
-    $projectManagerId = auth()->user()->id;
-
-    $insertedData = [];
-    $alreadyAssigned = [];
-
-    try {
-        foreach ($validatedData['employee_ids'] as $employeeId) {
-            $exists = DB::table('project_user')
-                   ->where('project_id', $validatedData['project_id'])
-                ->where('user_id', $employeeId)
-                ->exists();
-
-            if ($exists) {
-                $alreadyAssigned[] = $employeeId;
-                continue;
-            }
-
-            $insertedId = DB::table('project_user')->insertGetId([
-                'project_id' => $validatedData['project_id'],
-                'user_id' => $employeeId,
-				'project_manager_id' => $projectManagerId,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            $insertedData[] = [
-                'id' => $insertedId,  
-                'project_id' => $validatedData['project_id'],
-                'user_id' => $employeeId,
-				'project_manager_id' => $projectManagerId,
-            ];
-        }
-    } catch (\Exception $e) {
-        return ApiResponse::error('Database Error: ' . $e->getMessage(), [], 500);
-    }
-
-    $responseMessage = 'Project assigned successfully';
-    if (!empty($alreadyAssigned)) {
-        $responseMessage .= '. But these users were already assigned: ' . implode(', ', $alreadyAssigned);
-    }
-
-    return ApiResponse::success($responseMessage, [
-        'project_manager_id' => $projectManagerId,
-        'data' => $insertedData
-    ]);
-	}
-
-	public function getProjectofEmployeeAssignbyProjectManager()
     {
-    $projectManagerId = auth()->id();
+        $messages = [
+            'project_name.unique' => 'The project name has already been taken.',
+        ];
 
-    $projects = Project::where(function ($query) use ($projectManagerId) {
-        $query->whereRaw("JSON_CONTAINS(project_manager_id, ?, '$')", [json_encode($projectManagerId)])
-              ->orWhereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)]);
-    })
-    ->with(['assignedEmployees:id,name,email','client:id,name'])
-    ->get(['id', 'project_name', 'client_id', 'tl_id', 'deadline', 'project_manager_id','tags_activitys'])
-    ->map(function ($project) {
-        $tlIds = json_decode($project->tl_id, true);
+        $validator = Validator::make($request->all(), [
+            'sales_team_id' => 'required',
+            'client_id' => 'required|exists:clients,id',
+            'project_name' => 'required|string|max:255|unique:projects,project_name',
+            'requirements' => 'nullable|string',
+            'project_type' => 'nullable|string|in:fixed,hourly',
+            'budget' => 'nullable|numeric',
+            'used_budgets' => 'nullable|numeric',
+            'deadline' => 'nullable|date',
+            'total_hours' => 'nullable|numeric',
+            'used_hours' => 'nullable|numeric',
+            'tags_activitys' => 'nullable|array',
+            'technology' => 'nullable|array',
+            'project_status' => 'required|string|in:online,offline',
+            'status' => 'nullable|string|in:Active,Inactive',
+        ], $messages);
 
-        if (!is_array($tlIds)) {
-            $tlIds = [];
+        if ($validator->fails()) {
+            return ApiResponse::error('Validation failed', $validator->errors(), 422);
         }
 
-        if (!empty($tlIds)) {
-            $project->team_leads = User::whereIn('id', $tlIds)->get(['id', 'name']);
-        } else {
-            $project->team_leads = collect(); 
+        $validatedData = $validator->validated();
+
+        if ($request->has('tags_activitys')) {
+            $validatedData['tags_activitys'] = json_encode($request->tags_activitys);
         }
 
-        $tagIds = json_decode($project->tags_activitys, true);
-        $project->tags_activitys = is_array($tagIds) && !empty($tagIds)
-            ? TagsActivity::whereIn('id', $tagIds)->get(['id'])
-            : collect();
-        
-        return $project;
-    });
+        if ($request->has('technology')) {
+            $validatedData['technology'] = json_encode($request->technology);
+        }
 
-    if ($projects->isEmpty()) {
-        return ApiResponse::error('No projects found for this Project Manager.', [], 404);
+        $project = Project::create($validatedData);
+
+        return ApiResponse::success('Project created successfully', $project, 201);
     }
 
-    return ApiResponse::success('Projects fetched successfully', [
-        'project_manager_id' => $projectManagerId,
-        'projects' => $projects
-    ]);
-    }
-public function getemployeeProjects()
-{
-    $projectManagerId = auth()->user()->id;
 
-    $projects = Project::whereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)])
-        ->with([
-            'assignedEmployees' => function ($query) {
-                $query->select('users.id', 'users.name', 'users.email');
-            },
-            'client:id,name'
-        ])
-        ->get([
-            'id',
-            'project_name',
-            'client_id',
-            'deadline',
-            'project_manager_id',
-            'project_status',   
-            'project_type'   
+
+    public function assignProjectToManager(Request $request)
+    {
+        $validatedData = $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'project_manager_ids' => 'required|array',
+            'project_manager_ids.*' => 'exists:users,id'
         ]);
 
-    if ($projects->isEmpty()) {
-        return ApiResponse::error('No projects found for this Project Manager.', [], 404);
+        $project = Project::findOrFail($validatedData['project_id']);
+
+        $existingManagerIds = json_decode($project->project_manager_id, true);
+        if (!is_array($existingManagerIds)) {
+            $existingManagerIds = $existingManagerIds ? [$existingManagerIds] : [];
+        }
+
+        $mergedManagerIds = array_unique(array_merge($existingManagerIds, $validatedData['project_manager_ids']));
+
+
+        $project->project_manager_id = json_encode($mergedManagerIds);
+        $project->assigned_by = auth()->user()->id;
+        $project->save();
+
+        $newlyAssignedIds = array_diff($validatedData['project_manager_ids'], $existingManagerIds);
+
+        $assigner = auth()->user();
+        foreach ($newlyAssignedIds as $managerId) {
+            $manager = User::where('id', $managerId)
+                ->where('is_active', 1)
+                ->first();
+
+            if ($manager && $manager->email) {
+                $mail = (new ProjectAssignedMail($manager, $project, $assigner))
+                    ->replyTo($assigner->email, $assigner->name);
+
+                // Mail::to($manager->email)->send($mail);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project assigned successfully and emails sent to new managers.',
+            'data' => [
+                'project_id' => $project->id,
+                'project_manager_ids' => $mergedManagerIds,
+                'emails_sent_to' => $newlyAssignedIds
+            ]
+        ]);
     }
 
-    return ApiResponse::success('Projects fetched successfully', [
-        'project_manager_id' => $projectManagerId,
-        'projects' => $projects
-    ]);
-}
+
+    public function assignProjectManagerProjectToEmployee(Request $request)
+    {
+        $projectManagerId = auth()->user()->id;
+        $validatedData = $request->validate([
+            'project_id' => 'required|exists:projects,id',
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'exists:users,id'
+        ]);
+
+        $project = Project::find($validatedData['project_id']);
+
+        if (!$project) {
+            return ApiResponse::error('Invalid project_id. Project does not exist.', [], 404);
+        }
+
+        $projectManagerId = auth()->user()->id;
+
+        $insertedData = [];
+        $alreadyAssigned = [];
+
+        try {
+            foreach ($validatedData['employee_ids'] as $employeeId) {
+                $exists = DB::table('project_user')
+                    ->where('project_id', $validatedData['project_id'])
+                    ->where('user_id', $employeeId)
+                    ->exists();
+
+                if ($exists) {
+                    $alreadyAssigned[] = $employeeId;
+                    continue;
+                }
+
+                $insertedId = DB::table('project_user')->insertGetId([
+                    'project_id' => $validatedData['project_id'],
+                    'user_id' => $employeeId,
+                    'project_manager_id' => $projectManagerId,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                $insertedData[] = [
+                    'id' => $insertedId,
+                    'project_id' => $validatedData['project_id'],
+                    'user_id' => $employeeId,
+                    'project_manager_id' => $projectManagerId,
+                ];
+            }
+        } catch (\Exception $e) {
+            return ApiResponse::error('Database Error: ' . $e->getMessage(), [], 500);
+        }
+
+        $responseMessage = 'Project assigned successfully';
+        if (!empty($alreadyAssigned)) {
+            $responseMessage .= '. But these users were already assigned: ' . implode(', ', $alreadyAssigned);
+        }
+
+        return ApiResponse::success($responseMessage, [
+            'project_manager_id' => $projectManagerId,
+            'data' => $insertedData
+        ]);
+    }
+
+    public function getProjectofEmployeeAssignbyProjectManager()
+    {
+        $projectManagerId = auth()->id();
+
+        $projects = Project::where(function ($query) use ($projectManagerId) {
+            $query->whereRaw("JSON_CONTAINS(project_manager_id, ?, '$')", [json_encode($projectManagerId)])
+                ->orWhereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)]);
+        })
+            ->with(['assignedEmployees:id,name,email', 'client:id,name'])
+            ->get(['id', 'project_name', 'client_id', 'tl_id', 'deadline', 'project_manager_id', 'tags_activitys'])
+            ->map(function ($project) {
+                $tlIds = json_decode($project->tl_id, true);
+
+                if (!is_array($tlIds)) {
+                    $tlIds = [];
+                }
+
+                if (!empty($tlIds)) {
+                    // $project->team_leads = User::whereIn('id', $tlIds)->get(['id', 'name']);
+                    $project->team_leads = User::whereIn('id', $tlIds)
+                        ->where('is_active', 1)
+                        ->get(['id', 'name']);
+
+                } else {
+                    $project->team_leads = collect();
+                }
+
+                $tagIds = json_decode($project->tags_activitys, true);
+                $project->tags_activitys = is_array($tagIds) && !empty($tagIds)
+                    ? TagsActivity::whereIn('id', $tagIds)->get(['id'])
+                    : collect();
+
+                return $project;
+            });
+
+        if ($projects->isEmpty()) {
+            return ApiResponse::error('No projects found for this Project Manager.', [], 404);
+        }
+
+        return ApiResponse::success('Projects fetched successfully', [
+            'project_manager_id' => $projectManagerId,
+            'projects' => $projects
+        ]);
+    }
+    public function getemployeeProjects()
+    {
+        $projectManagerId = auth()->user()->id;
+
+        $projects = Project::whereRaw("JSON_CONTAINS(tl_id, ?, '$')", [json_encode($projectManagerId)])
+            ->with([
+                'assignedEmployees' => function ($query) {
+                    $query->select('users.id', 'users.name', 'users.email');
+                },
+                'client:id,name'
+            ])
+            ->get([
+                'id',
+                'project_name',
+                'client_id',
+                'deadline',
+                'project_manager_id',
+                'project_status',
+                'project_type'
+            ]);
+
+        if ($projects->isEmpty()) {
+            return ApiResponse::error('No projects found for this Project Manager.', [], 404);
+        }
+
+        return ApiResponse::success('Projects fetched successfully', [
+            'project_manager_id' => $projectManagerId,
+            'projects' => $projects
+        ]);
+    }
 
     public function getTlProjects()
     {
@@ -338,63 +345,64 @@ public function getemployeeProjects()
     }
 
 
-public function assignProjectToTL(Request $request): JsonResponse
-{
-    try {
-        $validatedData = $request->validate([
-            'project_id' => 'required|exists:projects,id',
-            'tl_id' => 'required|array',
-            'tl_id.*' => 'exists:users,id'
-        ]);
-    } catch (ValidationException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Validation failed',
-            'errors' => $e->errors()
-        ], 422);
-    }
-
-    try {
-        $project = Project::findOrFail($validatedData['project_id']);
-    } catch (ModelNotFoundException $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Project not found',
-        ], 404);
-    }
-
-    $existingTlIds = $project->tl_id ? json_decode($project->tl_id, true) : [];
-    $mergedTlIds = array_unique(array_merge($existingTlIds, $validatedData['tl_id']));
-
-    $project->tl_id = json_encode($mergedTlIds);
-    $project->assigned_by = auth()->id();
-    $project->save();
-
-
-    $newlyAssignedTlIds = array_diff($validatedData['tl_id'], $existingTlIds);
-    $assigner = auth()->user();
-
-    foreach ($newlyAssignedTlIds as $tlId) {
-        $tl = User::find($tlId);
-        if ($tl && $tl->email) {
-            $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
-                ->replyTo($assigner->email, $assigner->name);
-
-            // Mail::to($tl->email)->send($mail);
+    public function assignProjectToTL(Request $request): JsonResponse
+    {
+        try {
+            $validatedData = $request->validate([
+                'project_id' => 'required|exists:projects,id',
+                'tl_id' => 'required|array',
+                'tl_id.*' => 'exists:users,id'
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
         }
-    }
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Project assigned to Team Leaders successfully and emails sent to new TLs.',
-        'data' => [
-            'project_id' => $project->id,
-            'tl_ids' => $mergedTlIds,
-            'assigned_by' => $project->assigned_by,
-            'emails_sent_to' => $newlyAssignedTlIds
-        ]
-    ], 200);
-}
+        try {
+            $project = Project::findOrFail($validatedData['project_id']);
+        } catch (ModelNotFoundException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project not found',
+            ], 404);
+        }
+
+        $existingTlIds = $project->tl_id ? json_decode($project->tl_id, true) : [];
+        $mergedTlIds = array_unique(array_merge($existingTlIds, $validatedData['tl_id']));
+
+        $project->tl_id = json_encode($mergedTlIds);
+        $project->assigned_by = auth()->id();
+        $project->save();
+
+
+        $newlyAssignedTlIds = array_diff($validatedData['tl_id'], $existingTlIds);
+        $assigner = auth()->user();
+
+        foreach ($newlyAssignedTlIds as $tlId) {
+            // $tl = User::find($tlId);
+            $tl = User::where('is_active', 1)->find($tlId);
+            if ($tl && $tl->email) {
+                $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
+                    ->replyTo($assigner->email, $assigner->name);
+
+                // Mail::to($tl->email)->send($mail);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Project assigned to Team Leaders successfully and emails sent to new TLs.',
+            'data' => [
+                'project_id' => $project->id,
+                'tl_ids' => $mergedTlIds,
+                'assigned_by' => $project->assigned_by,
+                'emails_sent_to' => $newlyAssignedTlIds
+            ]
+        ], 200);
+    }
 
 
 
@@ -454,98 +462,98 @@ public function assignProjectToTL(Request $request): JsonResponse
         DB::table('tasks')->where('project_id', $id)->delete();
 
         $project->delete();
-        return ApiResponse::success('Project deleted successfully',$project,200);
+        return ApiResponse::success('Project deleted successfully', $project, 200);
     }
 
-	public function assignUsersToProject(Request $request, $projectId)
-	{
-		$project = Project::find($projectId);
-		if (!$project) {
-			return ApiResponse::error('Project not found', [], 404);
-		}
-		$request->validate([
-        'user_ids' => 'required|array',
-        'user_ids.*' => 'exists:users,id'
-		]);
-		$project->assignedUsers()->sync($request->user_ids);
-		return ApiResponse::success('Users assigned successfully', $project->load('assignedUsers'));
-	}
+    public function assignUsersToProject(Request $request, $projectId)
+    {
+        $project = Project::find($projectId);
+        if (!$project) {
+            return ApiResponse::error('Project not found', [], 404);
+        }
+        $request->validate([
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id'
+        ]);
+        $project->assignedUsers()->sync($request->user_ids);
+        return ApiResponse::success('Users assigned successfully', $project->load('assignedUsers'));
+    }
 
     public function getAssignedAllProjects()
     {
         try {
-                $projects = Project::with([
-                    'assignedEmployees:id,name,email',  
-                    'client:id,name'                    
-                ])->latest()->get();
+            $projects = Project::with([
+                'assignedEmployees:id,name,email',
+                'client:id,name'
+            ])->latest()->get();
 
-                $formattedProjects = $projects->map(function ($project) {
-                    $managerIds = json_decode($project->project_manager_id, true) ?? [];
+            $formattedProjects = $projects->map(function ($project) {
+                $managerIds = json_decode($project->project_manager_id, true) ?? [];
 
-                    if (!empty($managerIds)) {
-                        $managers = User::whereIn('id', $managerIds)
-                            ->get(['id', 'name'])
-                            ->map(function ($manager) {
-                                return [
-                                    'id' => $manager->id,
-                                    'name' => $manager->name
-                                ];
-                            })
-                            ->toArray();
-                    } else {
-                        $managers = [["id" => null, "name" => "Not Assigned to Any Manager"]];
-                    }   
-                    //for TL
-                    $tlIds = json_decode($project->tl_id, true) ?? [];
-                    if (!empty($tlIds)) {
-                        $tls = User::whereIn('id', $tlIds)
-                            ->get(['id', 'name'])
-                            ->map(function ($tl) {
-                                return [
-                                    'id' => $tl->id,
-                                    'name' => $tl->name
-                                ];
-                            })
-                            ->toArray();
-                    } else {
-                        $tls = [["id" => null, "name" => "Not Assigned to Any TL"]];
-                    }
-                    return [
-                        'id' => $project->id,
-                        'project_name' => $project->project_name,
-                        'project_type' => $project->project_type,
-                        'project_status' => $project->project_status,
-                        'client_name' => $project->client ? $project->client->name : 'No Client Assigned',
-                        'budget' => $project->budget,
-                        'deadline' => $project->deadline,
-                        'total_hours' => $project->total_hours,
-                        'assigned_users' => $project->assignedEmployees->map(function ($user) {
+                if (!empty($managerIds)) {
+                    $managers = User::whereIn('id', $managerIds)->where('is_active', 1)
+                        ->get(['id', 'name'])
+                        ->map(function ($manager) {
                             return [
-                                'id' => $user->id,
-                                'name' => $user->name,
-                                'email' => $user->email,
+                                'id' => $manager->id,
+                                'name' => $manager->name
                             ];
-                        }),
-                        'tls' => $tls,
-                        'project_managers' => $managers
-                    ];
-                });
+                        })
+                        ->toArray();
+                } else {
+                    $managers = [["id" => null, "name" => "Not Assigned to Any Manager"]];
+                }
+                //for TL
+                $tlIds = json_decode($project->tl_id, true) ?? [];
+                if (!empty($tlIds)) {
+                    $tls = User::whereIn('id', $tlIds)->where('is_active', 1)
+                        ->get(['id', 'name'])
+                        ->map(function ($tl) {
+                            return [
+                                'id' => $tl->id,
+                                'name' => $tl->name
+                            ];
+                        })
+                        ->toArray();
+                } else {
+                    $tls = [["id" => null, "name" => "Not Assigned to Any TL"]];
+                }
+                return [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'project_type' => $project->project_type,
+                    'project_status' => $project->project_status,
+                    'client_name' => $project->client ? $project->client->name : 'No Client Assigned',
+                    'budget' => $project->budget,
+                    'deadline' => $project->deadline,
+                    'total_hours' => $project->total_hours,
+                    'assigned_users' => $project->assignedEmployees->map(function ($user) {
+                        return [
+                            'id' => $user->id,
+                            'name' => $user->name,
+                            'email' => $user->email,
+                        ];
+                    }),
+                    'tls' => $tls,
+                    'project_managers' => $managers
+                ];
+            });
 
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Project assignments fetched successfully.',
-                    'data' => $formattedProjects
-                ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Project assignments fetched successfully.',
+                'data' => $formattedProjects
+            ]);
 
-            } catch (\Exception $e) {
-                Log::error('Error fetching project assignments: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            Log::error('Error fetching project assignments: ' . $e->getMessage());
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Internal Server Error',
-                    'error' => $e->getMessage()
-                ], 500);
-            }
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
 
@@ -565,8 +573,8 @@ public function assignProjectToTL(Request $request): JsonResponse
 
     public function getProjectManagerTl()
     {
-        $user = auth()->user(); 
-       if ($user->role_id != 1 && !$user->team_id) {
+        $user = auth()->user();
+        if ($user->role_id != 1 && !$user->team_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Team ID not found for this user.',
@@ -580,12 +588,12 @@ public function assignProjectToTL(Request $request): JsonResponse
         //     ->select('id', 'name', 'email', 'profile_pic', 'role_id')
         //     ->get();
 
-        $employees = User::where('id', '!=', $user->id)
-        ->whereHas('role', function ($query) {
-            $query->where('name', 'TL');
-        })
-        ->select('id', 'name', 'email', 'profile_pic', 'role_id')
-        ->get();
+        $employees = User::where('id', '!=', $user->id)->where('is_active', 1)
+            ->whereHas('role', function ($query) {
+                $query->where('name', 'TL');
+            })
+            ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+            ->get();
         if ($user->role_id != 1) {
             return response()->json([
                 'success' => true,
@@ -594,7 +602,7 @@ public function assignProjectToTL(Request $request): JsonResponse
                 'project_manager_id' => $user->id,
                 'employees' => $employees
             ]);
-        }else{
+        } else {
             return response()->json([
                 'success' => true,
                 'message' => $employees->isEmpty() ? 'No employees found.' : 'Employees fetched successfully',
@@ -607,23 +615,23 @@ public function assignProjectToTL(Request $request): JsonResponse
     {
         $user = auth()->user();
         if ($user->role_id == 1) {
-                $tls = User::where('role_id', 6)
-                    ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
-                    ->get();
-                $employees = User::where('role_id', 7)
-                    ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
-                    ->get();
+            $tls = User::where('role_id', 6)->where('is_active', 1)
+                ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
+                ->get();
+            $employees = User::where('role_id', 7)->where('is_active', 1)
+                ->select('id', 'name', 'email', 'profile_pic', 'role_id', 'tl_id')
+                ->get();
 
-                return response()->json([
-                    'success' => true,
-                    'message' => ($employees->isEmpty() && $tls->isEmpty())
-                        ? 'No employees found for this team.'
-                        : 'Employees fetched successfully',
-                    'tl_id' => $tls,
-                    'employees' => $employees
-                ]);
+            return response()->json([
+                'success' => true,
+                'message' => ($employees->isEmpty() && $tls->isEmpty())
+                    ? 'No employees found for this team.'
+                    : 'Employees fetched successfully',
+                'tl_id' => $tls,
+                'employees' => $employees
+            ]);
         } else {
-           $teamIds = $user->team_id ?? [];
+            $teamIds = $user->team_id ?? [];
             if (empty($teamIds)) {
                 return response()->json([
                     'success' => false,
@@ -631,15 +639,15 @@ public function assignProjectToTL(Request $request): JsonResponse
                     'data' => []
                 ]);
             }
-            $tls = User::where('role_id', 6)
+            $tls = User::where('role_id', 6)->where('is_active', 1)
                 ->where(function ($q) use ($teamIds) {
-                foreach ($teamIds as $teamId) {
-                    $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
-                }
-            })
-            ->select('id', 'name', 'email', 'profile_pic', 'role_id')
-            ->get();
-            $employees = User::where('id', '!=', $user->id)->where('role_id', 7)
+                    foreach ($teamIds as $teamId) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?, "$")', [json_encode($teamId)]);
+                    }
+                })
+                ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+                ->get();
+            $employees = User::where('id', '!=', $user->id)->where('role_id', 7)->where('is_active', 1)
                 ->where(function ($q) use ($teamIds) {
                     foreach ($teamIds as $teamId) {
                         if ($teamId !== null) {
@@ -778,7 +786,8 @@ public function assignProjectToTL(Request $request): JsonResponse
         $performaHours = [];
         foreach ($approvedPerformas as $sheet) {
             $data = is_array($sheet->data) ? $sheet->data : json_decode($sheet->data, true);
-            if (!isset($data['project_id'], $data['time'])) continue;
+            if (!isset($data['project_id'], $data['time']))
+                continue;
 
             $projId = $data['project_id'];
             $userId = $sheet->user_id;
@@ -791,7 +800,7 @@ public function assignProjectToTL(Request $request): JsonResponse
         }
 
         $projectUserMap = DB::table('project_user')->get()->groupBy('project_id');
-        $users = User::select('id', 'name', 'email', 'role_id', 'team_id')->get()->keyBy('id');
+        $users = User::select('id', 'name', 'email', 'role_id', 'team_id')->where('is_active', 1)->get()->keyBy('id');
         $teams = DB::table('teams')->pluck('name', 'id');
 
         $data = $projects->map(function ($project) use ($users, $projectUserMap, $performaHours, $teams) {
@@ -813,11 +822,12 @@ public function assignProjectToTL(Request $request): JsonResponse
             $tlIDs = is_array($tlIDs) ? $tlIDs : [];
 
             $getTeamName = function ($user) use ($teams) {
-            if (!is_array($user->team_id) || empty($user->team_id)) return null;
+                if (!is_array($user->team_id) || empty($user->team_id))
+                    return null;
                 $teamId = $user->team_id[0]; //only one team allowed
                 return $teams[$teamId] ?? null;
             };
-            
+
             foreach ($managerIDs as $managerId) {
                 $user = $users[$managerId] ?? null;
                 if ($user) {
@@ -853,7 +863,8 @@ public function assignProjectToTL(Request $request): JsonResponse
                     !$user ||
                     in_array($user->id, $managerIDs) ||
                     in_array($user->id, $tlIDs)
-                ) continue;
+                )
+                    continue;
 
                 $employees[] = [
                     'id' => $user->id,
@@ -871,7 +882,7 @@ public function assignProjectToTL(Request $request): JsonResponse
             return [
                 'project_id' => $project->id,
                 'project_name' => $project->project_name,
-                'total_hours' => (float)$project->total_hours,
+                'total_hours' => (float) $project->total_hours,
                 'worked_hours' => round($workedHours, 2),
                 'remaining_hours' => $remainingHours,
                 'managers' => $managers,
@@ -910,8 +921,8 @@ public function assignProjectToTL(Request $request): JsonResponse
             //     ->whereIn('id', $managerIds)
             //     ->get();
 
-            $managers = User::whereIn('id', $managerIds)->get();
-            
+            $managers = User::whereIn('id', $managerIds)->where('is_active', 1)->get();
+
             // $teamNames = $managers
             //     ->filter(fn ($user) => $user->team)
             //     ->pluck('team.name')
@@ -969,55 +980,55 @@ public function assignProjectToTL(Request $request): JsonResponse
     }
 
 
-public function get_project_status_by_tl_and_pm(Request $request)
-{
-    if (!auth()->check()) {
-        return response()->json([
-            'success' => false,
-            'message' => 'User not authenticated'
-        ], 401);
-    }
+    public function get_project_status_by_tl_and_pm(Request $request)
+    {
+        if (!auth()->check()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not authenticated'
+            ], 401);
+        }
 
-    $user = auth()->user();
+        $user = auth()->user();
 
-    if ($user->role_id != 1) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Access Only Super Admin!'
-        ], 403);
-    }
+        if ($user->role_id != 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Access Only Super Admin!'
+            ], 403);
+        }
 
-    $request->validate([
-        'user_id' => 'required|integer|exists:users,id',
-        'type' => 'required|string|in:tl,pm'
-    ]);
+        $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+            'type' => 'required|string|in:tl,pm'
+        ]);
 
-    $userId = (int) $request->user_id;
-    $type = $request->type;
+        $userId = (int) $request->user_id;
+        $type = $request->type;
 
-    $query = \App\Models\Project::query();
+        $query = \App\Models\Project::query();
 
-    if ($type == 'tl') {
-        $query->whereJsonContains('tl_id', $userId);
-    } elseif ($type == 'pm') {
-        $query->whereJsonContains('project_manager_id', $userId);
-    }
+        if ($type == 'tl') {
+            $query->whereJsonContains('tl_id', $userId);
+        } elseif ($type == 'pm') {
+            $query->whereJsonContains('project_manager_id', $userId);
+        }
 
-    $projects = $query->get();
+        $projects = $query->get();
 
-    if ($projects->isEmpty()) {
+        if ($projects->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No projects found for this user.',
+                'data' => []
+            ], 200);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'No projects found for this user.',
-            'data' => []
+            'message' => 'Projects fetched successfully.',
+            'data' => $projects
         ], 200);
     }
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Projects fetched successfully.',
-        'data' => $projects
-    ], 200);
-}
 
 }

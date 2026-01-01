@@ -56,7 +56,7 @@ class TaskController extends Controller
             }
 
             $currentHours = $project->project_hours ?? 0;
-            if($currentHours > 0){
+            if ($currentHours > 0) {
                 $currentRemaining = $project->project_hours - $project->project_used_hours;
             }
             $newTaskHours = $validatedData['hours'] ?? 0;
@@ -193,7 +193,9 @@ class TaskController extends Controller
                 ], 403);
             }
 
-            $projectManager = User::find($projectManagerId);
+            $projectManager = User::where('id', $projectManagerId)
+                ->where('is_active', 1)
+                ->first();
 
             if (!$projectManager) {
                 return response()->json([

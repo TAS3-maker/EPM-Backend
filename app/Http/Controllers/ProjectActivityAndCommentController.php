@@ -408,7 +408,10 @@ class ProjectActivityAndCommentController extends Controller
                 return null;
             }
 
-            $user = User::find($sheet->user_id);
+            $user = User::where('id', $sheet->user_id)
+                ->where('is_active', 1)
+                ->first();
+
 
             return [
                 'message' => $data['narration'] ?? null,

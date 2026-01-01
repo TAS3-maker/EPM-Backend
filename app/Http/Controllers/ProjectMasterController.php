@@ -162,7 +162,7 @@ class ProjectMasterController extends Controller
             ], 200);
         }
 
-        $existingAssignees = User::whereIn('id', $assignees)
+        $existingAssignees = User::whereIn('id', $assignees)->where('is_active', 1)
             ->pluck('id')
             ->toArray();
 
@@ -382,7 +382,7 @@ class ProjectMasterController extends Controller
                     ], 200);
                 }
 
-                $existingAssignees = User::whereIn('id', $assignees)
+                $existingAssignees = User::whereIn('id', $assignees)->where('is_active', 1)
                     ->pluck('id')
                     ->toArray();
 
@@ -706,7 +706,7 @@ class ProjectMasterController extends Controller
         $assigner = auth()->user();
 
         foreach ($newlyAssignedTlIds as $tlId) {
-            $tl = User::find($tlId);
+            $tl = User::where('is_active', 1)->find($tlId);
 
             if ($tl && $tl->email) {
                 $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
@@ -761,7 +761,7 @@ class ProjectMasterController extends Controller
         $relation->assignees = array_values($updatedAssignees);
         $relation->save();
 
-        $userNames = User::whereIn('id', $member_ids)
+        $userNames = User::whereIn('id', $member_ids)->where('is_active', 1)
             ->pluck('name')
             ->implode(', ');
 
@@ -842,7 +842,7 @@ class ProjectMasterController extends Controller
             $responseMessage .= '. But these users were already assigned: ' . implode(', ', $alreadyAssigned);
         }
 
-        $userNames = User::whereIn('id', $validatedData['employee_ids'])
+        $userNames = User::whereIn('id', $validatedData['employee_ids'])->where('is_active', 1)
             ->pluck('name')
             ->implode(', ');
 
@@ -885,7 +885,9 @@ class ProjectMasterController extends Controller
         $relation->updated_at = now();
         $relation->save();
 
-        $username = User::find($user_id)->name;
+        $username = User::where('is_active', 1)
+            ->where('id', $user_id)
+            ->value('name');
 
 
         ActivityService::log([
@@ -929,7 +931,11 @@ class ProjectMasterController extends Controller
         $relation->updated_at = now();
         $relation->save();
 
-        $username = User::find($user_id)->name;
+        // $username = User::find($user_id)->name;
+        $username = User::where('is_active', 1)
+            ->where('id', $user_id)
+            ->value('name');
+
         ActivityService::log([
             'project_id' => $project_id,
             'type' => 'activity',
@@ -976,7 +982,7 @@ class ProjectMasterController extends Controller
 
         $assigner = auth()->user();
         foreach ($newlyAssignedIds as $managerId) {
-            $manager = User::find($managerId);
+            $manager = User::where('is_active', 1)->find($managerId);
             if ($manager && $manager->email) {
                 $mail = (new ProjectAssignedMail(
                     $manager,
@@ -988,7 +994,7 @@ class ProjectMasterController extends Controller
             }
         }
 
-        $userNames = User::whereIn('id', $validatedData['project_manager_ids'])
+        $userNames = User::whereIn('id', $validatedData['project_manager_ids'])->where('is_active', 1)
             ->pluck('name')
             ->implode(', ');
 
@@ -1050,7 +1056,7 @@ class ProjectMasterController extends Controller
             $relation->updated_at = now();
             $relation->save();
 
-            $userNames = User::whereIn('id', $validatedData['manager_ids'])
+            $userNames = User::whereIn('id', $validatedData['manager_ids'])->where('is_active', 1)
                 ->pluck('name')
                 ->implode(', ');
 
@@ -1238,7 +1244,7 @@ class ProjectMasterController extends Controller
             ], 422);
         }
 
-        $currentUser = User::find($request->user_id);
+        $currentUser = User::where('is_active', 1)->find($request->user_id);
 
         if (!$currentUser) {
             return response()->json([
@@ -1258,10 +1264,10 @@ class ProjectMasterController extends Controller
                 foreach ($teamIds as $teamId) {
                     $q->orWhereJsonContains('team_id', $teamId);
                 }
-            })->pluck('id')->toArray();
+            })->where('is_active', 1)->pluck('id')->toArray();
         }
 
-        $usersMap = User::whereIn('id', $performaUserIds)
+        $usersMap = User::whereIn('id', $performaUserIds)->where('is_active', 1)
             ->pluck('name', 'id')
             ->toArray();
 
@@ -1375,7 +1381,10 @@ class ProjectMasterController extends Controller
             ], 422);
         }
 
-        $user = User::find($request->user_id);
+        $user = User::where('id', $request->user_id)
+            ->where('is_active', 1)
+            ->first();
+
 
         if (!$user) {
             return response()->json([
@@ -1422,12 +1431,12 @@ class ProjectMasterController extends Controller
                 foreach ($teamIds as $teamId) {
                     $q->orWhereJsonContains('team_id', (int) $teamId);
                 }
-            })
+            })->where('is_active', 1)
                 ->pluck('id')
                 ->toArray();
         }
 
-        $usersMap = User::whereIn('id', $performaUserIds)
+        $usersMap = User::whereIn('id', $performaUserIds)->where('is_active', 1)
             ->pluck('name', 'id')
             ->toArray();
 
@@ -1537,14 +1546,14 @@ class ProjectMasterController extends Controller
         }
 
         if (empty($assignees)) {
-            unset($project->relation); 
+            unset($project->relation);
             return response()->json([
                 'success' => true,
                 'data' => $project,
             ]);
         }
 
-        $usersMap = User::whereIn('id', $assignees)
+        $usersMap = User::whereIn('id', $assignees)->where('is_active', 1)
             ->pluck('name', 'id')
             ->toArray();
 
@@ -1607,7 +1616,7 @@ class ProjectMasterController extends Controller
             return $task;
         });
 
-        unset($project->relation); 
+        unset($project->relation);
 
         return response()->json([
             'success' => true,

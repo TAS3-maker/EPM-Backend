@@ -273,13 +273,13 @@ class UserController extends Controller
 
     public function projectManger()
     {
-        $users = User::where('role_id', 5)->get();
+        $users = User::where('role_id', 5)->where('is_active', 1)->get();
         return ApiResponse::success('Project Manger fetched successfully', UserResource::collection($users));
     }
 
     public function show($id)
     {
-        $user = User::with(['team', 'role'])->find($id);
+        $user = User::with(['team', 'role'])->where('is_active', 1)->find($id);
         if (!$user) {
             return ApiResponse::error('User not found', [], 404);
         }
@@ -353,7 +353,7 @@ class UserController extends Controller
         $tlId = null;
 
         if (!empty($teamIds)) {
-            $userWithRole6 = User::whereJsonContains('team_id', $teamIds)
+            $userWithRole6 = User::whereJsonContains('team_id', $teamIds)->where('is_active', 1)
                 ->where('role_id', 6)
                 ->first();
 
@@ -557,7 +557,7 @@ class UserController extends Controller
     public function getUserCountByTeam()
     {
         $teams = Team::all();
-        $users = User::whereNotNull('team_id')->get();
+        $users = User::whereNotNull('team_id')->where('is_active', 1)->get();
 
         $teamUserMap = [];
 
@@ -720,7 +720,7 @@ class UserController extends Controller
             $teamId = intval($request->team_id);
             $teamIds = [$teamId];
 
-            $tls = \App\Models\User::where('role_id', 6)
+            $tls = \App\Models\User::where('role_id', 6)->where('is_active', 1)
                 ->where(function ($q) use ($teamIds) {
                     foreach ($teamIds as $t) {
                         if ($t !== null) {
@@ -796,7 +796,7 @@ class UserController extends Controller
 
         $tlId = $currentUser->id;
 
-        $teamMembers = User::where('tl_id', $tlId)->get();
+        $teamMembers = User::where('tl_id', $tlId)->where('is_active', 1)->get();
         if ($teamMembers->isEmpty()) {
             return response()->json([
                 'success' => false,

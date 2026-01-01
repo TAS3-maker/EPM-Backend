@@ -179,7 +179,7 @@ class LeaveController extends Controller
         ];
 
         if ($user->role_id == 6) {
-            $employees = User::where('id', '!=', $user->id)
+            $employees = User::where('id', '!=', $user->id)->where('is_active', '1')
                 ->where(function ($q) use ($team_id) {
                     foreach ($team_id as $t) {
                         if ($t !== null) {
@@ -190,7 +190,7 @@ class LeaveController extends Controller
                 ->where('role_id', 7)
                 ->get();
         } else {
-            $employees = User::where('id', '!=', $user->id)
+            $employees = User::where('id', '!=', $user->id)->where('is_active', '1')
                 ->where(function ($q) use ($team_id) {
                     foreach ($team_id as $t) {
                         if ($t !== null) {
@@ -286,11 +286,15 @@ class LeaveController extends Controller
                     'project_manager_id' => $projectManagerId,
                 ];
 
-                $employee = User::find($employeeId);
+                $employee = User::where('id', $employeeId)
+                    ->where('is_active', 1)
+                    ->first();
                 $tlUser = null;
 
                 if ($employee && isset($employee->tl_id)) {
-                    $tlUser = User::find($employee->tl_id);
+                    $tlUser = User::where('id', $employee->tl_id)
+                        ->where('is_active', 1)
+                        ->first();
                 }
 
                 if ($tlUser && $tlUser->email) {
@@ -340,7 +344,10 @@ class LeaveController extends Controller
         $leave->approved_bymanager = $current_user->id;
         $leave->save();
 
-        $user = User::find($leave->user_id);
+        $user = User::where('id', $leave->user_id)
+            ->where('is_active', 1)
+            ->first();
+
 
         if ($user && $user->email) {
             // Mail::to($user->email)->send(
@@ -468,9 +475,14 @@ class LeaveController extends Controller
             $endDate = Carbon::now()->endOfDay();
         }
 
+        // $users = User::select('id', 'name', 'team_id')
+        //     ->whereNotIn('role_id', [1, 2])
+        //     ->get();
         $users = User::select('id', 'name', 'team_id')
             ->whereNotIn('role_id', [1, 2])
+            ->where('is_active', 1)
             ->get();
+
 
         $teamIds = $users->pluck('team_id')
             ->flatMap(function ($teamIds) {
