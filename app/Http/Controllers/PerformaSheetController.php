@@ -73,22 +73,18 @@ class PerformaSheetController extends Controller
                     'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
                 ], 422);
             }
-            /**
-             * Force every record to be Billable
-             * - If user selected Non Billable, convert to Billable
-             * - If project is hourly, keep Billable
-             * - Basically: Non Billable can never go to DB
-             */
+            
             $record['project_type'] = 'Fixed';
             $record['project_type_status'] = 'Offline';
             $record['activity_type'] = $project->tagActivityRelated?->name;
             if (
-                !isset($project->tagActivityRelated->name) ||
-                strtolower($project->tagActivityRelated->name) === 'non billable' ||
-                strtolower($project->tagActivityRelated->name) === 'non-billable'
+                isset($project->tagActivityRelated->name) && 
+                (strtolower($project->tagActivityRelated->name) === 'non billable' ||
+                strtolower($project->tagActivityRelated->name) === 'non-billable')
             ) {
                 $record['activity_type'] = 'Billable';
-            } else if ($project->tagActivityRelated->id == 18) {
+            } 
+            if ($project->tagActivityRelated->id == 18) {
                 $record['project_type'] = 'No Work';
             }
 
