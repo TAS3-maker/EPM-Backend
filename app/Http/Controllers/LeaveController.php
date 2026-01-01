@@ -407,6 +407,17 @@ class LeaveController extends Controller
         elseif (in_array($currentUser->role_id, [1, 2, 3, 4])) {
 
             $leavesQuery->where('user_id', '!=', $currentUser->id);
+        } 
+        // other and new roles
+        else {
+            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
+                $q->where('role_id', 7)
+                    ->where(function ($sub) use ($teamIds) {
+                        foreach ($teamIds as $teamId) {
+                            $sub->orWhereJsonContains('team_id', $teamId);
+                        }
+                    });
+            });
         }
 
         $leaves = $leavesQuery->get();
