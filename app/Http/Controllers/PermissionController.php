@@ -84,6 +84,7 @@ class PermissionController extends Controller
                     "leave_reporting" => "0",
                     "previous_sheets" => "0",
                     "offline_hours" => "0",
+                    "standup_sheet" => "0",
                 ];
 
                 $users = User::with('permission')
