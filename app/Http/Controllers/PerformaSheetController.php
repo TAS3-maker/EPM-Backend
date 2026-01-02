@@ -68,6 +68,12 @@ class PerformaSheetController extends Controller
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
             
+            if(empty($project->tagActivityRelated->name)){
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Project Activity Type is not assigned to Project.'
+                ], 422);
+            }
             $record['project_type'] = 'Fixed';
             $record['project_type_status'] = 'Offline';
             $record['activity_type'] = $project->tagActivityRelated?->name;
