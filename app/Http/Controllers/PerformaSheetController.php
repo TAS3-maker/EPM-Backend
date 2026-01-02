@@ -67,17 +67,13 @@ class PerformaSheetController extends Controller
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
-<<<<<<< HEAD
             if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
                 return response()->json([
                     'success' => false,
                     'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
                 ], 422);
             }
-
-=======
             
->>>>>>> c889837b87535cb3502aac9ec87394e7adb21bd4
             $record['project_type'] = 'Fixed';
             $record['project_type_status'] = 'Offline';
             $record['activity_type'] = $project->tagActivityRelated?->name;
@@ -87,13 +83,8 @@ class PerformaSheetController extends Controller
                     strtolower($project->tagActivityRelated->name) === 'non-billable')
             ) {
                 $record['activity_type'] = 'Billable';
-<<<<<<< HEAD
-            }
-            if ($project->tagActivityRelated->id == 18) {
-=======
             } 
-            if ($project->tagActivityRelated?->id == 18) {
->>>>>>> c889837b87535cb3502aac9ec87394e7adb21bd4
+            if ($project->tagActivityRelated->id == 18) {
                 $record['project_type'] = 'No Work';
             }
 
