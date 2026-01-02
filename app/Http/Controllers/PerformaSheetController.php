@@ -895,7 +895,7 @@ class PerformaSheetController extends Controller
                 'data.tracked_hours' => 'nullable',
                 // 'data.offline_hours' => 'nullable',
                 'data.is_fillable' => 'nullable|boolean',
-                'data.status' => 'nullable',
+                // 'data.status' => 'nullable',
             ]);
 
             $projectId = $validatedData['data']['project_id'];
@@ -939,19 +939,69 @@ class PerformaSheetController extends Controller
                 ], 404);
             }
 
+
+            
             $oldData = json_decode($performaSheet->data, true);
             $oldStatus = $performaSheet->status;
             $newData = $validatedData['data'];
+            
+            if ($newData['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+                if ($newData['tracking_mode'] === 'all') {
+                    $newData['tracked_hours'] = $newData['time'];
+                    $newData['offline_hours'] = '00:00';
+
+                }else if($newData['tracking_mode'] === 'partial'){
+                    if (empty($newData['tracked_hours'])) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours are required when tracking mode is partial.'
+                        ], 422);
+                    }
+                    if ( (int) $project->offline_hours !== 1) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                        ], 422);
+                    }
+
+                    $totalMinutes   = $this->timeToMinutes($newData['time']);
+                    $trackedMinutes = $this->timeToMinutes($newData['tracked_hours']);
+
+                    if ($trackedMinutes > $totalMinutes) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours cannot be greater than total time.'
+                        ], 422);
+                    }
+                    $offlineMinutes = $totalMinutes - $trackedMinutes;
+                    $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
+                }
+            }else{
+                $newData['is_tracking'] = 'no';
+                $newData['tracking_mode'] = '';
+                $newData['tracked_hours'] = '00:00';
+                $newData['offline_hours'] = '00:00';
+            }
+
+            if ($project && $project->project_tracking) {
+                $newData['activity_type'] = 'Billable';
+                $newData['project_type'] = 'Hourly';
+                $newData['project_type_status'] = 'Online';
+            }
 
             $isChanged = $oldData != $newData;
 
             if ($isChanged) {
-                if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
-                    $performaSheet->status = 'pending';
-                } else {
-                    /**if status does not include draft approved rejected then status will be pending */
-                    if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
+                if (in_array(strtolower($oldStatus), ['standup', 'backdated'])) {
+                    $performaSheet->status = $oldStatus;
+                }else{
+                    if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
+                    } else {
+                        /**if status does not include draft approved rejected then status will be pending */
+                        if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
+                            $performaSheet->status = 'pending';
+                        }
                     }
                 }
                 $performaSheet->data = json_encode($newData);
