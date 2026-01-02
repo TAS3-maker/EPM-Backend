@@ -895,18 +895,12 @@ class PerformaSheetController extends Controller
                 'data.tracked_hours' => 'nullable',
                 // 'data.offline_hours' => 'nullable',
                 'data.is_fillable' => 'nullable|boolean',
-                'data.status' => 'nullable',
+                // 'data.status' => 'nullable',
             ]);
 
             $projectId = $validatedData['data']['project_id'];
             $project = ProjectMaster::find($projectId);
             $projectName = $project ? $project->name : "Unknown Project";
-            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
-                ], 422);
-            }
             $tasks = Task::where('project_id', $projectId)->get();
 
             if ($tasks->isEmpty()) {
@@ -939,19 +933,69 @@ class PerformaSheetController extends Controller
                 ], 404);
             }
 
+
+            
             $oldData = json_decode($performaSheet->data, true);
             $oldStatus = $performaSheet->status;
             $newData = $validatedData['data'];
+            
+            if ($newData['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+                if ($newData['tracking_mode'] === 'all') {
+                    $newData['tracked_hours'] = $newData['time'];
+                    $newData['offline_hours'] = '00:00';
+
+                }else if($newData['tracking_mode'] === 'partial'){
+                    if (empty($newData['tracked_hours'])) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours are required when tracking mode is partial.'
+                        ], 422);
+                    }
+                    if ( (int) $project->offline_hours !== 1) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                        ], 422);
+                    }
+
+                    $totalMinutes   = $this->timeToMinutes($newData['time']);
+                    $trackedMinutes = $this->timeToMinutes($newData['tracked_hours']);
+
+                    if ($trackedMinutes > $totalMinutes) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours cannot be greater than total time.'
+                        ], 422);
+                    }
+                    $offlineMinutes = $totalMinutes - $trackedMinutes;
+                    $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
+                }
+            }else{
+                $newData['is_tracking'] = 'no';
+                $newData['tracking_mode'] = '';
+                $newData['tracked_hours'] = '00:00';
+                $newData['offline_hours'] = '00:00';
+            }
+
+            if ($project && $project->project_tracking) {
+                $newData['activity_type'] = 'Billable';
+                $newData['project_type'] = 'Hourly';
+                $newData['project_type_status'] = 'Online';
+            }
 
             $isChanged = $oldData != $newData;
 
             if ($isChanged) {
-                if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
-                    $performaSheet->status = 'pending';
-                } else {
-                    /**if status does not include draft approved rejected then status will be pending */
-                    if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
+                if (in_array(strtolower($oldStatus), ['standup', 'backdated'])) {
+                    $performaSheet->status = $oldStatus;
+                }else{
+                    if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
+                    } else {
+                        /**if status does not include draft approved rejected then status will be pending */
+                        if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
+                            $performaSheet->status = 'pending';
+                        }
                     }
                 }
                 $performaSheet->data = json_encode($newData);
@@ -1650,9 +1694,9 @@ class PerformaSheetController extends Controller
             $sheets = $baseQuery
                 ->orderBy('id', 'DESC')
                 ->get();
-
+            $allUsersOnLeave = collect();
             $structuredData = $sheets
-                ->map(function ($sheet) use ($team_id, $start, $end) {
+                ->map(function ($sheet) use ($team_id, $start, $end, $allUsersOnLeave) {
 
                     $data = json_decode($sheet->data, true);
                     if (!is_array($data) || !isset($data['date'])) {
@@ -1724,13 +1768,14 @@ class PerformaSheetController extends Controller
                                     ->whereDate('end_date', '>=', $sheetDate);
                             }
                         ])->get();
-
+                    $allUsersOnLeave->push($users_on_leave);
                     return [
                         'user_id' => $sheet->user_id,
                         'user_name' => $sheet->user?->name ?? 'No User',
                         'sheet' => [
                             'id' => $sheet->id,
                             'date' => $sheetDate,
+                            'time' => $data['time'] ?? null,
                             'project_id' => $data['project_id'] ?? null,
                             'project_name' => $project->project_name ?? 'No Project',
                             'client_name' => $project->client->client_name ?? 'No Client',
@@ -1739,11 +1784,10 @@ class PerformaSheetController extends Controller
                             'narration' => $data['narration'] ?? null,
                             'status' => $sheet->status,
                             'project_managers' => $project_manager_ids ?? null,
-                            'users_on_leave' => $users_on_leave ?? null,
                             'created_at' => $sheet->created_at?->format('Y-m-d H:i:s'),
                             'updated_at' => $sheet->updated_at?->format('Y-m-d H:i:s'),
                         ]
-                    ];
+                        ];
                 })
                 ->filter()
                 ->groupBy('user_id')
@@ -1756,10 +1800,17 @@ class PerformaSheetController extends Controller
                 })
                 ->values();
 
+            /*final leaves */
+            $usersOnLeaveFinal = $allUsersOnLeave
+            ->flatten()
+            ->unique('id')
+            ->values();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Standup performa sheets fetched successfully',
-                'data' => $structuredData
+                'data' => $structuredData,
+                'users_on_leave' => $usersOnLeaveFinal
             ]);
         } catch (\Exception $e) {
             return response()->json([
