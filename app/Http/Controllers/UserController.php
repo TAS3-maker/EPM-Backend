@@ -416,6 +416,7 @@ class UserController extends Controller
             ->select(
                 'project_relations.project_id',
                 'projects_master.project_name',
+                'projects_master.project_status',
                 'project_relations.assignees',
                 'project_relations.created_at',
                 'project_relations.updated_at'
@@ -462,7 +463,6 @@ class UserController extends Controller
 
             foreach ($entries as $entry) {
 
-                // 🔴 ADD DATE FILTER HERE
                 if (isset($entry['date']) && ($startDate || $endDate)) {
                     $entryDate = $entry['date'];
 
@@ -534,6 +534,7 @@ class UserController extends Controller
             $projectUserData[] = (object) [
                 'project_id' => $relation->project_id,
                 'project_name' => $relation->project_name,
+                'project_status' => $relation->project_status,
                 'project_manager_id' => $pm->id ?? null,
                 'project_manager_name' => $pm->name ?? null,
                 'user_id' => $id,
