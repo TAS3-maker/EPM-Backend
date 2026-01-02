@@ -2748,7 +2748,7 @@ class PerformaSheetController extends Controller
         return sprintf('%02d:%02d', $hours, $mins);
     }
 
-    private function timeToMinutes($time)
+    private function timeToMinutesforgetUserPerformaData($time)
     {
         if (!$time || !str_contains($time, ':')) {
             return 0;
@@ -2816,7 +2816,7 @@ class PerformaSheetController extends Controller
 
                     // [$h, $m] = explode(':', $entry['time']);
                     // $activityTotals[$entry['activity_type']] += ((int) $h * 60) + (int) $m;
-                    $activityTotals[$entry['activity_type']] += $this->timeToMinutes($entry['time']);
+                    $activityTotals[$entry['activity_type']] += $this->timeToMinutesforgetUserPerformaData($entry['time']);
 
                 }
             }
@@ -2845,7 +2845,7 @@ class PerformaSheetController extends Controller
 
                     case 'Short Leave':
                         if ($leave->hours) {
-                            $totalLeaveMinutes += $this->timeToMinutes($leave->hours);
+                            $totalLeaveMinutes += $this->timeToMinutesforgetUserPerformaData($leave->hours);
                         }
                         break;
 
