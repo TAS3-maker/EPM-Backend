@@ -24,7 +24,12 @@ class LeaveController extends Controller
 {
     public function AddLeave(Request $request)
     {
-        $user = auth()->user();
+        if ($request->user_id) {
+            $user_id = $request->user_id;
+        } else {
+            $user = auth()->user();
+            $user_id = $user->id;
+        }
 
         $request->validate([
             'start_date' => 'required|date|after_or_equal:today',
@@ -73,7 +78,7 @@ class LeaveController extends Controller
             ? strtolower($request->halfday_period)
             : null;
 
-        $existingLeaves = LeavePolicy::where('user_id', $user->id)
+        $existingLeaves = LeavePolicy::where('user_id', $user_id)
             ->where('status', '!=', 'Rejected')
             ->whereDate('start_date', '<=', $endDate)
             ->whereDate('end_date', '>=', $request->start_date)
@@ -126,7 +131,7 @@ class LeaveController extends Controller
 
 
         $leave = LeavePolicy::create([
-            'user_id' => $user->id,
+            'user_id' => $user_id,
             'start_date' => $request->start_date,
             'end_date' => $endDate,
             'leave_type' => $request->leave_type,
