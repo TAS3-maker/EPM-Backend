@@ -1781,6 +1781,7 @@ class PerformaSheetController extends Controller
                         'sheet' => [
                             'id' => $sheet->id,
                             'date' => $sheetDate,
+                            'time' => $data['time'] ?? null,
                             'project_id' => $data['project_id'] ?? null,
                             'project_name' => $project->project_name ?? 'No Project',
                             'client_name' => $project->client->client_name ?? 'No Client',
