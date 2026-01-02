@@ -67,12 +67,6 @@ class PerformaSheetController extends Controller
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
-            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
-                ], 422);
-            }
             
             if(empty($project->tagActivityRelated->name)){
                 return response()->json([
