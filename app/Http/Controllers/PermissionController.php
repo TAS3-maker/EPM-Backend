@@ -110,8 +110,6 @@ class PermissionController extends Controller
                             'unassigned_projects_inside_project_management',
                             'projects_assigned',
                             'project_master',
-                            'created_at',
-                            'updated_at',
                         ])->toArray()
                         : $predefined_permission;
 
