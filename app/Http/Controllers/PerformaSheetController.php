@@ -1694,9 +1694,9 @@ class PerformaSheetController extends Controller
             $sheets = $baseQuery
                 ->orderBy('id', 'DESC')
                 ->get();
-
+            $allUsersOnLeave = collect();
             $structuredData = $sheets
-                ->map(function ($sheet) use ($team_id, $start, $end) {
+                ->map(function ($sheet) use ($team_id, $start, $end, $allUsersOnLeave) {
 
                     $data = json_decode($sheet->data, true);
                     if (!is_array($data) || !isset($data['date'])) {
@@ -1768,7 +1768,7 @@ class PerformaSheetController extends Controller
                                     ->whereDate('end_date', '>=', $sheetDate);
                             }
                         ])->get();
-
+                    $allUsersOnLeave->push($users_on_leave);
                     return [
                         'user_id' => $sheet->user_id,
                         'user_name' => $sheet->user?->name ?? 'No User',
@@ -1784,11 +1784,10 @@ class PerformaSheetController extends Controller
                             'narration' => $data['narration'] ?? null,
                             'status' => $sheet->status,
                             'project_managers' => $project_manager_ids ?? null,
-                            'users_on_leave' => $users_on_leave ?? null,
                             'created_at' => $sheet->created_at?->format('Y-m-d H:i:s'),
                             'updated_at' => $sheet->updated_at?->format('Y-m-d H:i:s'),
                         ]
-                    ];
+                        ];
                 })
                 ->filter()
                 ->groupBy('user_id')
@@ -1801,10 +1800,17 @@ class PerformaSheetController extends Controller
                 })
                 ->values();
 
+            /*final leaves */
+            $usersOnLeaveFinal = $allUsersOnLeave
+            ->flatten()
+            ->unique('id')
+            ->values();
+
             return response()->json([
                 'success' => true,
                 'message' => 'Standup performa sheets fetched successfully',
-                'data' => $structuredData
+                'data' => $structuredData,
+                'users_on_leave' => $usersOnLeaveFinal
             ]);
         } catch (\Exception $e) {
             return response()->json([
