@@ -51,8 +51,8 @@ class PerformaSheetController extends Controller
                 'data.*.narration' => 'nullable|string',
                 'data.*.is_tracking' => 'required|in:yes,no',
                 'data.*.tracking_mode' => 'nullable|in:all,partial',
-                'data.*.tracked_hours' => 'nullable',
-                'data.*.offline_hours' => 'nullable',
+                'data.*.tracked_hours' => ['nullable','regex:/^\d{2}:\d{2}$/'],
+                // 'data.*.offline_hours' => 'nullable',
                 'data.*.status' => 'nullable',
                 'data.*.is_fillable' => 'required|boolean',
             ]);
@@ -67,12 +67,6 @@ class PerformaSheetController extends Controller
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
-            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
-                ], 422);
-            }
             
             $record['project_type'] = 'Fixed';
             $record['project_type_status'] = 'Offline';
@@ -84,14 +78,46 @@ class PerformaSheetController extends Controller
             ) {
                 $record['activity_type'] = 'Billable';
             } 
-            if ($project->tagActivityRelated->id == 18) {
+            if ($project->tagActivityRelated?->id == 18) {
                 $record['project_type'] = 'No Work';
             }
 
-            if ($record['is_tracking'] === 'yes') {
+            if ($record['is_tracking'] === 'yes' && $project && $project->project_tracking) {
                 if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
+                    $record['offline_hours'] = '00:00';
+
+                }else if($record['tracking_mode'] === 'partial'){
+                    if (empty($record['tracked_hours'])) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours are required when tracking mode is partial.'
+                        ], 422);
+                    }
+                    if ( (int) $project->offline_hours !== 1) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                        ], 422);
+                    }
+
+                    $totalMinutes   = $this->timeToMinutes($record['time']);
+                    $trackedMinutes = $this->timeToMinutes($record['tracked_hours']);
+
+                    if ($trackedMinutes > $totalMinutes) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tracked hours cannot be greater than total time.'
+                        ], 422);
+                    }
+                    $offlineMinutes = $totalMinutes - $trackedMinutes;
+                    $record['offline_hours'] = $this->minutesToTime($offlineMinutes);
                 }
+            }else{
+                $record['is_tracking'] = 'no';
+                $record['tracking_mode'] = '';
+                $record['tracked_hours'] = '00:00';
+                $record['offline_hours'] = '00:00';
             }
 
             if ($project && $project->project_tracking) {
@@ -160,6 +186,18 @@ class PerformaSheetController extends Controller
             'message' => count($inserted) . ' Performa Sheets added successfully',
             'data' => $inserted
         ]);
+    }
+    private function timeToMinutes(string $time): int
+    {
+        [$h, $m] = explode(':', $time);
+        return ((int)$h * 60) + (int)$m;
+    }
+
+    private function minutesToTime(int $minutes): string
+    {
+        $hours = floor($minutes / 60);
+        $mins = $minutes % 60;
+        return sprintf('%02d:%02d', $hours, $mins);
     }
     public function submitForApproval(Request $request)
     {
@@ -850,7 +888,7 @@ class PerformaSheetController extends Controller
                 'data.is_tracking' => 'required|in:yes,no',
                 'data.tracking_mode' => 'nullable|in:all,partial',
                 'data.tracked_hours' => 'nullable',
-                'data.offline_hours' => 'nullable',
+                // 'data.offline_hours' => 'nullable',
                 'data.is_fillable' => 'nullable|boolean',
                 'data.status' => 'nullable',
             ]);
