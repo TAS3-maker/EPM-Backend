@@ -67,6 +67,12 @@ class PerformaSheetController extends Controller
         foreach ($validatedData['data'] as $record) {
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
+            if (isset($record['offline_hours']) && !empty($record['offline_hours']) && (int) $project->offline_hours !== 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                ], 422);
+            }
             
             if(empty($project->tagActivityRelated->name)){
                 return response()->json([
@@ -78,13 +84,13 @@ class PerformaSheetController extends Controller
             $record['project_type_status'] = 'Offline';
             $record['activity_type'] = $project->tagActivityRelated?->name;
             if (
-                isset($project->tagActivityRelated->name) && 
+                isset($project->tagActivityRelated->name) &&
                 (strtolower($project->tagActivityRelated->name) === 'non billable' ||
-                strtolower($project->tagActivityRelated->name) === 'non-billable')
+                    strtolower($project->tagActivityRelated->name) === 'non-billable')
             ) {
                 $record['activity_type'] = 'Billable';
             } 
-            if ($project->tagActivityRelated?->id == 18) {
+            if ($project->tagActivityRelated->id == 18) {
                 $record['project_type'] = 'No Work';
             }
 
@@ -356,22 +362,21 @@ class PerformaSheetController extends Controller
         $baseQuery = PerformaSheet::with('user:id,name');
         if ($role_id == 7) {
             $baseQuery->where('user_id', $user->id);
-        }
-        else if($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4){
+        } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
             //for admins, hr
             $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)->pluck('id')->toArray();
             $baseQuery->whereIn('user_id', $teamMemberIds);
 
-        }else if(!empty($team_id)){
+        } else if (!empty($team_id)) {
             $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
-            ->where(function ($q) use ($team_id) {
-                foreach ($team_id as $t) {
-                $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                }
-            })
-            ->pluck('id')
-            ->toArray();
-            
+                ->where(function ($q) use ($team_id) {
+                    foreach ($team_id as $t) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+
             $baseQuery->whereIn('user_id', $teamMemberIds);
         }
         if (!empty($status)) {
@@ -1452,7 +1457,7 @@ class PerformaSheetController extends Controller
         } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
             //for admins, hr
             $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)->pluck('id')
-                    ->toArray();
+                ->toArray();
             $baseQuery->whereIn('user_id', $teamMemberIds);
 
         } else if (!empty($team_id)) {
@@ -1610,7 +1615,7 @@ class PerformaSheetController extends Controller
                 $start = $end = Carbon::parse($request->date)->toDateString();
             } elseif ($request->has('start_date') && !$request->has('end_date')) {
                 $start = Carbon::parse($request->start_date)->toDateString();
-                $end   = Carbon::today()->toDateString();
+                $end = Carbon::today()->toDateString();
             } elseif (!$request->has('start_date') && $request->has('end_date')) {
                 $start = '1970-01-01';
                 $end = Carbon::parse($request->end_date)->toDateString();
@@ -1719,10 +1724,12 @@ class PerformaSheetController extends Controller
                                 ->whereDate('end_date', '>=', $sheetDate)
                                 ->where('status', 'approved');
                         })
-                        ->with(['leaves' => function ($q) use ($sheetDate) {
-                            $q->whereDate('start_date', '<=', $sheetDate)
-                                ->whereDate('end_date', '>=', $sheetDate);
-                        }])->get();
+                        ->with([
+                            'leaves' => function ($q) use ($sheetDate) {
+                                $q->whereDate('start_date', '<=', $sheetDate)
+                                    ->whereDate('end_date', '>=', $sheetDate);
+                            }
+                        ])->get();
 
                     return [
                         'user_id' => $sheet->user_id,
@@ -2747,6 +2754,15 @@ class PerformaSheetController extends Controller
         return sprintf('%02d:%02d', $hours, $mins);
     }
 
+    private function timeToMinutesforgetUserPerformaData($time)
+    {
+        if (!$time || !str_contains($time, ':')) {
+            return 0;
+        }
+
+        [$h, $m] = array_pad(explode(':', $time), 2, 0);
+        return ((int) $h * 60) + (int) $m;
+    }
 
     public function getUserPerformaData(Request $request)
     {
@@ -2804,8 +2820,10 @@ class PerformaSheetController extends Controller
                         continue;
                     }
 
-                    [$h, $m] = explode(':', $entry['time']);
-                    $activityTotals[$entry['activity_type']] += ((int) $h * 60) + (int) $m;
+                    // [$h, $m] = explode(':', $entry['time']);
+                    // $activityTotals[$entry['activity_type']] += ((int) $h * 60) + (int) $m;
+                    $activityTotals[$entry['activity_type']] += $this->timeToMinutesforgetUserPerformaData($entry['time']);
+
                 }
             }
 
@@ -2833,8 +2851,7 @@ class PerformaSheetController extends Controller
 
                     case 'Short Leave':
                         if ($leave->hours) {
-                            [$h, $m] = explode(':', $leave->hours);
-                            $totalLeaveMinutes += ((int) $h * 60) + (int) $m;
+                            $totalLeaveMinutes += $this->timeToMinutesforgetUserPerformaData($leave->hours);
                         }
                         break;
 

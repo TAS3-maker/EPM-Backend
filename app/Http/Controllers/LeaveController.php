@@ -73,6 +73,58 @@ class LeaveController extends Controller
             ? strtolower($request->halfday_period)
             : null;
 
+        $existingLeaves = LeavePolicy::where('user_id', $user->id)
+            ->where('status', '!=', 'Rejected')
+            ->whereDate('start_date', '<=', $endDate)
+            ->whereDate('end_date', '>=', $request->start_date)
+            ->get();
+
+        foreach ($existingLeaves as $leave) {
+
+            if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You already have a full day leave for this date.'
+                ], 409);
+            }
+
+            if (in_array($request->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You cannot apply full day leave when another leave exists.'
+                ], 409);
+            }
+
+            if (
+                $leave->leave_type === 'Half Day' &&
+                $request->leave_type === 'Half Day' &&
+                $leave->halfday_period === strtolower($request->halfday_period)
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Half day leave already exists for this period.'
+                ], 409);
+            }
+
+            if (
+                $leave->leave_type === 'Short Leave' &&
+                $request->leave_type === 'Short Leave'
+            ) {
+                if (
+                    !(
+                        $request->end_time <= $leave->start_time ||
+                        $request->start_time >= $leave->end_time
+                    )
+                ) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Short leave time overlaps with existing leave.'
+                    ], 409);
+                }
+            }
+        }
+
+
         $leave = LeavePolicy::create([
             'user_id' => $user->id,
             'start_date' => $request->start_date,
@@ -407,7 +459,7 @@ class LeaveController extends Controller
         elseif (in_array($currentUser->role_id, [1, 2, 3, 4])) {
 
             $leavesQuery->where('user_id', '!=', $currentUser->id);
-        } 
+        }
         // other and new roles
         else {
             $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
