@@ -10,6 +10,7 @@ class ProjectActivityAndComment extends Model
 
     protected $fillable = [
         'project_id',
+        'client_id',
         'user_id',
         'task_id',
         'type',

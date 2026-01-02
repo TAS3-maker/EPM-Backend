@@ -206,7 +206,7 @@ class ProjectMasterController extends Controller
             ActivityService::log([
                 'project_id' => $project->id,
                 'type' => 'activity',
-                'description' => 'Project created by ' . auth()->user()->name,
+                'description' => $request->project_name . ' Project created by ' . auth()->user()->name,
             ]);
 
             return response()->json([
@@ -414,7 +414,7 @@ class ProjectMasterController extends Controller
             ActivityService::log([
                 'project_id' => $project->id,
                 'type' => 'activity',
-                'description' => 'Project updated by ' . auth()->user()->name,
+                'description' => $project->project_name . ' Project updated by ' . auth()->user()->name,
             ]);
 
             return response()->json([
@@ -623,7 +623,7 @@ class ProjectMasterController extends Controller
         ActivityService::log([
             'project_id' => $project->id,
             'type' => 'activity',
-            'description' => 'Project updated by ' . auth()->user()->name,
+            'description' => $project->project_name . ' Project updated by ' . auth()->user()->name,
         ]);
 
         return response()->json([
@@ -641,7 +641,7 @@ class ProjectMasterController extends Controller
         ActivityService::log([
             'project_id' => $project->id,
             'type' => 'activity',
-            'description' => 'Project deleted by ' . auth()->user()->name,
+            'description' => $project->project_name . ' Project deleted by ' . auth()->user()->name,
         ]);
         return response()->json([
             'message' => 'Project deleted successfully',

@@ -6,7 +6,7 @@ use App\Http\Resources\ClientMasterResource;
 use App\Models\ClientMaster;
 use App\Http\Helpers\ApiResponse;
 use Illuminate\Http\Request;
-
+use App\Services\ActivityService;
 class ClientMasterController extends Controller
 {
     public function index()
@@ -15,6 +15,11 @@ class ClientMasterController extends Controller
         return ApiResponse::success('Clients fetched successfully', ClientMasterResource::collection($clients));
     }
 
+    public function show($id)
+    {
+        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->where('id',$id)->get();
+        return ApiResponse::success('Clients fetched successfully', ClientMasterResource::collection($clients));
+    }
     public function store(Request $request)
     {
         $request->validate([
@@ -27,6 +32,12 @@ class ClientMasterController extends Controller
             'client_name' => $request->client_name,
             'client_email' => $request->client_email,
             'client_number' => $request->client_number,
+        ]);
+        ActivityService::log([
+            'client_id' => $client->id,
+            'user_id' => auth()->user()->id,
+            'type' => 'activity',
+            'description' => $request->client_name . ' Client added by ' . auth()->user()->name,
         ]);
 
         return new ClientMasterResource($client);
@@ -48,7 +59,12 @@ class ClientMasterController extends Controller
             'client_email' => 'nullable|email|max:191|unique:clients_master,client_email,' . $id,
             'client_number' => 'nullable|digits_between:10,15|unique:clients_master,client_number,' . $id,
         ]);
-
+        ActivityService::log([
+            'client_id' => $client->id,
+            'user_id' => auth()->user()->id,
+            'type' => 'activity',
+            'description' => $client->client_name . ' Client updated by ' . auth()->user()->name,
+        ]);
         $client->update($validated);
 
         return new ClientMasterResource($client);
@@ -66,7 +82,12 @@ class ClientMasterController extends Controller
                 'message' => 'Client not found'
             ], 200);
         }
-
+        ActivityService::log([
+            'client_id' => $client->id,
+            'user_id' => auth()->user()->id,
+            'type' => 'activity',
+            'description' => $client->client_name . ' Client deleted by ' . auth()->user()->name,
+        ]);
         $client->delete();
 
         return response()->json([

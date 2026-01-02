@@ -202,6 +202,7 @@ Route::middleware('auth:api')->group(function () {
         // Client Master API's
         Route::get('/clients-master-get', [ClientMasterController::class, 'index']);
         Route::post('/clients-master-add', [ClientMasterController::class, 'store']);
+        Route::get('/clients-master-show/{id}', [ClientMasterController::class, 'show']);
         Route::put('/clients-master-update/{id}', [ClientMasterController::class, 'update']);
         Route::delete('/clients-master-delete/{id}', [ClientMasterController::class, 'destroy']);
 
