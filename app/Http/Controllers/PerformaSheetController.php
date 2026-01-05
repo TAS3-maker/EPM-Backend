@@ -301,7 +301,7 @@ class PerformaSheetController extends Controller
     {
         $user = auth()->user();
         $sheets = PerformaSheet::with('user:id,name')
-            ->where('user_id', $user->id)
+            ->where('user_id', $user->id)->whereIn('status', ['pending', 'approved', 'rejected','backdated'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -1669,7 +1669,11 @@ class PerformaSheetController extends Controller
 
         $baseQuery = PerformaSheet::with('user:id,name');
         $baseQuery->where('user_id', $user->id);
-        $baseQuery->where('status', 'standup');
+        if ($isFillable) {
+            $baseQuery->where('status', 'standup');
+        } else {
+            $baseQuery->where('status', 'backdated');
+        }
 
         $baseQuery->orderBy('id', 'DESC');
 
