@@ -991,6 +991,8 @@ class PerformaSheetController extends Controller
                 }else{
                     if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
+                    }else{
+                        $performaSheet->status = $oldStatus;
                     }
                 }
                 $performaSheet->data = json_encode($newData);
