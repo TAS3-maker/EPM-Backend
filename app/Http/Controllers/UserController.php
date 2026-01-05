@@ -22,6 +22,8 @@ use Tymon\JWTAuth\Exceptions\TokenExpiredException;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 use Tymon\JWTAuth\Exceptions\JWTException;
 use App\Models\Permission;
+
+use Illuminate\Support\Facades\Schema;
 class UserController extends Controller
 {
 
@@ -143,6 +145,7 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        DB::beginTransaction();
         try {
             // ================= VALIDATION =================
             $validatedData = $request->validate([
@@ -153,8 +156,10 @@ class UserController extends Controller
                 'phone_num' => 'required|string|min:10|max:15|unique:users,phone_num',
                 'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num',
                 'address' => 'nullable|string',
-                'role_id' => 'required|exists:roles,id',
-                'tl_id' => 'required_if:role_id,7|nullable|exists:users,id',
+                'role_id' => 'required',
+                'role_id.*' => 'integer|exists:roles,id',
+
+                'tl_id' => 'nullable|exists:users,id',
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'employee_id' => 'required|string|unique:users,employee_id',
             ], [
@@ -162,6 +167,7 @@ class UserController extends Controller
                 'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
                 'tl_id.required_if' => 'Team Leader is required for employees.',
                 'tl_id.exists' => 'Selected Team Leader does not exist.',
+                'role_id.required' => 'At least one role is required',
             ]);
             // ================= TEAM LOGIC =================
             $teamIds = $request->team_id;
@@ -179,6 +185,22 @@ class UserController extends Controller
                     'message' => 'Team does not exist!'
                 ], 422);
             }
+
+            $roleIds = $request->role_id;
+            if (is_string($roleIds)) {
+                $roleIds = array_filter(array_map('intval', explode(',', $roleIds)));
+            }
+
+            if (!is_array($roleIds)) {
+                $roleIds = [];
+            }
+            if (in_array(7, $roleIds) && empty($validatedData['tl_id'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Team Leader is required for employees'
+                ], 422);
+            }
+
             // ================= USER CREATE =================
             $user = User::create([
                 'name' => $validatedData['name'],
@@ -188,9 +210,10 @@ class UserController extends Controller
                 'emergency_phone_num' => $validatedData['emergency_phone_num'] ?? null,
                 'password' => Hash::make($validatedData['password']),
                 'team_id' => $teamIds,
-                'role_id' => $validatedData['role_id'],
+                'role_id' => $roleIds,
                 'tl_id' => $validatedData['tl_id'] ?? null,
                 'employee_id' => $validatedData['employee_id'],
+                'is_active' => 1,
             ]);
             // ================= PROFILE PIC =================
             if ($request->hasFile('profile_pic')) {
@@ -204,58 +227,69 @@ class UserController extends Controller
                 $user->save();
             }
             // ================= PERMISSIONS INSERT =================
-            $role = Role::find($validatedData['role_id']);
-            if ($role && $role->roles_permissions) {
-                $rolePermissions = $role->roles_permissions;
-                Permission::create([
-                    'user_id' => $user->id,
-                    'dashboard' => $rolePermissions['dashboard'] ?? 0,
-                    'permission' => $rolePermissions['permission'] ?? 0,
-                    'employee_management' => $rolePermissions['employee_management'] ?? 0,
-                    'roles' => $rolePermissions['roles'] ?? 0,
-                    'department' => $rolePermissions['department'] ?? 0,
-                    'team' => $rolePermissions['team'] ?? 0,
-                    'clients' => $rolePermissions['clients'] ?? 0,
-                    'projects' => $rolePermissions['projects'] ?? 0,
-                    'assigned_projects_inside_projects_assigned' =>
-                        $rolePermissions['assigned_projects_inside_projects_assigned'] ?? 0,
-                    'unassigned_projects_inside_projects_assigned' =>
-                        $rolePermissions['unassigned_projects_inside_projects_assigned'] ?? 0,
-                    'performance_sheets' => $rolePermissions['performance_sheets'] ?? 0,
-                    'pending_sheets_inside_performance_sheets' =>
-                        $rolePermissions['pending_sheets_inside_performance_sheets'] ?? 0,
-                    'manage_sheets_inside_performance_sheets' =>
-                        $rolePermissions['manage_sheets_inside_performance_sheets'] ?? 0,
-                    'unfilled_sheets_inside_performance_sheets' =>
-                        $rolePermissions['unfilled_sheets_inside_performance_sheets'] ?? 0,
-                    'manage_leaves' => $rolePermissions['manage_leaves'] ?? 0,
-                    'activity_tags' => $rolePermissions['activity_tags'] ?? 0,
-                    'leaves' => $rolePermissions['leaves'] ?? 0,
-                    'teams' => $rolePermissions['teams'] ?? 0,
-                    'leave_management' => $rolePermissions['leave_management'] ?? 0,
-                    'project_management' => $rolePermissions['project_management'] ?? 0,
-                    'assigned_projects_inside_project_management' =>
-                        $rolePermissions['assigned_projects_inside_project_management'] ?? 0,
-                    'unassigned_projects_inside_project_management' =>
-                        $rolePermissions['unassigned_projects_inside_project_management'] ?? 0,
-                    'performance_sheet' => $rolePermissions['performance_sheet'] ?? 0,
-                    'performance_history' => $rolePermissions['performance_history'] ?? 0,
-                    'projects_assigned' => $rolePermissions['projects_assigned'] ?? 0,
-                    'team_reporting' => $rolePermissions['team_reporting'] ?? 0,
-                    'leave_reporting' => $rolePermissions['leave_reporting'] ?? 0,
-                    'previous_sheets' => $rolePermissions['previous_sheets'] ?? 0,
-                    'offline_hours' => $rolePermissions['offline_hours'] ?? 0,
-                    'standup_sheet' => $rolePermissions['standup_sheet'] ?? 0,
-                ]);
+            $roles = Role::whereIn('id', $roleIds)->get();
+
+            // DEFAULT ALL PERMISSIONS TO 0
+            $finalPermissions = [
+                'dashboard' => 0,
+                'permission' => 0,
+                'employee_management' => 0,
+                'roles' => 0,
+                'department' => 0,
+                'team' => 0,
+                'clients' => 0,
+                'projects' => 0,
+                'assigned_projects_inside_projects_assigned' => 0,
+                'unassigned_projects_inside_projects_assigned' => 0,
+                'performance_sheets' => 0,
+                'pending_sheets_inside_performance_sheets' => 0,
+                'manage_sheets_inside_performance_sheets' => 0,
+                'unfilled_sheets_inside_performance_sheets' => 0,
+                'manage_leaves' => 0,
+                'activity_tags' => 0,
+                'leaves' => 0,
+                'teams' => 0,
+                'leave_management' => 0,
+                'project_management' => 0,
+                'assigned_projects_inside_project_management' => 0,
+                'unassigned_projects_inside_project_management' => 0,
+                'performance_sheet' => 0,
+                'performance_history' => 0,
+                'projects_assigned' => 0,
+                'team_reporting' => 0,
+                'leave_reporting' => 0,
+                'previous_sheets' => 0,
+                'offline_hours' => 0,
+                'standup_sheet' => 0,
+            ];
+
+            // MERGE USING MAX VALUE
+            foreach ($roles as $role) {
+                if (!$role->roles_permissions)
+                    continue;
+
+                foreach ($finalPermissions as $key => $currentValue) {
+                    $roleValue = (int) ($role->roles_permissions[$key] ?? 0);
+                    $finalPermissions[$key] = (string) max($currentValue, $roleValue);
+                }
             }
+
+            Permission::create(array_merge(
+                ['user_id' => $user->id],
+                $finalPermissions
+            ));
+
+            DB::commit();
             return ApiResponse::success(
                 'User created successfully',
-                new UserResource($user),
+                new UserResource($user, $roles),
                 201
             );
         } catch (ValidationException $e) {
+            DB::rollBack();
             return ApiResponse::error('Validation failed', $e->errors(), 422);
         } catch (\Exception $e) {
+            DB::rollBack();
             \Log::error('Error creating user: ' . $e->getMessage());
             return ApiResponse::error(
                 'An unexpected error occurred.',
@@ -267,19 +301,21 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $users = User::with('role')->orderBy('id', 'desc')->get();
+        $users = User::orderBy('id', 'desc')->get();
         return ApiResponse::success('Users fetched successfully', UserResource::collection($users));
     }
 
     public function projectManger()
     {
-        $users = User::where('role_id', 5)->where('is_active', 1)->get();
+        $users = User::whereJsonContains('role_id', 5)
+            ->where('is_active', 1)
+            ->get();
         return ApiResponse::success('Project Manger fetched successfully', UserResource::collection($users));
     }
 
     public function show($id)
     {
-        $user = User::with(['team', 'role'])->where('is_active', 1)->find($id);
+        $user = User::where('is_active', 1)->find($id);
         if (!$user) {
             return ApiResponse::error('User not found', [], 404);
         }
@@ -306,6 +342,101 @@ class UserController extends Controller
         return ApiResponse::success('User deleted successfully');
     }
 
+    // public function update(Request $request, $id)
+    // {
+    //     $user = User::find($id);
+
+    //     if (!$user) {
+    //         return ApiResponse::error('User not found', [], 404);
+    //     }
+
+    //     try {
+    //         $validatedData = $request->validate([
+    //             'name' => 'sometimes|string|max:255',
+    //             'email' => 'sometimes|email|unique:users,email,' . $id,
+    //             'phone_num' => 'nullable|string|min:10|max:15|unique:users,phone_num,' . $id,
+    //             'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num,' . $id,
+    //             'address' => 'nullable|string',
+    //             // 'team_id' => 'nullable|exists:teams,id',
+    //             'team_id' => 'nullable',
+    //             'role_id' => 'nullable|array',
+    //             'role_id.*' => 'integer|exists:roles,id',
+    //             'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+    //             'password' => 'sometimes|min:6|confirmed',
+    //             'is_active' => 'nullable|in:0,1',
+    //         ]);
+    //     } catch (ValidationException $e) {
+    //         return ApiResponse::error('Validation Error', $e->errors(), 422);
+    //     }
+
+    //     $teamIds = $request->team_id;
+    //     if (is_string($teamIds)) {
+    //         $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
+    //     }
+    //     if (!is_array($teamIds)) {
+    //         $teamIds = [];
+    //     }
+
+    //     // Check if all team IDs exist
+    //     $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+    //     $missing = array_diff($teamIds, $existingTeams);
+    //     if (!empty($missing)) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'One or more teams do not exist: ' . implode(',', $missing)
+    //         ], 422);
+    //     }
+
+    //     $tlId = null;
+
+    //     if (!empty($teamIds)) {
+    //         $userWithRole6 = User::where('is_active', 1)
+    //             ->whereJsonContains('team_id', $teamIds)
+    //             ->whereJsonContains('role_id', 6)
+    //             ->first();
+
+
+    //         if ($userWithRole6) {
+    //             $tlId = $userWithRole6->id;
+    //         }
+    //     }
+
+    //     // Update fields
+    //     $user->name = $validatedData['name'] ?? $user->name;
+    //     $user->email = $validatedData['email'] ?? $user->email;
+    //     $user->phone_num = $validatedData['phone_num'] ?? $user->phone_num;
+    //     $user->emergency_phone_num = $validatedData['emergency_phone_num'] ?? $user->emergency_phone_num;
+    //     $user->address = $validatedData['address'] ?? $user->address;
+    //     $user->team_id = !empty($teamIds) ? ($teamIds) : $user->team_id;
+    //     $user->role_id = isset($validatedData['role_id'])
+    //         ? array_map('intval', (array) $validatedData['role_id'])
+    //         : $user->role_id;
+
+    //     if (!empty($teamIds)) {
+    //         $user->tl_id = $tlId;
+    //     }
+    //     if (isset($validatedData['password'])) {
+    //         $user->password = Hash::make($validatedData['password']);
+    //     }
+
+    //     if ($request->hasFile('profile_pic')) {
+    //         if ($user->profile_pic && Storage::disk('public')->exists('profile_pics/' . $user->profile_pic)) {
+    //             Storage::disk('public')->delete('profile_pics/' . $user->profile_pic);
+    //         }
+
+    //         // New image store
+    //         $file = $request->file('profile_pic');
+    //         $filename = time() . '.' . $file->getClientOriginalExtension();
+    //         $file->storeAs('profile_pics', $filename, 'public');
+    //         $user->profile_pic = $filename;
+    //     }
+    //     $user->is_active = $validatedData['is_active'] ?? 1;
+
+    //     $user->save();
+    //     return ApiResponse::success('User updated successfully', new UserResource($user->fresh()));
+    // }
+
+
     public function update(Request $request, $id)
     {
         $user = User::find($id);
@@ -314,6 +445,7 @@ class UserController extends Controller
             return ApiResponse::error('User not found', [], 404);
         }
 
+        /* ================= VALIDATION ================= */
         try {
             $validatedData = $request->validate([
                 'name' => 'sometimes|string|max:255',
@@ -321,9 +453,8 @@ class UserController extends Controller
                 'phone_num' => 'nullable|string|min:10|max:15|unique:users,phone_num,' . $id,
                 'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num,' . $id,
                 'address' => 'nullable|string',
-                // 'team_id' => 'nullable|exists:teams,id',
                 'team_id' => 'nullable',
-                'role_id' => 'nullable|exists:roles,id',
+                'role_id' => 'nullable',
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'password' => 'sometimes|min:6|confirmed',
                 'is_active' => 'nullable|in:0,1',
@@ -332,7 +463,9 @@ class UserController extends Controller
             return ApiResponse::error('Validation Error', $e->errors(), 422);
         }
 
+        /* ================= TEAM HANDLING ================= */
         $teamIds = $request->team_id;
+
         if (is_string($teamIds)) {
             $teamIds = array_filter(array_map('intval', explode(',', $teamIds)));
         }
@@ -340,21 +473,60 @@ class UserController extends Controller
             $teamIds = [];
         }
 
-        // Check if all team IDs exist
-        $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
-        $missing = array_diff($teamIds, $existingTeams);
-        if (!empty($missing)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'One or more teams do not exist: ' . implode(',', $missing)
-            ], 422);
+        if (!empty($teamIds)) {
+            $existingTeams = Team::whereIn('id', $teamIds)->pluck('id')->toArray();
+            $missingTeams = array_diff($teamIds, $existingTeams);
+
+            if (!empty($missingTeams)) {
+                return ApiResponse::error(
+                    'Invalid team IDs: ' . implode(',', $missingTeams),
+                    [],
+                    422
+                );
+            }
         }
 
-        $tlId = null;
+        /* ================= ROLE HANDLING ================= */
+        $roleIds = $request->role_id;
 
+        if (!is_null($roleIds)) {
+
+            if (is_string($roleIds) && str_starts_with(trim($roleIds), '[')) {
+                $roleIds = json_decode($roleIds, true);
+            }
+
+            if (is_string($roleIds)) {
+                $roleIds = array_map('intval', explode(',', $roleIds));
+            }
+
+            if (is_int($roleIds)) {
+                $roleIds = [$roleIds];
+            }
+
+            $roleIds = array_values(array_unique(array_map('intval', (array) $roleIds)));
+
+            $existingRoles = Role::whereIn('id', $roleIds)->pluck('id')->toArray();
+            $missingRoles = array_diff($roleIds, $existingRoles);
+
+            if (!empty($missingRoles)) {
+                return ApiResponse::error(
+                    'Invalid role IDs: ' . implode(',', $missingRoles),
+                    [],
+                    422
+                );
+            }
+        }
+
+        /* ================= TL ASSIGNMENT ================= */
+        $tlId = null;
         if (!empty($teamIds)) {
-            $userWithRole6 = User::whereJsonContains('team_id', $teamIds)->where('is_active', 1)
-                ->where('role_id', 6)
+            $userWithRole6 = User::where('is_active', 1)
+                ->whereJsonContains('role_id', 6)
+                ->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $t) {
+                        $q->orWhereJsonContains('team_id', $t);
+                    }
+                })
                 ->first();
 
             if ($userWithRole6) {
@@ -362,37 +534,98 @@ class UserController extends Controller
             }
         }
 
-        // Update fields
+        /* ================= USER UPDATE ================= */
         $user->name = $validatedData['name'] ?? $user->name;
         $user->email = $validatedData['email'] ?? $user->email;
         $user->phone_num = $validatedData['phone_num'] ?? $user->phone_num;
         $user->emergency_phone_num = $validatedData['emergency_phone_num'] ?? $user->emergency_phone_num;
         $user->address = $validatedData['address'] ?? $user->address;
-        $user->team_id = !empty($teamIds) ? ($teamIds) : $user->team_id;
-        $user->role_id = $validatedData['role_id'] ?? $user->role_id;
+        $user->team_id = !empty($teamIds) ? $teamIds : $user->team_id;
+
+        if (!is_null($roleIds)) {
+            $user->role_id = $roleIds;
+        }
+
         if (!empty($teamIds)) {
             $user->tl_id = $tlId;
         }
+
         if (isset($validatedData['password'])) {
             $user->password = Hash::make($validatedData['password']);
         }
 
         if ($request->hasFile('profile_pic')) {
-            if ($user->profile_pic && Storage::disk('public')->exists('profile_pics/' . $user->profile_pic)) {
+            if (
+                $user->profile_pic &&
+                Storage::disk('public')->exists('profile_pics/' . $user->profile_pic)
+            ) {
                 Storage::disk('public')->delete('profile_pics/' . $user->profile_pic);
             }
 
-            // New image store
             $file = $request->file('profile_pic');
             $filename = time() . '.' . $file->getClientOriginalExtension();
             $file->storeAs('profile_pics', $filename, 'public');
             $user->profile_pic = $filename;
         }
-        $user->is_active = $validatedData['is_active'] ?? 1;
 
+        $user->is_active = $validatedData['is_active'] ?? 1;
         $user->save();
-        return ApiResponse::success('User updated successfully', new UserResource($user->fresh()));
+
+        /* ================= PERMISSION SYNC (COLUMN BASED) ================= */
+        if (!is_null($roleIds)) {
+
+            // 1. Get permissions JSON from roles
+            $rolePermissions = Role::whereIn('id', $roleIds)
+                ->pluck('roles_permissions')
+                ->toArray();
+
+            // 2. Merge permissions (highest value wins)
+            $finalPermissions = [];
+
+            foreach ($rolePermissions as $perms) {
+                $perms = is_array($perms) ? $perms : json_decode($perms, true);
+                if (!$perms)
+                    continue;
+
+                foreach ($perms as $column => $value) {
+                    $value = (string) $value;
+
+                    if (
+                        !isset($finalPermissions[$column]) ||
+                        $finalPermissions[$column] < $value
+                    ) {
+                        $finalPermissions[$column] = $value;
+                    }
+                }
+            }
+
+            // 3. Create permission row if not exists
+            $permissionRow = Permission::firstOrCreate(
+                ['user_id' => $user->id],
+                ['user_id' => $user->id]
+            );
+
+            // 4. Update only existing permission columns
+            $tableColumns = Schema::getColumnListing('permissions');
+            $updateData = [];
+
+            foreach ($finalPermissions as $column => $value) {
+                if (in_array($column, $tableColumns)) {
+                    $updateData[$column] = $value;
+                }
+            }
+
+            if (!empty($updateData)) {
+                $permissionRow->update($updateData);
+            }
+        }
+
+        return ApiResponse::success(
+            'User updated successfully',
+            new UserResource($user->fresh())
+        );
     }
+
 
 
     public function GetFullProileEmployee(Request $request, $id)
@@ -435,7 +668,9 @@ class UserController extends Controller
             ->toArray();
 
         $users = DB::table('users')
-            ->join('roles', 'users.role_id', '=', 'roles.id')
+            ->join('roles', function ($join) {
+                $join->whereRaw('JSON_CONTAINS(users.role_id, CAST(roles.id AS JSON))');
+            })
             ->whereIn('users.id', $allAssigneeIds)
             ->select(
                 'users.id',
@@ -443,7 +678,8 @@ class UserController extends Controller
                 'roles.name as role_name'
             )
             ->get()
-            ->keyBy('id');
+            ->groupBy('id');
+
 
         $performaSheets = DB::table('performa_sheets')
             ->where('user_id', $id)
@@ -621,6 +857,135 @@ class UserController extends Controller
         ]);
     }
 
+    // public function importUsers(Request $request)
+    // {
+    //     $request->validate([
+    //         'file' => 'required',
+    //     ]);
+
+    //     $file = $request->file('file');
+    //     $path = $file->getRealPath();
+
+    //     $handle = fopen($path, 'r');
+    //     $header = fgetcsv($handle);
+
+    //     $users = [];
+    //     while (($row = fgetcsv($handle)) !== false) {
+    //         $users[] = array_combine($header, $row);
+    //     }
+
+    //     $imported = 0;
+    //     $skipped = 0;
+    //     $skippedDetails = [];
+
+    //     $rolesMap = [
+    //         'Super Admin' => 1,
+    //         'Admin' => 2,
+    //         'HR' => 3,
+    //         'Billing Manager' => 4,
+    //         'Project Manager' => 5,
+    //         'TL' => 6,
+    //         'Team' => 7,
+    //         'Sales' => 14,
+    //     ];
+
+    //     $teamsMap = [
+    //         'Frontend development' => 1,
+    //         'Backend development' => 2,
+    //         'SEO' => 3,
+    //         'Business Development' => 4,
+    //     ];
+
+    //     foreach ($users as $data) {
+    //         try {
+    //             $roleId = $rolesMap[$data['roles']] ?? null;
+    //             if (!$roleId) {
+    //                 $skipped++;
+    //                 $skippedDetails[] = ['row' => $data, 'reason' => 'Invalid role: ' . $data['roles']];
+    //                 continue;
+    //             }
+    //             $teamId = $teamsMap[$data['team']] ?? null;
+    //             if (User::where('email', $data['email'])->exists()) {
+    //                 $skipped++;
+    //                 $skippedDetails[] = ['row' => $data, 'reason' => 'Email already exists'];
+    //                 continue;
+    //             }
+    //             if (User::where('phone_num', $data['phone_num'])->exists()) {
+    //                 $skipped++;
+    //                 $skippedDetails[] = ['row' => $data, 'reason' => 'Phone number already exists'];
+    //                 continue;
+    //             }
+    //             if (
+    //                 !empty($data['emergency_phone_num']) &&
+    //                 User::where('emergency_phone_num', $data['emergency_phone_num'])->exists()
+    //             ) {
+    //                 $skipped++;
+    //                 $skippedDetails[] = ['row' => $data, 'reason' => 'Emergency phone already exists'];
+    //                 continue;
+    //             }
+    //             $tlId = null;
+    //             if (!empty($teamId)) {
+    //                 if (is_string($teamId)) {
+    //                     $teamId = array_filter(array_map('intval', explode(',', $teamId)));
+    //                 }
+    //                 if (!is_array($teamId)) {
+    //                     $teamId = [];
+    //                 }
+    //                 $existingTl = User::whereJsonContains('role_id', 6)
+    //                     ->where(function ($q) use ($teamId) {
+    //                         foreach ($teamId as $t) {
+    //                             $q->orWhereRaw(
+    //                                 'JSON_CONTAINS(team_id, ?)',
+    //                                 [json_encode($t)]
+    //                             );
+    //                         }
+    //                     })
+    //                     ->first();
+    //                 if ($existingTl) {
+    //                     $tlId = $existingTl->id;
+    //                 }
+    //             }
+    //             $user = User::create([
+    //                 'name' => $data['name'],
+    //                 'email' => $data['email'],
+    //                 'password' => Hash::make($data['password'] ?? 'password123'), // default if blank
+    //                 'address' => $data['address'] ?? null,
+    //                 'phone_num' => $data['phone_num'],
+    //                 'emergency_phone_num' => $data['emergency_phone_num'] ?? null,
+    //                 'role_id' => $roleId,
+    //                 'team_id' => $teamId,
+    //                 'tl_id' => $tlId,
+    //             ]);
+    //             $imported++;
+    //             try {
+    //                 $roleName = $data['roles'];
+    //                 $teamName = $data['team'] ?? null;
+
+    //                 // Mail::to($data['email'])->send(new SendEmployeeCredentials(
+    //                 //     $data['email'],
+    //                 //     $data['password'] ?? 'password123',
+    //                 //     $roleName,
+    //                 //     $teamName
+    //                 // ));
+    //             } catch (\Exception $mailError) {
+    //                 \Log::error('Email failed: ' . $data['email'] . ' - ' . $mailError->getMessage());
+    //             }
+    //         } catch (\Exception $e) {
+    //             $skipped++;
+    //             $skippedDetails[] = ['row' => $data, 'reason' => 'Error: ' . $e->getMessage()];
+    //             continue;
+    //         }
+    //     }
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'User import completed.',
+    //         'imported_count' => $imported,
+    //         'skipped_count' => $skipped,
+    //         'skipped_details' => $skippedDetails,
+    //     ]);
+    // }
+
+
     public function importUsers(Request $request)
     {
         $request->validate([
@@ -662,23 +1027,32 @@ class UserController extends Controller
 
         foreach ($users as $data) {
             try {
+
                 $roleId = $rolesMap[$data['roles']] ?? null;
                 if (!$roleId) {
                     $skipped++;
-                    $skippedDetails[] = ['row' => $data, 'reason' => 'Invalid role: ' . $data['roles']];
+                    $skippedDetails[] = [
+                        'row' => $data,
+                        'reason' => 'Invalid role: ' . $data['roles']
+                    ];
                     continue;
                 }
+                $roleId = [(int) $roleId];
+
                 $teamId = $teamsMap[$data['team']] ?? null;
+
                 if (User::where('email', $data['email'])->exists()) {
                     $skipped++;
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Email already exists'];
                     continue;
                 }
+
                 if (User::where('phone_num', $data['phone_num'])->exists()) {
                     $skipped++;
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Phone number already exists'];
                     continue;
                 }
+
                 if (
                     !empty($data['emergency_phone_num']) &&
                     User::where('emergency_phone_num', $data['emergency_phone_num'])->exists()
@@ -687,15 +1061,20 @@ class UserController extends Controller
                     $skippedDetails[] = ['row' => $data, 'reason' => 'Emergency phone already exists'];
                     continue;
                 }
+
                 $tlId = null;
+
                 if (!empty($teamId)) {
+
                     if (is_string($teamId)) {
                         $teamId = array_filter(array_map('intval', explode(',', $teamId)));
                     }
+
                     if (!is_array($teamId)) {
                         $teamId = [];
                     }
-                    $existingTl = User::where('role_id', 6)
+
+                    $existingTl = User::whereJsonContains('role_id', 6)
                         ->where(function ($q) use ($teamId) {
                             foreach ($teamId as $t) {
                                 $q->orWhereRaw(
@@ -705,14 +1084,16 @@ class UserController extends Controller
                             }
                         })
                         ->first();
+
                     if ($existingTl) {
                         $tlId = $existingTl->id;
                     }
                 }
-                $user = User::create([
+
+                User::create([
                     'name' => $data['name'],
                     'email' => $data['email'],
-                    'password' => Hash::make($data['password'] ?? 'password123'), // default if blank
+                    'password' => Hash::make($data['password'] ?? 'password123'),
                     'address' => $data['address'] ?? null,
                     'phone_num' => $data['phone_num'],
                     'emergency_phone_num' => $data['emergency_phone_num'] ?? null,
@@ -720,26 +1101,18 @@ class UserController extends Controller
                     'team_id' => $teamId,
                     'tl_id' => $tlId,
                 ]);
-                $imported++;
-                try {
-                    $roleName = $data['roles'];
-                    $teamName = $data['team'] ?? null;
 
-                    // Mail::to($data['email'])->send(new SendEmployeeCredentials(
-                    //     $data['email'],
-                    //     $data['password'] ?? 'password123',
-                    //     $roleName,
-                    //     $teamName
-                    // ));
-                } catch (\Exception $mailError) {
-                    \Log::error('Email failed: ' . $data['email'] . ' - ' . $mailError->getMessage());
-                }
+                $imported++;
+
             } catch (\Exception $e) {
                 $skipped++;
-                $skippedDetails[] = ['row' => $data, 'reason' => 'Error: ' . $e->getMessage()];
-                continue;
+                $skippedDetails[] = [
+                    'row' => $data,
+                    'reason' => 'Error: ' . $e->getMessage()
+                ];
             }
         }
+
         return response()->json([
             'success' => true,
             'message' => 'User import completed.',
@@ -748,6 +1121,7 @@ class UserController extends Controller
             'skipped_details' => $skippedDetails,
         ]);
     }
+
     public function get_all_tl(Request $request)
     {
         try {
@@ -758,7 +1132,7 @@ class UserController extends Controller
             $teamId = intval($request->team_id);
             $teamIds = [$teamId];
 
-            $tls = \App\Models\User::where('role_id', 6)->where('is_active', 1)
+            $tls = User::whereJsonContains('role_id', 6)->where('is_active', 1)
                 ->where(function ($q) use ($teamIds) {
                     foreach ($teamIds as $t) {
                         if ($t !== null) {

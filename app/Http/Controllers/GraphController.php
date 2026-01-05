@@ -194,12 +194,13 @@ class GraphController extends Controller
             ->select('id', 'data', 'status', 'user_id')
             ->where('status', 'approved');
 
-        if ($user->role_id == 6 || $user->role_id == 5) {
+        // Team Lead / Manager → roles 5, 6
+        if ($user->hasAnyRole([5, 6])) {
 
             $userIds = User::where('is_active', true)
-                ->whereIn('role_id', [7])
+                ->whereJsonContains('role_id', 7) // employees only
                 ->where(function ($q) use ($user) {
-                    foreach ($user->team_id as $teamId) {
+                    foreach ($user->team_id ?? [] as $teamId) {
                         $q->orWhereJsonContains('team_id', $teamId);
                     }
                 })
@@ -207,33 +208,33 @@ class GraphController extends Controller
                 ->toArray();
 
             $dataQuery->whereIn('user_id', $userIds);
-        } elseif ($user->role_id == 1 || $user->role_id == 2 || $user->role_id == 3 || $user->role_id == 4) {
 
-            $userIds_ofallusers = User::where('is_active', true)
-                ->whereIn('role_id', [7])
-                ->pluck('id')
-                ->toArray();
-            $dataQuery->whereIn('user_id', $userIds_ofallusers);
-            // return $userIds_ofallusers;
-
-        } elseif ($user->role_id == 7) {
-            $dataQuery->where('user_id', $user->id);
-        } elseif (!in_array($user->role_id, [1, 2, 3, 4])) {
-            $dataQuery->where('user_id', $user->id);
-        } else {
-
-            $userIds = User::where('is_active', 1)
-                ->whereIn('role_id', [7])
-                ->where(function ($q) use ($user) {
-                    foreach ($user->team_id as $teamId) {
-                        $q->orWhereJsonContains('team_id', $teamId);
-                    }
-                })
-                ->pluck('id')
-                ->toArray();
         }
+        // Admin / Super roles → roles 1–4
+        elseif ($user->hasAnyRole([1, 2, 3, 4])) {
+
+            $userIds = User::where('is_active', true)
+                ->whereJsonContains('role_id', 7) // employees
+                ->pluck('id')
+                ->toArray();
+
+            $dataQuery->whereIn('user_id', $userIds);
+
+        }
+        // Employee → role 7
+        elseif ($user->hasRole(7)) {
+
+            $dataQuery->where('user_id', $user->id);
+
+        }
+        // Other roles / fallback
+        else {
+            $dataQuery->where('user_id', $user->id);
+        }
+
         $dataQuery = $dataQuery->get();
         $result = [];
+
         foreach ($dataQuery as $row) {
             $decodedData = json_decode($row->data, true);
             if ($decodedData === null) {
@@ -247,19 +248,24 @@ class GraphController extends Controller
                 Log::warning("Missing required fields in data for ID: {$row->id}");
                 continue;
             }
+
             $recordDate = $decodedData['date'];
             $activityType = $decodedData['activity_type'];
             $timeParts = explode(':', $decodedData['time']);
+
             if (count($timeParts) !== 2) {
                 Log::warning("Invalid time format for ID: {$row->id}, Time: {$decodedData['time']}");
                 continue;
             }
+
             $hours = intval($timeParts[0]);
             $minutes = intval($timeParts[1]);
             $totalMinutes = ($hours * 60) + $minutes;
+
             if (strtotime($recordDate) < strtotime($startDate) || strtotime($recordDate) > strtotime($endDate)) {
                 continue;
             }
+
             if (!isset($result[$recordDate])) {
                 $result[$recordDate] = [
                     'date' => $recordDate,
@@ -270,18 +276,26 @@ class GraphController extends Controller
                     'total_nowork' => 0,
                 ];
             }
+
             $result[$recordDate]['total_hours'] += $totalMinutes;
 
-            if ($activityType === 'Billable') {
-                $result[$recordDate]['total_billable'] += $totalMinutes;
-            } elseif ($activityType === 'Non Billable') {
-                $result[$recordDate]['total_non_billable'] += $totalMinutes;
-            } elseif ($activityType === 'No Work') {
-                $result[$recordDate]['total_nowork'] += $totalMinutes;
-            } else {
-                $result[$recordDate]['total_inhouse'] += $totalMinutes;
+            switch ($activityType) {
+                case 'Billable':
+                    $result[$recordDate]['total_billable'] += $totalMinutes;
+                    break;
+                case 'Non Billable':
+                    $result[$recordDate]['total_non_billable'] += $totalMinutes;
+                    break;
+                case 'No Work':
+                    $result[$recordDate]['total_nowork'] += $totalMinutes;
+                    break;
+                default:
+                    $result[$recordDate]['total_inhouse'] += $totalMinutes;
+                    break;
             }
         }
+
+        // Convert minutes to HH:MM format
         foreach ($result as &$dayData) {
             $dayData['total_hours'] = sprintf('%02d:%02d', floor($dayData['total_hours'] / 60), $dayData['total_hours'] % 60);
             $dayData['total_billable'] = sprintf('%02d:%02d', floor($dayData['total_billable'] / 60), $dayData['total_billable'] % 60);
@@ -292,6 +306,7 @@ class GraphController extends Controller
 
         return response()->json(array_values($result));
     }
+
 
 
     public function GetTotalWorkingHourByEmploye()

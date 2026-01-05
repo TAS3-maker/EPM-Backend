@@ -23,11 +23,11 @@ class UserResource extends JsonResource
             'phone_num' => $this->phone_num,
             'emergency_phone_num' => $this->emergency_phone_num,
             'tl_id' => $this->tl_id,
-            'role_id' => $this->role_id,
+            'role_id' => $this->role_ids,
+            'roles' => $this->roles->pluck('name'),
             'address' => $this->address,
             'team_id' => $this->team_id,
             'teams' => $teamNames,
-            'roles' => $this->role ? $this->role->name : null,
             'profile_pic' => $this->profile_pic ? asset('storage/profile_pics/' . $this->profile_pic) : null,
             'is_active' => $this->is_active ? 1 : 0,
         ];

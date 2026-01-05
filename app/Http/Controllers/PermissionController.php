@@ -46,7 +46,8 @@ class PermissionController extends Controller
     {
         try {
             $authUser = auth()->user();
-            if ($authUser->role_id == 1) {
+            // if ($authUser->role_id == 1) {
+            if ($authUser->hasRole(1)) {
 
                 $predefined_permission = [
                     "dashboard" => "0",

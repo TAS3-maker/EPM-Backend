@@ -50,6 +50,7 @@ class User extends Authenticatable implements JWTSubject
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
         'team_id' => 'array',
+        'role_id' => 'array',
         'is_active' => 'boolean',
     ];
 
@@ -74,8 +75,8 @@ class User extends Authenticatable implements JWTSubject
      */
     public function role()
     {
-        return $this->belongsTo(Role::class, 'role_id', 'id');
-    }   
+        return Role::whereIn('id', $this->role_id ?? [])->get();
+    }
     /**
      * Get the team associated with the user.
      */
@@ -89,26 +90,27 @@ class User extends Authenticatable implements JWTSubject
      */
 
 
-	public function projectManager()
+    public function projectManager()
     {
         return $this->hasMany(Project::class, 'project_manager_id');
     }
 
-public function assignedProjects()
-{
-    return $this->belongsToMany(Project::class, 'project_user')
-                ->withPivot('project_manager_id', 'created_at', 'updated_at')
-                ->withTimestamps();
-}
+    public function assignedProjects()
+    {
+        return $this->belongsToMany(Project::class, 'project_user')
+            ->withPivot('project_manager_id', 'created_at', 'updated_at')
+            ->withTimestamps();
+    }
 
-public function assigns() {
-    return $this->hasMany(AccessoryAssign::class);
-}
+    public function assigns()
+    {
+        return $this->hasMany(AccessoryAssign::class);
+    }
 
- public function leadProjects()
-{
-    return $this->hasMany(Project::class, 'tl_id');
-}
+    public function leadProjects()
+    {
+        return $this->hasMany(Project::class, 'tl_id');
+    }
 
     public function leaves()
     {
@@ -120,7 +122,8 @@ public function assigns() {
     }
     public function getTeamNamesAttribute()
     {
-        if (!$this->team_id || !is_array($this->team_id)) return null;
+        if (!$this->team_id || !is_array($this->team_id))
+            return null;
         return Team::whereIn('id', $this->team_id)->pluck('name')->toArray();
     }
     public function tl()
@@ -131,4 +134,30 @@ public function assigns() {
     {
         return $this->hasOne(Permission::class);
     }
+    public function hasRole(int $roleId): bool
+    {
+        return in_array($roleId, $this->role_id ?? []);
+    }
+
+    public function hasAnyRole(array $roles): bool
+    {
+        return !empty(array_intersect($roles, $this->role_id ?? []));
+    }
+
+    public function getRoleIdsAttribute(): array
+    {
+        if (is_array($this->role_id)) {
+            return array_map('intval', $this->role_id);
+        }
+        if (is_string($this->role_id)) {
+            return array_map('intval', explode(',', $this->role_id));
+        }
+        return [$this->role_id];
+    }
+
+    public function getRolesAttribute()
+    {
+        return Role::whereIn('id', $this->role_ids)->get(); // collection of Role models
+    }
+
 }

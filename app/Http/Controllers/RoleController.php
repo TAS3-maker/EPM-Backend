@@ -123,7 +123,10 @@ class RoleController extends Controller
                 return ApiResponse::success('Role updated successfully', $role);
             }
             $newPermissions = $request->roles_permissions;
-            $users = User::where('role_id', $role->id)->where('is_active', 1)->get();
+            $users = User::whereJsonContains('role_id', $role->id)
+                ->where('is_active', 1)
+                ->get();
+
             $permissionColumns = [
                 'dashboard',
                 'permission',

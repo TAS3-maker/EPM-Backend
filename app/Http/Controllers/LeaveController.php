@@ -24,8 +24,12 @@ class LeaveController extends Controller
 {
     public function AddLeave(Request $request)
     {
-        $user = auth()->user();
-
+        if ($request->user_id) {
+            $user_id = $request->user_id;
+        } else {
+            $user = auth()->user();
+            $user_id = $user->id;
+        }
         $request->validate([
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date|after_or_equal:start_date',
@@ -73,7 +77,7 @@ class LeaveController extends Controller
             ? strtolower($request->halfday_period)
             : null;
 
-        $existingLeaves = LeavePolicy::where('user_id', $user->id)
+        $existingLeaves = LeavePolicy::where('user_id', $user_id)
             ->where('status', '!=', 'Rejected')
             ->whereDate('start_date', '<=', $endDate)
             ->whereDate('end_date', '>=', $request->start_date)
@@ -126,7 +130,7 @@ class LeaveController extends Controller
 
 
         $leave = LeavePolicy::create([
-            'user_id' => $user->id,
+            'user_id' => $user_id,
             'start_date' => $request->start_date,
             'end_date' => $endDate,
             'leave_type' => $request->leave_type,
@@ -223,42 +227,42 @@ class LeaveController extends Controller
     {
         $user = auth()->user();
         $team_id = $user->team_id ?? [];
+
+        $isTeamLead = $user->hasRole(6);
+        $isManager = $user->hasRole(5);
+
         $managerInfo = [
             'id' => $user->id,
             'name' => $user->name,
-            'role' => $user->role_id == 6 ? 'Team Lead' : 'Manager',
+            'role' => $isTeamLead ? 'Team Lead' : 'Manager',
             'team_id' => $user->team_id,
         ];
 
-        if ($user->role_id == 6) {
-            $employees = User::where('id', '!=', $user->id)->where('is_active', '1')
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
+        $employeesQuery = User::where('id', '!=', $user->id)
+            ->where('is_active', '1')
+            ->where(function ($q) use ($team_id) {
+                foreach ($team_id as $t) {
+                    if ($t !== null) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                     }
-                })
-                ->where('role_id', 7)
-                ->get();
-        } else {
-            $employees = User::where('id', '!=', $user->id)->where('is_active', '1')
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        if ($t !== null) {
-                            $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                        }
-                    }
-                })
-                ->get();
+                }
+            });
+
+        // If Team Lead → only employees
+        if ($isTeamLead) {
+            $employeesQuery->whereRaw(
+                'JSON_CONTAINS(role_id, ?)',
+                [json_encode(7)]
+            );
         }
+
+        $employees = $employeesQuery->get();
 
         $leaves = LeavePolicy::with('user:id,name,team_id')
             ->whereIn('user_id', $employees->pluck('id'))
             ->whereNotNull('start_date')
             ->latest('start_date')
             ->get();
-
 
         if ($leaves->isEmpty()) {
             return response()->json([
@@ -292,6 +296,7 @@ class LeaveController extends Controller
             'data' => $leaveData
         ]);
     }
+
 
     public function assignProjectManagerProjectToEmployee(Request $request)
     {
@@ -414,56 +419,43 @@ class LeaveController extends Controller
             'data' => $leave
         ]);
     }
+
     public function getallLeavesbyUser()
     {
         $currentUser = Auth::user();
-
         $teamIds = $currentUser->team_id ?? [];
 
         $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
             ->latest();
 
-        // ROLE 7 → only own leaves
-        if ($currentUser->role_id == 7) {
-
+        if ($currentUser->hasRole(7)) {
             $leavesQuery->where('user_id', $currentUser->id);
-        }
-
-        // ROLE 6 → team leaves (team_id is JSON array)
-        elseif ($currentUser->role_id == 6) {
-
+        } elseif ($currentUser->hasRole(6)) {
             $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->where('role_id', 7)
+                $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
                     ->where(function ($sub) use ($teamIds) {
                         foreach ($teamIds as $teamId) {
                             $sub->orWhereJsonContains('team_id', $teamId);
                         }
                     });
             });
-        }
-
-        // ROLE 5 → team leaves but users with role 6 & 7 only
-        elseif ($currentUser->role_id == 5) {
-
+        } elseif ($currentUser->hasRole(5)) {
             $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->whereIn('role_id', [6, 7])
+                $q->where(function ($r) {
+                    $r->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(6)])
+                        ->orWhereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+                })
                     ->where(function ($sub) use ($teamIds) {
                         foreach ($teamIds as $teamId) {
                             $sub->orWhereJsonContains('team_id', $teamId);
                         }
                     });
             });
-        }
-
-        // ROLE 1,2,3,4 → all leaves except own
-        elseif (in_array($currentUser->role_id, [1, 2, 3, 4])) {
-
+        } elseif ($currentUser->hasAnyRole([1, 2, 3, 4])) {
             $leavesQuery->where('user_id', '!=', $currentUser->id);
-        }
-        // other and new roles
-        else {
+        } else {
             $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->where('role_id', 7)
+                $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
                     ->where(function ($sub) use ($teamIds) {
                         foreach ($teamIds as $teamId) {
                             $sub->orWhereJsonContains('team_id', $teamId);
@@ -511,13 +503,8 @@ class LeaveController extends Controller
     {
         $current_user = auth()->user();
 
-        $allowedRoles = ['superadmin', 'Admin', 'HR'];
-
-        $role = DB::table('roles')
-            ->where('id', $current_user->role_id)
-            ->value('name');
-
-        if (!in_array($role, $allowedRoles)) {
+        // ROLE CHECK (JSON)
+        if (!$current_user->hasAnyRole([1, 2, 3])) {
             return ApiResponse::error(
                 'You are not authorized to access this data.',
                 [],
@@ -533,28 +520,21 @@ class LeaveController extends Controller
 
             $startDate = $minDate
                 ? Carbon::parse($minDate)->startOfDay()
-                : Carbon::now()->startOfMonth(); // fallback safety
+                : Carbon::now()->startOfMonth();
 
             $endDate = Carbon::now()->endOfDay();
         }
 
-        // $users = User::select('id', 'name', 'team_id')
-        //     ->whereNotIn('role_id', [1, 2])
-        //     ->get();
         $users = User::select('id', 'name', 'team_id')
-            ->whereNotIn('role_id', [1, 2])
+            ->where(function ($q) {
+                $q->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(1)])
+                    ->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(2)]);
+            })
             ->where('is_active', 1)
             ->get();
 
-
         $teamIds = $users->pluck('team_id')
-            ->flatMap(function ($teamIds) {
-                if (is_array($teamIds)) {
-                    return $teamIds;
-                }
-
-                return json_decode($teamIds, true) ?? [];
-            })
+            ->flatMap(fn($teamIds) => $teamIds ?? [])
             ->unique()
             ->values();
 
@@ -563,12 +543,7 @@ class LeaveController extends Controller
             ->pluck('name', 'id');
 
         $users = $users->map(function ($user) use ($teams) {
-
-            $teamIds = is_array($user->team_id)
-                ? $user->team_id
-                : json_decode($user->team_id, true);
-
-            $user->team_name = collect($teamIds)
+            $user->team_name = collect($user->team_id ?? [])
                 ->map(fn($id) => $teams[$id] ?? null)
                 ->filter()
                 ->values()
@@ -576,6 +551,8 @@ class LeaveController extends Controller
 
             return $user;
         });
+
+        // 🔽 everything below remains UNCHANGED 🔽
 
         $leaves = DB::table('leavespolicy')
             ->where('status', 'Approved')
@@ -614,16 +591,13 @@ class LeaveController extends Controller
             }
 
             if (isset($leaves[$user->id])) {
-
                 foreach ($leaves[$user->id] as $leave) {
-
                     $leavePeriod = CarbonPeriod::create(
                         Carbon::parse($leave->start_date),
                         Carbon::parse($leave->end_date)
                     );
 
                     foreach ($leavePeriod as $day) {
-
                         if ($day->lt($startDate) || $day->gt($endDate)) {
                             continue;
                         }
@@ -631,6 +605,10 @@ class LeaveController extends Controller
                         $dayStr = $day->format('Y-m-d');
 
                         if ($leave->leave_type === 'Multiple Days Leave') {
+                            $attendanceData[$dayStr]['present'] = 0;
+                            $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+                        }
+                        if ($leave->leave_type === 'Full Leave') {
                             $attendanceData[$dayStr]['present'] = 0;
                             $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
                         }
@@ -664,5 +642,6 @@ class LeaveController extends Controller
             $response
         );
     }
+
 
 }

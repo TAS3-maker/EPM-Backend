@@ -36,7 +36,7 @@ class ProjectRelation extends Model
 
     public function sales_person_id()
     {
-         return User::where(
+        return User::where(
             'id',
             $this->sales_person_id ?? ''
         )->get();
@@ -48,13 +48,35 @@ class ProjectRelation extends Model
             $this->communication_id ?? []
         )->get();
     }
-   public function assignees()
+    public function assignees()
     {
-        return User::join('roles', 'roles.id', '=', 'users.role_id')
-            ->whereIn('users.id', $this->assignees ?? [])
-            ->select('users.*', 'roles.name as role_name')
+        $assigneeIds = $this->assignees ?? [];
+
+        if (empty($assigneeIds)) {
+            return collect(); 
+        }
+
+        $users = User::whereIn('id', $assigneeIds)
+            ->where('is_active', 1)
             ->get();
+
+        $users->transform(function ($user) {
+            $user->role_ids = is_array($user->role_id)
+                ? array_map('intval', $user->role_id)
+                : (is_string($user->role_id)
+                    ? array_map('intval', explode(',', $user->role_id))
+                    : [$user->role_id]);
+
+            $user->role_names = Role::whereIn('id', $user->role_ids)
+                ->pluck('name')
+                ->toArray();
+
+            return $user;
+        });
+
+        return $users;
     }
+
 
     public function source()
     {
@@ -67,7 +89,7 @@ class ProjectRelation extends Model
     }
     public function trackingID()
     {
-       return ProjectAccount::where(
+        return ProjectAccount::where(
             'id',
             $this->tracking_id ?? ''
         )->get();

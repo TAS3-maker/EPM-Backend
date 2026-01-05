@@ -33,7 +33,7 @@ class ProjectMasterController extends Controller
     {
         $currentUser = auth()->user();
 
-        if (in_array($currentUser->role_id, [1, 2, 3, 4])) {
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
 
             $projects = ProjectMaster::with(['relation'])
                 ->get();
@@ -1255,7 +1255,7 @@ class ProjectMasterController extends Controller
 
         $performaUserIds = [$currentUser->id];
 
-        if ($currentUser->role_id == 6) {
+        if ($currentUser->hasRole(1)) {
             $teamIds = is_string($currentUser->team_id)
                 ? json_decode($currentUser->team_id, true)
                 : (array) $currentUser->team_id;
@@ -1273,13 +1273,13 @@ class ProjectMasterController extends Controller
 
         $query = ProjectMaster::select('id', 'project_name', 'project_hours')
             ->with('tasks:id,project_id,title,status,hours');
-        if (in_array($currentUser->role_id, [5, 7])) {
+        if ($currentUser->hasAnyRole([5, 7])) {
 
             $query->whereHas('relation', function ($q) use ($currentUser) {
                 $q->whereJsonContains('assignees', $currentUser->id);
             });
 
-        } elseif ($currentUser->role_id == 6) {
+        } elseif ($currentUser->hasRole(6)) {
 
             $query->whereHas('relation', function ($q) use ($performaUserIds) {
                 foreach ($performaUserIds as $userId) {
@@ -1393,7 +1393,8 @@ class ProjectMasterController extends Controller
             ], 404);
         }
 
-        if (!in_array($user->role_id, [5, 6, 7])) {
+        // if (!in_array($user->role_id, [5, 6, 7])) {
+        if (!$user->hasAnyRole([5, 6, 7])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Unauthorized role',
@@ -1420,7 +1421,8 @@ class ProjectMasterController extends Controller
             ->unique()
             ->toArray();
 
-        if ($user->role_id == 7) {
+        // if ($user->role_id == 7) {
+        if ($user->hasRole(7)) {
             $performaUserIds = [$user->id];
         } else {
             $teamIds = is_string($user->team_id)
