@@ -12,9 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         if (Schema::hasTable('users')) {
+            if (!Schema::hasColumn('users', 'is_active')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->boolean('is_active')->default(1)->after('profile_pic');
             });
+        }
         }
     }
 
