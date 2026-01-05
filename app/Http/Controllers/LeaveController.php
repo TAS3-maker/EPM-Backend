@@ -24,12 +24,8 @@ class LeaveController extends Controller
 {
     public function AddLeave(Request $request)
     {
-        if ($request->user_id) {
-            $user_id = $request->user_id;
-        } else {
-            $user = auth()->user();
-            $user_id = $user->id;
-        }
+        $user = auth()->user();
+
         $request->validate([
             'start_date' => 'required|date|after_or_equal:today',
             'end_date' => 'nullable|date|after_or_equal:start_date',

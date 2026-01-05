@@ -11,7 +11,10 @@ class ProjectAccountResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'source_id' => $this->source_id,
+            'source' => [
+                'id' => $this->source_id,
+                'name' => optional($this->source)->source_name,
+            ],
             'account_name' => $this->account_name,
             'projects' => $this->projects->map(function ($project) {
                 return [

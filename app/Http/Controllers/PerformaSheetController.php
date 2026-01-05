@@ -999,11 +999,8 @@ class PerformaSheetController extends Controller
                 } else {
                     if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
-                    } else {
-                        /**if status does not include draft approved rejected then status will be pending */
-                        if (!isset($validatedData['data']['status']) || !in_array(strtolower($validatedData['data']['status']), ['standup', 'approved', 'rejected'])) {
-                            $performaSheet->status = 'pending';
-                        }
+                    }else{
+                        $performaSheet->status = $oldStatus;
                     }
                 }
                 $performaSheet->data = json_encode($newData);
@@ -1934,7 +1931,7 @@ class PerformaSheetController extends Controller
             /** is passed date fillable for performa sheet */
             $today = Carbon::today();
             $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
-                ->where('status', 'approved')
+                ->whereIn('status', ['approved','pending'])
                 ->pluck('apply_date')
                 ->map(fn($d) => Carbon::parse($d)->toDateString())
                 ->toArray();

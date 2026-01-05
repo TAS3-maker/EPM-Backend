@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ProjectAccount;
 use App\Http\Resources\ProjectAccountResource;
+use App\Models\ProjectSource;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Numeric;
 use Illuminate\Support\Facades\Validator;
@@ -14,8 +15,9 @@ class ProjectAccountController extends Controller
     public function index()
     {
         $accounts = ProjectAccount::with([
-        'projects',
-        'projectRelations.project'
+            'source',
+            'projects',
+            'projectRelations.project'
         ])->get();
 
         return ProjectAccountResource::collection($accounts);
@@ -129,8 +131,16 @@ class ProjectAccountController extends Controller
     }
     public function GetAccountBySourceId(Request $request)
     {
+        $request->validate([
+            'source_id' => 'required|exists:project_sources,id',
+        ]);
+
         $sourceId = $request->source_id;
 
+        // Get source
+        $source = ProjectSource::find($sourceId);
+
+        // Get accounts
         $accounts = ProjectAccount::where('source_id', $sourceId)->get();
 
         if ($accounts->isEmpty()) {
@@ -144,8 +154,10 @@ class ProjectAccountController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Account fetched successfully',
-            'data' => $accounts
+            'source_name' => $source->source_name,
+            'accounts' => $accounts
         ], 200);
     }
+
 
 }

@@ -27,4 +27,9 @@ class ProjectAccount extends Model
             'project_id' 
         );
     }
+    public function source()
+    {
+        return $this->belongsTo(ProjectSource::class, 'source_id');
+    }
+
 }

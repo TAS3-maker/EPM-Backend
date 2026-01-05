@@ -633,7 +633,8 @@ class TaskController extends Controller
                 'description' => 'sometimes|nullable|string',
                 'hours' => 'sometimes|nullable|integer|min:0',
                 'deadline' => 'sometimes|nullable|date',
-                'start_date' => 'sometimes|nullable|date'
+                'start_date' => 'sometimes|nullable|date',
+                'status' => 'sometimes|in:To do,In Progress,Completed,Cancel',
             ]);
 
             $task = Task::find($id);
