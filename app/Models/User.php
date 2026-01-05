@@ -73,10 +73,10 @@ class User extends Authenticatable implements JWTSubject
     /**
      * Get the role associated with the user.
      */
-    public function role()
-    {
-        return Role::whereIn('id', $this->role_id ?? [])->get();
-    }
+    // public function role()
+    // {
+    //     return Role::whereIn('id', $this->role_id ?? [])->get();
+    // }
     /**
      * Get the team associated with the user.
      */
