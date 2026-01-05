@@ -23,6 +23,7 @@ use Illuminate\Http\JsonResponse;
 use LDAP\Result;
 use App\Mail\ProjectAssignedToTLMail;
 use App\Models\Task;
+use App\Models\Role;
 
 
 class ProjectController extends Controller
@@ -587,13 +588,19 @@ class ProjectController extends Controller
         //     ->where('role_id', '=', 6)
         //     ->select('id', 'name', 'email', 'profile_pic', 'role_id')
         //     ->get();
-
-        $employees = User::where('id', '!=', $user->id)->where('is_active', 1)
-            ->whereHas('role', function ($query) {
-                $query->where('name', 'TL');
-            })
+        $tlRoleId = Role::where('name', 'TL')->value('id');
+        $employees = User::where('id', '!=', $user->id)
+            ->where('is_active', 1)
+            ->whereJsonContains('role_id', $tlRoleId)
             ->select('id', 'name', 'email', 'profile_pic', 'role_id')
             ->get();
+
+        // $employees = User::where('id', '!=', $user->id)->where('is_active', 1)
+        //     ->whereHas('role', function ($query) {
+        //         $query->where('name', 'TL');
+        //     })
+        //     ->select('id', 'name', 'email', 'profile_pic', 'role_id')
+        //     ->get();
         if (!$user->hasRole(1)) {
             return response()->json([
                 'success' => true,
