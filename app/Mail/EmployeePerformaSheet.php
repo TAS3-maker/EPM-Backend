@@ -33,7 +33,7 @@ class EmployeePerformaSheet extends Mailable
 
     public function build()
     {
-        return $this->subject(sprintf('DRS/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->submitting_date))
+        return $this->subject(sprintf('DSR/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->submitting_date))
             ->view('emails.employeeperformasheet');
 
     }
