@@ -558,7 +558,6 @@ class LeaveController extends Controller
             return $user;
         });
 
-        // 🔽 everything below remains UNCHANGED 🔽
 
         $leaves = DB::table('leavespolicy')
             ->where('status', 'Approved')
@@ -582,12 +581,12 @@ class LeaveController extends Controller
         foreach ($users as $user) {
 
             $attendanceData = [];
-
+            $today = Carbon::today();
             foreach ($period as $date) {
                 $day = $date->format('Y-m-d');
 
                 $attendanceData[$day] = [
-                    'present' => 1,
+                    'present' => $date->gt($today) ? '' : 1,
                     'leave_type' => '',
                     'halfday_period' => '',
                     'hours' => '',
