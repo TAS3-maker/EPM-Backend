@@ -385,7 +385,8 @@ class LeaveController extends Controller
         ]);
 
         $managerName = $current_user->name;
-        $managerRole = $current_user->role->name ?? 'Manager';
+        // $managerRole = $current_user->role->name ?? 'Manager';
+        $managerRole = $current_user->roles->pluck('name')->first() ?? 'Manager';
 
         $leave = LeavePolicy::find($request->id);
 
@@ -408,9 +409,9 @@ class LeaveController extends Controller
 
 
         if ($user && $user->email) {
-            // Mail::to($user->email)->send(
-            //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
-            // );
+            Mail::to($user->email)->send(
+                new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
+            );
 
         }
 
