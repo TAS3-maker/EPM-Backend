@@ -1476,12 +1476,12 @@ class PerformaSheetController extends Controller
                 'status' => 'approved',
                 'note' => 'Performa updated with activity type'
             ];
+            ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Performa Sheets Status updated by ' . auth()->user()->name,
+            ]);
         }
-        ActivityService::log([
-            'project_id' => $project->id,
-            'type' => 'activity',
-            'description' => 'Performa Sheets Status updated by ' . auth()->user()->name,
-        ]);
         return response()->json([
             'message' => 'Performa sheets processed successfully.',
             'results' => $results
