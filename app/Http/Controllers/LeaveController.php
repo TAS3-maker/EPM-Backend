@@ -526,13 +526,18 @@ class LeaveController extends Controller
             $endDate = Carbon::now()->endOfDay();
         }
 
-        $users = User::select('id', 'name', 'team_id')
+        $usersQuery = User::select('id', 'name', 'team_id')
             ->where(function ($q) {
                 $q->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(1)])
                     ->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(2)]);
             })
-            ->where('is_active', 1)
-            ->get();
+            ->where('is_active', 1);
+
+        if ($request->user_id) {
+            $usersQuery->where('id', $request->user_id);
+        }
+
+        $users = $usersQuery->get();
 
         $teamIds = $users->pluck('team_id')
             ->flatMap(fn($teamIds) => $teamIds ?? [])
