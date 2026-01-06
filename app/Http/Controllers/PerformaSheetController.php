@@ -2596,12 +2596,12 @@ class PerformaSheetController extends Controller
                 'Short Leave' => 120,
             ];
 
-            $startDate = $request->start_date
-                ? Carbon::parse($request->start_date)->startOfDay()
+            $startDate = $request->query('start_date')
+                ? Carbon::parse($request->query('start_date'))->startOfDay()
                 : Carbon::today()->startOfMonth();
 
-            $endDate = $request->end_date
-                ? Carbon::parse($request->end_date)->endOfDay()
+            $endDate = $request->query('end_date')
+                ? Carbon::parse($request->query('end_date'))->endOfDay()
                 : Carbon::today()->endOfMonth();
 
             if ($startDate->gt($endDate)) {
