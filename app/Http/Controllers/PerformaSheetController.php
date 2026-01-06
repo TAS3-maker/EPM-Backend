@@ -254,10 +254,11 @@ class PerformaSheetController extends Controller
             ]);
             $sheet_data = json_decode($sheet->data);
             $updatedCount++;
+            $project = ProjectMaster::select('project_name')->find($sheet_data->project_id);
             //sheet details for mail/report
             $sheetsWithDetails[] = [
                 'submitting_user' => $user->name,
-                'project_name' => $sheet_data->project_id,
+                'project_name' => $project->project_name,
                 'task_id' => $sheet_data->task_id,
                 'date' => $sheet_data->date,
                 'time' => $sheet_data->time,
@@ -311,6 +312,7 @@ class PerformaSheetController extends Controller
         // }
 
         $submitting_user_name = $user->name;
+        $submitting_employee_id = $user->employee_id;
         $tl = User::where('id', $user->tl_id)
                 ->where('is_active', 1)
                 ->first();
@@ -350,7 +352,7 @@ class PerformaSheetController extends Controller
         foreach ($users as $user) {
             Mail::to($user->email)->send(
                 new EmployeePerformaSheet(
-                   $sheetsWithDetails, $user,$submitting_user_name, $user->employee_id, $submitting_date_for_mail
+                   $sheetsWithDetails, $user,$submitting_user_name, $submitting_employee_id, $submitting_date_for_mail
                 )
             );
         }
