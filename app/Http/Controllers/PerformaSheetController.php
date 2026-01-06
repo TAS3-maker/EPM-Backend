@@ -289,6 +289,26 @@ class PerformaSheetController extends Controller
         foreach ($users as $user) {
             // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
         } */
+         $roleIds = Role::whereIn('name', [
+            'Super Admin',
+            'Billing Manager'
+        ])->pluck('id')->toArray();
+        $users = User::where(function ($q) use ($roleIds) {
+            foreach ($roleIds as $roleId) {
+                $q->orWhereJsonContains('role_id', $roleId);
+            }
+        })
+            ->where('is_active', 1)
+            ->get();
+        $submitting_date_for_mail = $record['date'];
+
+        foreach ($users as $user) {
+            Mail::to($user->email)->send(
+                new EmployeePerformaSheet(
+                   $sheetsWithDetails, $user,$user->name, $user->employee_id, $submitting_date_for_mail
+                )
+            );
+        }
 
         return response()->json([
             'success' => true,
