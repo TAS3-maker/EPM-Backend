@@ -289,17 +289,61 @@ class PerformaSheetController extends Controller
         foreach ($users as $user) {
             // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
         } */
-         $roleIds = Role::whereIn('name', [
-            'Super Admin',
-            'Billing Manager'
-        ])->pluck('id')->toArray();
-        $users = User::where(function ($q) use ($roleIds) {
-            foreach ($roleIds as $roleId) {
-                $q->orWhereJsonContains('role_id', $roleId);
-            }
-        })
-            ->where('is_active', 1)
-            ->get();
+        //  $roleIds = Role::whereIn('name', [
+        //     'Super Admin',
+        //     'Billing Manager'
+        // ])->pluck('id')->toArray();
+        // $users = User::where(function ($q) use ($roleIds) {
+        //     foreach ($roleIds as $roleId) {
+        //         $q->orWhereJsonContains('role_id', $roleId);
+        //     }
+        // })
+        //     ->where('is_active', 1)
+        //     ->get();
+        // $submitting_date_for_mail = $record['date'];
+
+        // foreach ($users as $user) {
+        //     Mail::to($user->email)->send(
+        //         new EmployeePerformaSheet(
+        //            $sheetsWithDetails, $user,$user->name, $user->employee_id, $submitting_date_for_mail
+        //         )
+        //     );
+        // }
+
+        $tl = User::where('id', $user->tl_id)
+                ->where('is_active', 1)
+                ->first();
+
+        $teamIds = $user->team_id ?? [];
+                
+        $projectManagers = User::where('is_active', 1)
+                    ->whereJsonContains('role_id', 5)
+                    ->where(function ($q) use ($teamIds) {
+                        foreach ($teamIds as $teamId) {
+                            $q->orWhereJsonContains('team_id', $teamId);
+                        }
+                    })
+                    ->get();
+                    
+                $roleIds = Role::whereIn('name', [
+                    'superadmin',
+                    'Billing Manager'
+                ])->pluck('id')->toArray();
+
+                $approvers = User::where(function ($q) use ($roleIds) {
+                    foreach ($roleIds as $roleId) {
+                        $q->orWhereJsonContains('role_id', $roleId);
+                    }
+                })
+                    ->where('is_active', 1)
+                    ->get();
+                    
+            $users = collect($approvers)
+            ->merge($projectManagers)
+            ->when($tl, fn ($c) => $c->push($tl))
+            ->unique('id')
+            ->values();
+
         $submitting_date_for_mail = $record['date'];
 
         foreach ($users as $user) {
@@ -309,7 +353,7 @@ class PerformaSheetController extends Controller
                 )
             );
         }
-
+        
         return response()->json([
             'success' => true,
             'message' => $updatedCount . ' Performa Sheets submitted for approval successfully',
