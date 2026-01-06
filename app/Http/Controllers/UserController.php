@@ -812,17 +812,35 @@ class UserController extends Controller
 
     public function getMyProfile($id)
     {
-        $user = User::with(['role'])->find($id);
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found',
+                'data' => null
+            ], 404);
+        }
 
         $teamNames = [];
+
         if (is_array($user->team_id) && count($user->team_id) > 0) {
-            $teams = Team::whereIn('id', $user->team_id)->get();
-            $teamNames = $teams->pluck('name')->toArray();
+            $teamNames = Team::whereIn('id', $user->team_id)
+                ->pluck('name')
+                ->toArray();
         }
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'User not found'], 404);
+
+        $roleNames = [];
+
+        if (is_array($user->role_id) && count($user->role_id) > 0) {
+            $roleNames = Role::whereIn('id', $user->role_id)
+                ->pluck('name')
+                ->toArray();
         }
+
         $user['team_names'] = $teamNames;
+        $user['role_names'] = $roleNames;
+
         return response()->json([
             'success' => true,
             'message' => 'Profile fetched successfully',
