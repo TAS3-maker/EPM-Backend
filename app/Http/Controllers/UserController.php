@@ -630,7 +630,12 @@ class UserController extends Controller
 
     public function GetFullProileEmployee(Request $request, $id)
     {
-        $user = User::with('role')->find($id);
+        $user = User::find($id);
+
+        if (!$user) {
+            return ApiResponse::error('User not found', [], 404);
+        }
+
         $startDate = $request->start_date
             ? Carbon::parse($request->start_date)->toDateString()
             : null;
@@ -638,11 +643,6 @@ class UserController extends Controller
         $endDate = $request->end_date
             ? Carbon::parse($request->end_date)->toDateString()
             : null;
-
-
-        if (!$user) {
-            return ApiResponse::error('User not found', [], 404);
-        }
 
         $projectRelations = DB::table('project_relations')
             ->join('projects_master', 'project_relations.project_id', '=', 'projects_master.id')
@@ -660,7 +660,7 @@ class UserController extends Controller
             )
             ->get();
 
-        $allAssigneeIds = collect($projectRelations)
+        $allAssigneeIds = $projectRelations
             ->pluck('assignees')
             ->flatMap(fn($a) => json_decode($a, true) ?: [])
             ->unique()
@@ -669,7 +669,9 @@ class UserController extends Controller
 
         $users = DB::table('users')
             ->join('roles', function ($join) {
-                $join->whereRaw('JSON_CONTAINS(users.role_id, CAST(roles.id AS JSON))');
+                $join->whereRaw(
+                    'JSON_CONTAINS(users.role_id, JSON_QUOTE(roles.id))'
+                );
             })
             ->whereIn('users.id', $allAssigneeIds)
             ->select(
@@ -679,7 +681,6 @@ class UserController extends Controller
             )
             ->get()
             ->groupBy('id');
-
 
         $performaSheets = DB::table('performa_sheets')
             ->where('user_id', $id)
@@ -700,74 +701,50 @@ class UserController extends Controller
             foreach ($entries as $entry) {
 
                 if (isset($entry['date']) && ($startDate || $endDate)) {
-                    $entryDate = $entry['date'];
-
-                    if ($startDate && $entryDate < $startDate) {
+                    if ($startDate && $entry['date'] < $startDate)
                         continue;
-                    }
-
-                    if ($endDate && $entryDate > $endDate) {
+                    if ($endDate && $entry['date'] > $endDate)
                         continue;
-                    }
                 }
 
-                if (!isset($entry['activity_type'], $entry['time'])) {
+                if (!isset($entry['activity_type'], $entry['time']))
                     continue;
-                }
 
-                $activityType = $entry['activity_type'];
                 $projectId = $entry['project_id'] ?? null;
-                $time = $entry['time'];
+                [$h, $m] = array_pad(explode(':', $entry['time']), 2, 0);
+                $minutes = ((int) $h * 60) + (int) $m;
 
-                $timeParts = explode(':', $time);
-                if (count($timeParts) !== 2) {
-                    continue;
-                }
-
-                $minutes = ((int) $timeParts[0] * 60) + (int) $timeParts[1];
-
-                if (!isset($activityData[$projectId])) {
-                    $activityData[$projectId] = [];
-                }
-
-                if (!isset($activityData[$projectId][$activityType])) {
-                    $activityData[$projectId][$activityType] = 0;
-                }
-
-                $activityData[$projectId][$activityType] += $minutes;
+                $activityData[$projectId][$entry['activity_type']] =
+                    ($activityData[$projectId][$entry['activity_type']] ?? 0) + $minutes;
             }
         }
-
 
         $projectUserData = [];
 
         foreach ($projectRelations as $relation) {
 
             $assignees = json_decode($relation->assignees, true);
-            if (!is_array($assignees)) {
+            if (!is_array($assignees))
                 continue;
-            }
 
             $pm = collect($assignees)
                 ->map(fn($uid) => $users[$uid] ?? null)
                 ->filter()
+                ->flatten()
                 ->firstWhere('role_name', 'Project Manager');
 
             $activities = [];
 
-            if (isset($activityData[$relation->project_id])) {
+            if (!empty($activityData[$relation->project_id])) {
                 foreach ($activityData[$relation->project_id] as $type => $minutes) {
-                    $h = floor($minutes / 60);
-                    $m = $minutes % 60;
-
                     $activities[] = [
                         'activity_type' => $type,
-                        'total_hours' => sprintf('%02d:%02d', $h, $m),
+                        'total_hours' => sprintf('%02d:%02d', floor($minutes / 60), $minutes % 60),
                     ];
                 }
             }
 
-            $projectUserData[] = (object) [
+            $projectUserData[] = [
                 'project_id' => $relation->project_id,
                 'project_name' => $relation->project_name,
                 'project_status' => $relation->project_status,
@@ -780,20 +757,17 @@ class UserController extends Controller
             ];
         }
 
-        if (isset($activityData[null])) {
+        if (!empty($activityData[null])) {
             $activities = [];
 
             foreach ($activityData[null] as $type => $minutes) {
-                $h = floor($minutes / 60);
-                $m = $minutes % 60;
-
                 $activities[] = [
                     'activity_type' => $type,
-                    'total_hours' => sprintf('%02d:%02d', $h, $m),
+                    'total_hours' => sprintf('%02d:%02d', floor($minutes / 60), $minutes % 60),
                 ];
             }
 
-            $projectUserData[] = (object) [
+            $projectUserData[] = [
                 'project_id' => null,
                 'project_name' => 'Inhouse',
                 'project_manager_id' => null,
@@ -810,7 +784,6 @@ class UserController extends Controller
             'project_user' => $projectUserData,
         ]);
     }
-
 
 
 
