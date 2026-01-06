@@ -667,21 +667,11 @@ class UserController extends Controller
             ->values()
             ->toArray();
 
-        $users = DB::table('users')
-            ->join('roles', function ($join) {
-                $join->whereRaw(
-                    'JSON_CONTAINS(users.role_id, JSON_QUOTE(roles.id))'
-                );
-            })
-            ->whereIn('users.id', $allAssigneeIds)
-            ->select(
-                'users.id',
-                'users.name',
-                'roles.name as role_name'
-            )
-            ->get()
-            ->groupBy('id');
+        /* USERS + ROLES */
+        $users = User::whereIn('id', $allAssigneeIds)->get()->keyBy('id');
+        $rolesMap = Role::pluck('name', 'id')->toArray();
 
+        /* PERFORMA */
         $performaSheets = DB::table('performa_sheets')
             ->where('user_id', $id)
             ->where('status', 'approved')
@@ -691,15 +681,11 @@ class UserController extends Controller
 
         foreach ($performaSheets as $row) {
             $decoded = json_decode($row->data, true);
-
-            if (is_string($decoded)) {
+            if (is_string($decoded))
                 $decoded = json_decode($decoded, true);
-            }
-
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
-
                 if (isset($entry['date']) && ($startDate || $endDate)) {
                     if ($startDate && $entry['date'] < $startDate)
                         continue;
@@ -728,10 +714,22 @@ class UserController extends Controller
                 continue;
 
             $pm = collect($assignees)
-                ->map(fn($uid) => $users[$uid] ?? null)
+                ->map(function ($uid) use ($users, $rolesMap) {
+                    if (!isset($users[$uid]))
+                        return null;
+                    $user = $users[$uid];
+                    foreach ((array) $user->role_id as $rid) {
+                        if (($rolesMap[$rid] ?? null) === 'Project Manager') {
+                            return (object) [
+                                'id' => $user->id,
+                                'name' => $user->name,
+                            ];
+                        }
+                    }
+                    return null;
+                })
                 ->filter()
-                ->flatten()
-                ->firstWhere('role_name', 'Project Manager');
+                ->first();
 
             $activities = [];
 
@@ -754,28 +752,6 @@ class UserController extends Controller
                 'activities' => $activities,
                 'created_at' => $relation->created_at,
                 'updated_at' => $relation->updated_at,
-            ];
-        }
-
-        if (!empty($activityData[null])) {
-            $activities = [];
-
-            foreach ($activityData[null] as $type => $minutes) {
-                $activities[] = [
-                    'activity_type' => $type,
-                    'total_hours' => sprintf('%02d:%02d', floor($minutes / 60), $minutes % 60),
-                ];
-            }
-
-            $projectUserData[] = [
-                'project_id' => null,
-                'project_name' => 'Inhouse',
-                'project_manager_id' => null,
-                'project_manager_name' => null,
-                'user_id' => $id,
-                'activities' => $activities,
-                'created_at' => null,
-                'updated_at' => null,
             ];
         }
 
