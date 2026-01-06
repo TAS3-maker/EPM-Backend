@@ -22,54 +22,110 @@ class ClientMasterController extends Controller
     }
     public function store(Request $request)
     {
-        $request->validate([
-            'client_name' => 'required|string|max:191|unique:clients_master,client_name',
-            'client_email' => 'nullable|email|max:191|unique:clients_master,client_email',
-            'client_number' => 'nullable|digits_between:10,15|unique:clients_master,client_number',
-        ]);
+        try {
+            $validated = $request->validate(
+                [
+                    'client_name' => 'required|string|max:191|unique:clients_master,client_name',
+                    'client_email' => 'nullable|email|max:191|unique:clients_master,client_email',
+                    'client_number' => 'nullable|digits_between:10,15|unique:clients_master,client_number',
+                ],
+                [
+                    'client_name.required' => 'Client name is required.',
+                    'client_name.unique' => 'Client name already exists.',
+                    'client_email.email' => 'Please provide a valid email address.',
+                    'client_email.unique' => 'Client email already exists.',
+                    'client_number.digits_between' => 'Client number must be between 10 and 15 digits.',
+                    'client_number.unique' => 'Client number already exists.',
+                ]
+            );
 
-        $client = ClientMaster::create([
-            'client_name' => $request->client_name,
-            'client_email' => $request->client_email,
-            'client_number' => $request->client_number,
-        ]);
-        ActivityService::log([
-            'client_id' => $client->id,
-            'user_id' => auth()->user()->id,
-            'type' => 'activity',
-            'description' => $request->client_name . ' Client added by ' . auth()->user()->name,
-        ]);
+            $client = ClientMaster::create($validated);
 
-        return new ClientMasterResource($client);
+            ActivityService::log([
+                'client_id' => $client->id,
+                'user_id' => auth()->user()->id,
+                'type' => 'activity',
+                'description' => $client->client_name . ' client added by ' . auth()->user()->name,
+            ]);
+
+            return new ClientMasterResource($client);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong while creating client.',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
+
 
     public function update(Request $request, $id)
     {
-        $client = ClientMaster::find($id);
+        try {
+            $client = ClientMaster::find($id);
 
-        if (!$client) {
+            if (!$client) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Client not found'
+                ], 404);
+            }
+
+            $validated = $request->validate(
+                [
+                    'client_name' => 'sometimes|required|string|max:191|unique:clients_master,client_name,' . $id,
+                    'client_email' => 'sometimes|nullable|email|max:191|unique:clients_master,client_email,' . $id,
+                    'client_number' => 'sometimes|nullable|digits_between:10,15|unique:clients_master,client_number,' . $id,
+                ],
+                [
+                    'client_name.required' => 'Client name is required.',
+                    'client_name.unique' => 'Client name already exists.',
+                    'client_email.email' => 'Please provide a valid email address.',
+                    'client_email.unique' => 'Client email already exists.',
+                    'client_number.digits_between' => 'Client number must be between 10 and 15 digits.',
+                    'client_number.unique' => 'Client number already exists.',
+                ]
+            );
+
+            // Update ONLY fields sent in request
+            $client->update($validated);
+
+            ActivityService::log([
+                'client_id' => $client->id,
+                'user_id' => auth()->user()->id,
+                'type' => 'activity',
+                'description' => $client->client_name . ' client updated by ' . auth()->user()->name,
+            ]);
+
+            return new ClientMasterResource($client);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+
             return response()->json([
                 'success' => false,
-                'message' => 'Client not found'
-            ], 404);
+                'message' => 'Validation failed',
+                'errors' => $e->errors()
+            ], 422);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong while updating client.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $validated = $request->validate([
-            'client_name' => 'required|string|max:191|unique:clients_master,client_name,' . $id,
-            'client_email' => 'nullable|email|max:191|unique:clients_master,client_email,' . $id,
-            'client_number' => 'nullable|digits_between:10,15|unique:clients_master,client_number,' . $id,
-        ]);
-        ActivityService::log([
-            'client_id' => $client->id,
-            'user_id' => auth()->user()->id,
-            'type' => 'activity',
-            'description' => $client->client_name . ' Client updated by ' . auth()->user()->name,
-        ]);
-        $client->update($validated);
-
-        return new ClientMasterResource($client);
     }
-
 
 
     public function destroy($id)
