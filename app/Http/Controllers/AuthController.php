@@ -68,10 +68,10 @@ class AuthController extends Controller
         Cache::put('otp_' . $request->email, $otp, now()->addMinutes(5));
 
         // Send OTP via mail
-        // Mail::raw("Your OTP is: $otp", function ($message) use ($request) {
-        //     $message->to($request->email)
-        //             ->subject('EPM TAS OTP code.');
-        // });
+        Mail::raw("Your OTP is: $otp", function ($message) use ($request) {
+            $message->to($request->email)
+                    ->subject('EPM TAS OTP code.');
+        });
 
         return ApiResponse::success('OTP sent to your email.', [
             'email' => $request->email,
