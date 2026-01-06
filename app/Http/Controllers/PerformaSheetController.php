@@ -310,6 +310,7 @@ class PerformaSheetController extends Controller
         //     );
         // }
 
+        $submitting_user_name = $user->name;
         $tl = User::where('id', $user->tl_id)
                 ->where('is_active', 1)
                 ->first();
@@ -349,7 +350,7 @@ class PerformaSheetController extends Controller
         foreach ($users as $user) {
             Mail::to($user->email)->send(
                 new EmployeePerformaSheet(
-                   $sheetsWithDetails, $user,$user->name, $user->employee_id, $submitting_date_for_mail
+                   $sheetsWithDetails, $user,$submitting_user_name, $user->employee_id, $submitting_date_for_mail
                 )
             );
         }
