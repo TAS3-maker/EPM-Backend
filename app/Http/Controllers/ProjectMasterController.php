@@ -714,13 +714,14 @@ class ProjectMasterController extends Controller
 
                 // Mail::to($tl->email)->send($mail);
             }
+
+             ActivityService::log([
+                'project_id' => $project->id,
+                'type' => 'activity',
+                'description' => 'Project assigned to '. $tl->name .' Team Leaders by' . auth()->user()->name,
+            ]);
         }
 
-        ActivityService::log([
-            'project_id' => $project->id,
-            'type' => 'activity',
-            'description' => 'Project assigned to Team Leaders by' . auth()->user()->name,
-        ]);
 
         return response()->json([
             'success' => true,
