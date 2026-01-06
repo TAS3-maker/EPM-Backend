@@ -31,7 +31,9 @@ class TeamResource extends JsonResource
                     'name' => $user->name,
                     'email' => $user->email,
                     'phone' => $user->phone_num,
-                    'role' => $user->role ? $user->role->name : null,
+                    // 'role' => $user->role ? $user->role->name : null,
+                    'role_ids' => $user->role_ids,
+                    'roles' => $user->roles->pluck('name'),
                     'team_id' => $user->team_id, // array
                 ];
             })
