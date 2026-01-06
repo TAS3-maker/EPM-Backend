@@ -944,8 +944,9 @@ class PerformaSheetController extends Controller
 
 
             $oldData = json_decode($performaSheet->data, true);
+            $newData = array_merge($oldData, $validatedData['data']);
             $oldStatus = $performaSheet->status;
-            $newData = $validatedData['data'];
+            // $newData = $validatedData['data'];
 
             if ($newData['is_tracking'] === 'yes' && $project && $project->project_tracking) {
                 if ($newData['tracking_mode'] === 'all') {
