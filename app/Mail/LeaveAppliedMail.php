@@ -1,0 +1,35 @@
+<?php
+
+namespace App\Mail;
+
+use App\Models\LeavePolicy;
+use App\Models\User;
+use Illuminate\Bus\Queueable;
+use Illuminate\Mail\Mailable;
+use Illuminate\Queue\SerializesModels;
+use Carbon\Carbon;
+
+class LeaveAppliedMail extends Mailable
+{
+    use Queueable, SerializesModels;
+
+    public $leave;
+    public $leaveUser;
+
+    public function __construct(LeavePolicy $leave, User $leaveUser)
+    {
+        $this->leave = $leave;
+        $this->leaveUser = $leaveUser;
+    }
+
+    public function build()
+    {
+        return $this->subject(sprintf(
+            'Leave Applied/%s/%s/%s',
+            $this->leaveUser->employee_id,
+            $this->leaveUser->name,
+            Carbon::parse($this->leave->start_date)->format('d-m-Y')
+        ))
+            ->view('emails.leave-applied');
+    }
+}
