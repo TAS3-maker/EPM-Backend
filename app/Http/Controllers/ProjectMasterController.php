@@ -712,7 +712,7 @@ class ProjectMasterController extends Controller
                 $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
                     ->replyTo($assigner->email, $assigner->name);
 
-                Mail::to($tl->email)->send($mail);
+                // Mail::to($tl->email)->send($mail);
             }
 
              ActivityService::log([
@@ -991,7 +991,7 @@ class ProjectMasterController extends Controller
                     $assigner
                 ))->replyTo($assigner->email, $assigner->name);
 
-                Mail::to($manager->email)->send($mail);
+                // Mail::to($manager->email)->send($mail);
             }
         }
 

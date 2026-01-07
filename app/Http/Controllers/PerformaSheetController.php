@@ -19,6 +19,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use App\Models\LeavePolicy;
 use App\Models\ProjectMaster;
 use App\Models\Team;
@@ -328,15 +329,15 @@ class PerformaSheetController extends Controller
 
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             foreach ($users as $approver) {
-                Mail::to($approver->email)->send(
-                    new EmployeePerformaSheet(
-                        $sheetsWithDetails,
-                        $approver,
-                        $submitting_user_name,
-                        $submitting_employee_id,
-                        $date
-                    )
-                );
+                // Mail::to($approver->email)->send(
+                //     new EmployeePerformaSheet(
+                //         $sheetsWithDetails,
+                //         $approver,
+                //         $submitting_user_name,
+                //         $submitting_employee_id,
+                //         $date
+                //     )
+                // );
             }
         }
 
@@ -351,7 +352,7 @@ class PerformaSheetController extends Controller
     {
         $user = auth()->user();
         $sheets = PerformaSheet::with('user:id,name')
-            ->where('user_id', $user->id)->whereIn('status', ['pending', 'approved', 'rejected','backdated'])
+            ->where('user_id', $user->id)->whereIn('status', ['pending', 'approved', 'rejected', 'backdated'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -1050,7 +1051,7 @@ class PerformaSheetController extends Controller
                 } else {
                     if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
                         $performaSheet->status = 'pending';
-                    }else{
+                    } else {
                         $performaSheet->status = $oldStatus;
                     }
                 }
@@ -1333,8 +1334,8 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-    
-     public function approveRejectPerformaSheetsMaster(Request $request)
+
+    public function approveRejectPerformaSheetsMaster(Request $request)
     {
         $request->validate([
             'ids' => 'required',
@@ -1448,7 +1449,7 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-    
+
     // public function getAllPendingPerformaSheets(Request $request)
     // {
     //     $user = $request->user();
@@ -1897,7 +1898,7 @@ class PerformaSheetController extends Controller
             /** is passed date fillable for performa sheet */
             $today = Carbon::today();
             $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
-                ->whereIn('status', ['approved','pending'])
+                ->whereIn('status', ['approved', 'pending'])
                 ->pluck('apply_date')
                 ->map(fn($d) => Carbon::parse($d)->toDateString())
                 ->toArray();
@@ -3102,6 +3103,163 @@ class PerformaSheetController extends Controller
             ]);
         } catch (\Exception $e) {
 
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    public function getUserPerformaDataWithsheets(Request $request)
+    {
+        if (!$request->user_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'user id is required'
+            ], 404);
+        }
+
+        try {
+
+            $startDate = $request->start_date
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::today();
+
+            $endDate = $request->end_date
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::today();
+
+            $performaSheets = DB::table('performa_sheets')
+                ->where('user_id', $request->user_id)
+                ->where('status', 'approved')
+                ->get();
+
+            $projects = DB::table('projects_master')
+                ->pluck('project_name', 'id');
+
+            $activityTotals = [
+                'Billable' => 0,
+                'In-House' => 0,
+                'No Work' => 0,
+                'Offline' => 0,
+                'Unfilled' => 0,
+            ];
+
+            $sheets = [];
+            $filledDates = [];
+            $leaveDates = [];
+
+            foreach ($performaSheets as $row) {
+
+                $decoded = json_decode($row->data, true);
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+                foreach ($entries as $entry) {
+
+                    if (!isset($entry['activity_type'], $entry['time'], $entry['date'])) {
+                        continue;
+                    }
+
+                    $entryDate = Carbon::parse($entry['date']);
+                    if ($entryDate->lt($startDate) || $entryDate->gt($endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $entryDate->toDateString();
+                    $filledDates[$dateStr] = true;
+
+                    $entry['project_name'] = $projects[$entry['project_id']] ?? null;
+
+                    $sheets[] = $entry;
+
+                    if (isset($activityTotals[$entry['activity_type']])) {
+                        $activityTotals[$entry['activity_type']] +=
+                            $this->timeToMinutesforgetUserPerformaData($entry['time']);
+                    }
+                }
+            }
+
+            $leaves = LeavePolicy::where('user_id', $request->user_id)
+                ->where('status', 'Approved')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<=', $endDate)
+                        ->where('end_date', '>=', $startDate);
+                })
+                ->get();
+
+            $totalLeaveMinutes = 0;
+
+            foreach ($leaves as $leave) {
+
+                $period = CarbonPeriod::create(
+                    Carbon::parse($leave->start_date),
+                    Carbon::parse($leave->end_date)
+                );
+
+                foreach ($period as $date) {
+
+                    if ($date->isWeekend()) {
+                        continue;
+                    }
+
+                    if (!$date->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+                    $leaveDates[$dateStr] = true;
+
+                    switch ($leave->leave_type) {
+                        case 'Full Leave':
+                            $totalLeaveMinutes += 510;
+                            break;
+
+                        case 'Half Day':
+                            $totalLeaveMinutes += 255;
+                            break;
+
+                        case 'Short Leave':
+                            if ($leave->hours) {
+                                $totalLeaveMinutes +=
+                                    $this->timeToMinutesforgetUserPerformaData($leave->hours);
+                            }
+                            break;
+                    }
+                }
+            }
+
+            $period = CarbonPeriod::create($startDate, $endDate);
+
+            foreach ($period as $date) {
+
+                if ($date->isWeekend()) {
+                    continue;
+                }
+
+                $dateStr = $date->toDateString();
+
+                if (!isset($filledDates[$dateStr]) && !isset($leaveDates[$dateStr])) {
+                    $activityTotals['Unfilled'] += 510; // 8:30 hrs
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Performa & Leave summary fetched successfully',
+                'data' => [
+                    'activities' => collect($activityTotals)->map(function ($minutes) {
+                        return $this->minutesToHours($minutes);
+                    }),
+                    'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
+                    'sheets' => $sheets
+                ]
+            ]);
+
+        } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Internal Server Error',

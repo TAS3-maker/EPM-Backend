@@ -235,6 +235,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-full-details-of-project-by-id/{project_id}', [ProjectMasterController::class,'getFullDetailsOfProjectById']);
         Route::get('/get-user-performa-data', [PerformaSheetController::class,'getUserPerformaData']);
         Route::get('/get-users-offline-hours', [PerformaSheetController::class,'getUsersOfflineHours']);
+        Route::get('/get-user-performa-data-with-sheets', [PerformaSheetController::class,'getUserPerformaDataWithsheets']);
 
     });
 });

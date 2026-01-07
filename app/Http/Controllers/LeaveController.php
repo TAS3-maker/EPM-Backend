@@ -186,7 +186,7 @@ class LeaveController extends Controller
             ->unique('id');
 
         foreach ($mailUsers as $user) {
-            Mail::to($user->email)->send(new LeaveAppliedMail($leave, $leaveUser));
+            // Mail::to($user->email)->send(new LeaveAppliedMail($leave, $leaveUser));
         }
         return response()->json([
             'success' => true,
@@ -440,9 +440,9 @@ class LeaveController extends Controller
 
 
         if ($user && $user->email) {
-            Mail::to($user->email)->send(
-                new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
-            );
+            // Mail::to($user->email)->send(
+            //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
+            // );
 
         }
 
