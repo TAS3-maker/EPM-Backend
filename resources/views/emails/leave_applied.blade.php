@@ -48,13 +48,11 @@
         </div>
 
         <div class="content">
-            <p>
-                Hello,
-            </p>
+            <p>Hello,</p>
 
             <p>
-                <strong>{{ $employee->name }}</strong>
-                (Employee ID: {{ $employee->employee_id ?? 'N/A' }})
+                <strong>{{ $leaveUser->name }}</strong>
+                (Employee ID: {{ $leaveUser->employee_id ?? 'N/A' }})
                 has submitted a leave request.
             </p>
 
@@ -91,7 +89,7 @@
 
             <p>
                 <span class="label">Status:</span>
-                {{ $leave->status }}
+                {{ ucfirst($leave->status) }}
             </p>
 
             <p>
