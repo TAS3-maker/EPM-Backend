@@ -30,6 +30,7 @@ class LeaveAppliedMail extends Mailable
             $this->leaveUser->name,
             Carbon::parse($this->leave->start_date)->format('d-m-Y')
         ))
-            ->view('emails.leave-applied');
+            ->view('emails.leave_applied');
     }
 }
+
