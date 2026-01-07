@@ -532,11 +532,10 @@ class LeaveController extends Controller
         ]);
     }
 
-    public function GetUsersAttendance(Request $request)
+ public function GetUsersAttendance(Request $request)
     {
         $current_user = auth()->user();
 
-        // ROLE CHECK (JSON)
         if (!$current_user->hasAnyRole([1, 2, 3])) {
             return ApiResponse::error(
                 'You are not authorized to access this data.',
@@ -586,10 +585,8 @@ class LeaveController extends Controller
                 ->filter()
                 ->values()
                 ->toArray();
-
             return $user;
         });
-
 
         $leaves = DB::table('leavespolicy')
             ->where('status', 'Approved')
@@ -604,49 +601,106 @@ class LeaveController extends Controller
             ->get()
             ->groupBy('user_id');
 
+        $performaSheets = DB::table('performa_sheets')
+            ->select('user_id', 'data')
+            ->whereIn('user_id', $users->pluck('id'))
+            ->get()
+            ->groupBy('user_id')
+            ->map(function ($sheets) use ($startDate, $endDate) {
+
+                return $sheets->map(function ($sheet) use ($startDate, $endDate) {
+
+                    $firstDecode = json_decode($sheet->data, true);
+
+                    if (!is_string($firstDecode)) {
+                        return null;
+                    }
+
+                    $decoded = json_decode($firstDecode, true);
+
+                    if (!$decoded || empty($decoded['date'])) {
+                        return null;
+                    }
+
+                    $sheetDate = Carbon::parse($decoded['date'])->startOfDay();
+
+                    if ($sheetDate->lt($startDate) || $sheetDate->gt($endDate)) {
+                        return null;
+                    }
+
+                    return $sheetDate->format('Y-m-d');
+
+                })
+                    ->filter()
+                    ->unique()
+                    ->values();
+            });
+
+        // return $performaSheets;
+
+
         $period = iterator_to_array(
             CarbonPeriod::create($startDate, $endDate)
         );
 
         $response = [];
 
+
         foreach ($users as $user) {
 
             $attendanceData = [];
             $today = Carbon::today();
-            foreach ($period as $date) {
-                $day = $date->format('Y-m-d');
+            $userSheetDates = $performaSheets[$user->id] ?? collect();
 
-                $attendanceData[$day] = [
-                    'present' => $date->gt($today) ? '' : 1,
+            foreach ($period as $date) {
+
+                $dayStr = $date->format('Y-m-d');
+                $isFuture = $date->gt($today);
+                $isWeekend = $date->isSaturday() || $date->isSunday();
+
+                $attendanceData[$dayStr] = [
+                    'present' => 0,
                     'leave_type' => '',
                     'halfday_period' => '',
                     'hours' => '',
                     'reason' => '',
                     'status' => ''
                 ];
+
+                if ($userSheetDates->contains($dayStr)) {
+                    $attendanceData[$dayStr]['present'] = 1;
+                    continue;
+                }
+
+                if ($isFuture || $isWeekend) {
+                    $attendanceData[$dayStr]['present'] = '';
+                }
             }
 
+          
             if (isset($leaves[$user->id])) {
                 foreach ($leaves[$user->id] as $leave) {
+
                     $leavePeriod = CarbonPeriod::create(
                         Carbon::parse($leave->start_date),
                         Carbon::parse($leave->end_date)
                     );
 
                     foreach ($leavePeriod as $day) {
+
                         if ($day->lt($startDate) || $day->gt($endDate)) {
                             continue;
                         }
 
                         $dayStr = $day->format('Y-m-d');
 
-                        if ($leave->leave_type === 'Multiple Days Leave') {
-                            $attendanceData[$dayStr]['present'] = 0;
-                            $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+                        if ($userSheetDates->contains($dayStr)) {
+                            continue;
                         }
-                        if ($leave->leave_type === 'Full Leave') {
-                            $attendanceData[$dayStr]['present'] = 0;
+
+                        $attendanceData[$dayStr]['present'] = 0;
+
+                        if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
                             $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
                         }
 
@@ -679,6 +733,5 @@ class LeaveController extends Controller
             $response
         );
     }
-
 
 }
