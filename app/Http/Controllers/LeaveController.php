@@ -14,6 +14,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\LeaveStatusUpdateMail;
+use App\Mail\LeaveAppliedMail;
 
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ProjectAssignedMail;
@@ -156,7 +157,37 @@ class LeaveController extends Controller
             $leave->documents = $filename;
             $leave->save();
         }
+        $SUPER_ADMIN = 1;
+        $HR = 3;
+        $BILLING_MANAGER = 4;
+        $TL = 6;
+        $PM = 5;
+        $leaveUser = User::findOrFail($user_id);
+        $globalUsers = User::where('is_active', 1)
+            ->where(function ($q) use ($SUPER_ADMIN, $HR, $BILLING_MANAGER) {
+                $q->whereJsonContains('role_id', $SUPER_ADMIN)
+                    ->orWhereJsonContains('role_id', $HR)
+                    ->orWhereJsonContains('role_id', $BILLING_MANAGER);
+            })
+            ->get();
+        $teamUsers = User::where('is_active', 1)
+            ->where(function ($q) use ($leaveUser) {
+                foreach ($leaveUser->team_id ?? [] as $teamId) {
+                    $q->orWhereJsonContains('team_id', $teamId);
+                }
+            })
+            ->where(function ($q) use ($TL, $PM) {
+                $q->whereJsonContains('role_id', $TL)
+                    ->orWhereJsonContains('role_id', $PM);
+            })
+            ->get();
+        $mailUsers = $globalUsers
+            ->merge($teamUsers)
+            ->unique('id');
 
+        foreach ($mailUsers as $user) {
+            Mail::to($user->email)->queue(new LeaveAppliedMail($leave, $leaveUser));
+        }
         return response()->json([
             'success' => true,
             'message' => 'Leave request submitted successfully',
