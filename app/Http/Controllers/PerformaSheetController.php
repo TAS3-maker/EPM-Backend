@@ -207,13 +207,15 @@ class PerformaSheetController extends Controller
     }
     public function submitForApproval(Request $request)
     {
-        $user = auth()->user();
+        $authUser = auth()->user();
+
         try {
             $validatedData = $request->validate([
                 'data' => 'required|array|min:1',
                 'data.*.id' => [
                     'required',
-                    Rule::exists('performa_sheets', 'id')->where('user_id', $user->id),
+                    Rule::exists('performa_sheets', 'id')
+                        ->where('user_id', $authUser->id),
                 ],
                 'data.*.date' => 'required|date_format:Y-m-d',
                 'data.*.is_fillable' => 'nullable|boolean',
@@ -228,22 +230,17 @@ class PerformaSheetController extends Controller
         }
 
         $updatedCount = 0;
-        $inserted = [];
-        $sheetsWithDetails = [];
+        $sheetsWithDetailsByDate = [];
 
         foreach ($validatedData['data'] as $record) {
 
             $sheet = PerformaSheet::where('id', $record['id'])
-                ->where('user_id', $user->id)
+                ->where('user_id', $authUser->id)
                 ->first();
 
             if (!$sheet) {
                 continue;
             }
-
-            /*$record['is_fillable'] = 1;
-             $isFillable = (bool) ($record['is_fillable'] ?? false);
-            $status = $isFillable ? 'pending' : 'draft'; */
 
             $data = json_decode($sheet->data, true) ?? [];
             $data['is_fillable'] = 1;
@@ -252,13 +249,15 @@ class PerformaSheetController extends Controller
                 'data' => json_encode($data),
                 'status' => 'pending',
             ]);
+
             $sheet_data = json_decode($sheet->data);
-            $updatedCount++;
-            $project = ProjectMaster::select('project_name')->find($sheet_data->project_id);
-            //sheet details for mail/report
-            $sheetsWithDetails[] = [
-                'submitting_user' => $user->name,
-                'project_name' => $project->project_name,
+
+            $project = ProjectMaster::select('project_name')
+                ->find($sheet_data->project_id);
+
+            $sheetsWithDetailsByDate[$sheet_data->date][] = [
+                'submitting_user' => $authUser->name,
+                'project_name' => $project->project_name ?? null,
                 'task_id' => $sheet_data->task_id,
                 'date' => $sheet_data->date,
                 'time' => $sheet_data->time,
@@ -268,95 +267,79 @@ class PerformaSheetController extends Controller
                 'project_type' => $sheet_data->project_type,
                 'project_type_status' => $sheet_data->project_type_status,
             ];
+
             if ($sheet->is_tracking) {
-                $sheetsWithDetails['is_tracking'] = $sheet_data->is_tracking;
-                $sheetsWithDetails['tracking_mode'] = $sheet_data->tracking_mode;
-                $sheetsWithDetails['tracked_hours'] = $sheet_data->tracked_hours;
+                $lastIndex = array_key_last(
+                    $sheetsWithDetailsByDate[$sheet_data->date]
+                );
+
+                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['is_tracking']
+                    = $sheet_data->is_tracking;
+                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['tracking_mode']
+                    = $sheet_data->tracking_mode;
+                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['tracked_hours']
+                    = $sheet_data->tracked_hours;
             }
-            ActivityService::log([
-                'project_id' => $sheet_data->project_id,
-                'type' => 'activity',
-                'description' => 'Performa Sheets submitted for approval by ' . $user->name,
-            ]);
+
+            $updatedCount++;
         }
 
-        // Get users with higher roles (Super Admin / Billing Manager)
-        /* $users = User::whereHas('role', function ($query) {
-            $query->whereIn('name', ['Super Admin', 'Billing Manager']);
-        })->get();
+        ActivityService::log([
+            'type' => 'activity',
+            'description' => 'Performa Sheets submitted for approval by ' . $authUser->name,
+        ]);
 
-        $submitting_date_for_mail = $record['date'];
+        $submitting_user_name = $authUser->name;
+        $submitting_employee_id = $authUser->employee_id;
 
-        foreach ($users as $user) {
-            // Mail::to($user->email)->send(new EmployeePerformaSheet($sheetsWithDetails, $user,$submitting_user_name, $submitting_user_employee_id, $submitting_date_for_mail));
-        } */
-        //  $roleIds = Role::whereIn('name', [
-        //     'Super Admin',
-        //     'Billing Manager'
-        // ])->pluck('id')->toArray();
-        // $users = User::where(function ($q) use ($roleIds) {
-        //     foreach ($roleIds as $roleId) {
-        //         $q->orWhereJsonContains('role_id', $roleId);
-        //     }
-        // })
-        //     ->where('is_active', 1)
-        //     ->get();
-        // $submitting_date_for_mail = $record['date'];
+        $tl = User::where('id', $authUser->tl_id)
+            ->where('is_active', 1)
+            ->first();
 
-        // foreach ($users as $user) {
-        //     Mail::to($user->email)->send(
-        //         new EmployeePerformaSheet(
-        //            $sheetsWithDetails, $user,$user->name, $user->employee_id, $submitting_date_for_mail
-        //         )
-        //     );
-        // }
+        $teamIds = $authUser->team_id ?? [];
 
-        $submitting_user_name = $user->name;
-        $submitting_employee_id = $user->employee_id;
-        $tl = User::where('id', $user->tl_id)
-                ->where('is_active', 1)
-                ->first();
-
-        $teamIds = $user->team_id ?? [];
-                
         $projectManagers = User::where('is_active', 1)
-                    ->whereJsonContains('role_id', 5)
-                    ->where(function ($q) use ($teamIds) {
-                        foreach ($teamIds as $teamId) {
-                            $q->orWhereJsonContains('team_id', $teamId);
-                        }
-                    })
-                    ->get();
-                    
-                $roleIds = Role::whereIn('name', [
-                    'superadmin',
-                    'Billing Manager'
-                ])->pluck('id')->toArray();
+            ->whereJsonContains('role_id', 5)
+            ->where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $teamId) {
+                    $q->orWhereJsonContains('team_id', $teamId);
+                }
+            })
+            ->get();
 
-                $approvers = User::where(function ($q) use ($roleIds) {
-                    foreach ($roleIds as $roleId) {
-                        $q->orWhereJsonContains('role_id', $roleId);
-                    }
-                })
-                    ->where('is_active', 1)
-                    ->get();
-                    
-            $users = collect($approvers)
+        $roleIds = Role::whereIn('name', [
+            'superadmin',
+            'Billing Manager'
+        ])->pluck('id')->toArray();
+
+        $approvers = User::where(function ($q) use ($roleIds) {
+            foreach ($roleIds as $roleId) {
+                $q->orWhereJsonContains('role_id', $roleId);
+            }
+        })
+            ->where('is_active', 1)
+            ->get();
+
+        $users = collect($approvers)
             ->merge($projectManagers)
-            ->when($tl, fn ($c) => $c->push($tl))
+            ->when($tl, fn($c) => $c->push($tl))
             ->unique('id')
             ->values();
 
-        $submitting_date_for_mail = $record['date'];
-
-        foreach ($users as $user) {
-            Mail::to($user->email)->send(
-                new EmployeePerformaSheet(
-                   $sheetsWithDetails, $user,$submitting_user_name, $submitting_employee_id, $submitting_date_for_mail
-                )
-            );
+        foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
+            foreach ($users as $approver) {
+                Mail::to($approver->email)->send(
+                    new EmployeePerformaSheet(
+                        $sheetsWithDetails,
+                        $approver,
+                        $submitting_user_name,
+                        $submitting_employee_id,
+                        $date
+                    )
+                );
+            }
         }
-        
+
         return response()->json([
             'success' => true,
             'message' => $updatedCount . ' Performa Sheets submitted for approval successfully',
