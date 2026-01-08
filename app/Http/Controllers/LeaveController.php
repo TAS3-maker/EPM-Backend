@@ -25,7 +25,7 @@ class LeaveController extends Controller
 {
     public function AddLeave(Request $request)
     {
-         if ($request->user_id) {
+        if ($request->user_id) {
             $user_id = $request->user_id;
         } else {
             $user = auth()->user();
@@ -532,7 +532,210 @@ class LeaveController extends Controller
         ]);
     }
 
- public function GetUsersAttendance(Request $request)
+    // public function GetUsersAttendance(Request $request)
+    // {
+    //     $current_user = auth()->user();
+
+    //     if (!$current_user->hasAnyRole([1, 2, 3])) {
+    //         return ApiResponse::error(
+    //             'You are not authorized to access this data.',
+    //             [],
+    //             403
+    //         );
+    //     }
+
+    //     if ($request->start_date && $request->end_date) {
+    //         $startDate = Carbon::parse($request->start_date)->startOfDay();
+    //         $endDate = Carbon::parse($request->end_date)->endOfDay();
+    //     } else {
+    //         $minDate = DB::table('leavespolicy')->min('start_date');
+
+    //         $startDate = $minDate
+    //             ? Carbon::parse($minDate)->startOfDay()
+    //             : Carbon::now()->startOfMonth();
+
+    //         $endDate = Carbon::now()->endOfDay();
+    //     }
+
+    //     $usersQuery = User::select('id', 'name', 'team_id')
+    //         ->where(function ($q) {
+    //             $q->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(1)])
+    //                 ->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(2)]);
+    //         })
+    //         ->where('is_active', 1);
+
+    //     if ($request->user_id) {
+    //         $usersQuery->where('id', $request->user_id);
+    //     }
+
+    //     $users = $usersQuery->get();
+
+    //     $teamIds = $users->pluck('team_id')
+    //         ->flatMap(fn($teamIds) => $teamIds ?? [])
+    //         ->unique()
+    //         ->values();
+
+    //     $teams = DB::table('teams')
+    //         ->whereIn('id', $teamIds)
+    //         ->pluck('name', 'id');
+
+    //     $users = $users->map(function ($user) use ($teams) {
+    //         $user->team_name = collect($user->team_id ?? [])
+    //             ->map(fn($id) => $teams[$id] ?? null)
+    //             ->filter()
+    //             ->values()
+    //             ->toArray();
+    //         return $user;
+    //     });
+
+    //     $leaves = DB::table('leavespolicy')
+    //         ->where('status', 'Approved')
+    //         ->where(function ($q) use ($startDate, $endDate) {
+    //             $q->whereBetween('start_date', [$startDate, $endDate])
+    //                 ->orWhereBetween('end_date', [$startDate, $endDate])
+    //                 ->orWhere(function ($q) use ($startDate, $endDate) {
+    //                     $q->where('start_date', '<=', $startDate)
+    //                         ->where('end_date', '>=', $endDate);
+    //                 });
+    //         })
+    //         ->get()
+    //         ->groupBy('user_id');
+
+    //     $performaSheets = DB::table('performa_sheets')
+    //         ->select('user_id', 'data')
+    //         ->whereIn('user_id', $users->pluck('id'))
+    //         ->get()
+    //         ->groupBy('user_id')
+    //         ->map(function ($sheets) use ($startDate, $endDate) {
+
+    //             return $sheets->map(function ($sheet) use ($startDate, $endDate) {
+
+    //                 $firstDecode = json_decode($sheet->data, true);
+
+    //                 if (!is_string($firstDecode)) {
+    //                     return null;
+    //                 }
+
+    //                 $decoded = json_decode($firstDecode, true);
+
+    //                 if (!$decoded || empty($decoded['date'])) {
+    //                     return null;
+    //                 }
+
+    //                 $sheetDate = Carbon::parse($decoded['date'])->startOfDay();
+
+    //                 if ($sheetDate->lt($startDate) || $sheetDate->gt($endDate)) {
+    //                     return null;
+    //                 }
+
+    //                 return $sheetDate->format('Y-m-d');
+
+    //             })
+    //                 ->filter()
+    //                 ->unique()
+    //                 ->values();
+    //         });
+
+    //     // return $performaSheets;
+
+
+    //     $period = iterator_to_array(
+    //         CarbonPeriod::create($startDate, $endDate)
+    //     );
+
+    //     $response = [];
+
+
+    //     foreach ($users as $user) {
+
+    //         $attendanceData = [];
+    //         $today = Carbon::today();
+    //         $userSheetDates = $performaSheets[$user->id] ?? collect();
+
+    //         foreach ($period as $date) {
+
+    //             $dayStr = $date->format('Y-m-d');
+    //             $isFuture = $date->gt($today);
+    //             $isWeekend = $date->isSaturday() || $date->isSunday();
+
+    //             $attendanceData[$dayStr] = [
+    //                 'present' => 0,
+    //                 'leave_type' => '',
+    //                 'halfday_period' => '',
+    //                 'hours' => '',
+    //                 'reason' => '',
+    //                 'status' => ''
+    //             ];
+
+    //             if ($userSheetDates->contains($dayStr)) {
+    //                 $attendanceData[$dayStr]['present'] = 1;
+    //                 continue;
+    //             }
+
+    //             if ($isFuture || $isWeekend) {
+    //                 $attendanceData[$dayStr]['present'] = '';
+    //             }
+    //         }
+
+
+    //         if (isset($leaves[$user->id])) {
+    //             foreach ($leaves[$user->id] as $leave) {
+
+    //                 $leavePeriod = CarbonPeriod::create(
+    //                     Carbon::parse($leave->start_date),
+    //                     Carbon::parse($leave->end_date)
+    //                 );
+
+    //                 foreach ($leavePeriod as $day) {
+
+    //                     if ($day->lt($startDate) || $day->gt($endDate)) {
+    //                         continue;
+    //                     }
+
+    //                     $dayStr = $day->format('Y-m-d');
+
+    //                     if ($userSheetDates->contains($dayStr)) {
+    //                         continue;
+    //                     }
+
+    //                     $attendanceData[$dayStr]['present'] = 0;
+
+    //                     if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+    //                         $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+    //                     }
+
+    //                     if ($leave->leave_type === 'Half Day') {
+    //                         $attendanceData[$dayStr]['leave_type'] = 'Half Day';
+    //                         $attendanceData[$dayStr]['halfday_period'] = $leave->halfday_period;
+    //                     }
+
+    //                     if ($leave->leave_type === 'Short Leave') {
+    //                         $attendanceData[$dayStr]['leave_type'] = 'Short Leave';
+    //                         $attendanceData[$dayStr]['hours'] = $leave->hours;
+    //                     }
+
+    //                     $attendanceData[$dayStr]['reason'] = $leave->reason;
+    //                     $attendanceData[$dayStr]['status'] = $leave->status;
+    //                 }
+    //             }
+    //         }
+
+    //         $response[] = [
+    //             'user_id' => $user->id,
+    //             'user_name' => $user->name,
+    //             'team_name' => $user->team_name ?? '',
+    //             'attendance_data' => $attendanceData
+    //         ];
+    //     }
+
+    //     return ApiResponse::success(
+    //         'User attendance fetched successfully',
+    //         $response
+    //     );
+    // }
+
+
+    public function GetUsersAttendance(Request $request)
     {
         $current_user = auth()->user();
 
@@ -549,11 +752,9 @@ class LeaveController extends Controller
             $endDate = Carbon::parse($request->end_date)->endOfDay();
         } else {
             $minDate = DB::table('leavespolicy')->min('start_date');
-
             $startDate = $minDate
                 ? Carbon::parse($minDate)->startOfDay()
                 : Carbon::now()->startOfMonth();
-
             $endDate = Carbon::now()->endOfDay();
         }
 
@@ -601,83 +802,28 @@ class LeaveController extends Controller
             ->get()
             ->groupBy('user_id');
 
-        $performaSheets = DB::table('performa_sheets')
-            ->select('user_id', 'data')
-            ->whereIn('user_id', $users->pluck('id'))
-            ->get()
-            ->groupBy('user_id')
-            ->map(function ($sheets) use ($startDate, $endDate) {
-
-                return $sheets->map(function ($sheet) use ($startDate, $endDate) {
-
-                    $firstDecode = json_decode($sheet->data, true);
-
-                    if (!is_string($firstDecode)) {
-                        return null;
-                    }
-
-                    $decoded = json_decode($firstDecode, true);
-
-                    if (!$decoded || empty($decoded['date'])) {
-                        return null;
-                    }
-
-                    $sheetDate = Carbon::parse($decoded['date'])->startOfDay();
-
-                    if ($sheetDate->lt($startDate) || $sheetDate->gt($endDate)) {
-                        return null;
-                    }
-
-                    return $sheetDate->format('Y-m-d');
-
-                })
-                    ->filter()
-                    ->unique()
-                    ->values();
-            });
-
-        // return $performaSheets;
-
-
-        $period = iterator_to_array(
-            CarbonPeriod::create($startDate, $endDate)
-        );
-
+        $period = iterator_to_array(CarbonPeriod::create($startDate, $endDate));
+        $today = Carbon::today();
         $response = [];
-
 
         foreach ($users as $user) {
 
             $attendanceData = [];
-            $today = Carbon::today();
-            $userSheetDates = $performaSheets[$user->id] ?? collect();
 
             foreach ($period as $date) {
-
-                $dayStr = $date->format('Y-m-d');
-                $isFuture = $date->gt($today);
+                $day = $date->format('Y-m-d');
                 $isWeekend = $date->isSaturday() || $date->isSunday();
 
-                $attendanceData[$dayStr] = [
-                    'present' => 0,
+                $attendanceData[$day] = [
+                    'present' => ($isWeekend || $date->gt($today)) ? '' : 1,
                     'leave_type' => '',
                     'halfday_period' => '',
                     'hours' => '',
                     'reason' => '',
                     'status' => ''
                 ];
-
-                if ($userSheetDates->contains($dayStr)) {
-                    $attendanceData[$dayStr]['present'] = 1;
-                    continue;
-                }
-
-                if ($isFuture || $isWeekend) {
-                    $attendanceData[$dayStr]['present'] = '';
-                }
             }
 
-          
             if (isset($leaves[$user->id])) {
                 foreach ($leaves[$user->id] as $leave) {
 
@@ -694,13 +840,11 @@ class LeaveController extends Controller
 
                         $dayStr = $day->format('Y-m-d');
 
-                        if ($userSheetDates->contains($dayStr)) {
-                            continue;
-                        }
-
-                        $attendanceData[$dayStr]['present'] = 0;
-
-                        if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+                        if (
+                            $leave->leave_type === 'Multiple Days Leave' ||
+                            $leave->leave_type === 'Full Leave'
+                        ) {
+                            $attendanceData[$dayStr]['present'] = 0;
                             $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
                         }
 
@@ -733,5 +877,6 @@ class LeaveController extends Controller
             $response
         );
     }
+
 
 }
