@@ -7,6 +7,7 @@ use App\Models\ClientMaster;
 use App\Http\Helpers\ApiResponse;
 use Illuminate\Http\Request;
 use App\Services\ActivityService;
+use Illuminate\Validation\Rule;
 class ClientMasterController extends Controller
 {
     public function index()
@@ -17,7 +18,7 @@ class ClientMasterController extends Controller
 
     public function show($id)
     {
-        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->where('id',$id)->get();
+        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->where('id', $id)->get();
         return ApiResponse::success('Clients fetched successfully', ClientMasterResource::collection($clients));
     }
     public function store(Request $request)
@@ -27,14 +28,19 @@ class ClientMasterController extends Controller
                 [
                     'client_name' => 'required|string|max:191|unique:clients_master,client_name',
                     'client_email' => 'nullable|email|max:191|unique:clients_master,client_email',
-                    'client_number' => 'nullable|digits_between:10,15|unique:clients_master,client_number',
+                    'client_number' => [
+                        'nullable',
+                        'regex:/^\+?[0-9\s\-]{5,20}$/',
+                        'unique:clients_master,client_number'
+                    ],
+
                 ],
                 [
                     'client_name.required' => 'Client name is required.',
                     'client_name.unique' => 'Client name already exists.',
                     'client_email.email' => 'Please provide a valid email address.',
                     'client_email.unique' => 'Client email already exists.',
-                    'client_number.digits_between' => 'Client number must be between 10 and 15 digits.',
+                    'client_number.regex' => 'Client number must be between 5 and 15 digits and may include +, spaces, or hyphens.',
                     'client_number.unique' => 'Client number already exists.',
                 ]
             );
@@ -85,14 +91,20 @@ class ClientMasterController extends Controller
                 [
                     'client_name' => 'sometimes|required|string|max:191|unique:clients_master,client_name,' . $id,
                     'client_email' => 'sometimes|nullable|email|max:191|unique:clients_master,client_email,' . $id,
-                    'client_number' => 'sometimes|nullable|digits_between:10,15|unique:clients_master,client_number,' . $id,
+                    'client_number' => [
+                        'sometimes',
+                        'nullable',
+                        'regex:/^\+?[0-9][0-9\s\-]{9,14}$/',
+                        Rule::unique('clients_master', 'client_number')->ignore($id),
+                    ],
+
                 ],
                 [
                     'client_name.required' => 'Client name is required.',
                     'client_name.unique' => 'Client name already exists.',
                     'client_email.email' => 'Please provide a valid email address.',
                     'client_email.unique' => 'Client email already exists.',
-                    'client_number.digits_between' => 'Client number must be between 10 and 15 digits.',
+                    'client_number.regex' => 'Client number must be between 5 and 15 digits and may include +, spaces, or hyphens.',
                     'client_number.unique' => 'Client number already exists.',
                 ]
             );
