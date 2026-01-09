@@ -47,6 +47,7 @@ class Permission extends Model
         'previous_sheets',
         'offline_hours',
         'standup_sheet',
+        'sheet_reporting',
     ];
 
     // Relationship to User

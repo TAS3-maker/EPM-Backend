@@ -261,6 +261,7 @@ class UserController extends Controller
                 'previous_sheets' => 0,
                 'offline_hours' => 0,
                 'standup_sheet' => 0,
+                'sheet_reporting' => 0,
             ];
 
             // MERGE USING MAX VALUE
