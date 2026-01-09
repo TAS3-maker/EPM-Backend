@@ -1623,15 +1623,140 @@ class PerformaSheetController extends Controller
         ]);
     }
 
+    // public function getAllDraftPerformaSheets(Request $request)
+    // {
+    //     $user = $request->user();
+    //     $role_id = $user->role_id;
+    //     $team_id = $user->team_id ?? [];
+    //     $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
+
+    //     $baseQuery = PerformaSheet::with('user:id,name');
+    //     $baseQuery->where('user_id', $user->id);
+    //     if ($isFillable) {
+    //         $baseQuery->where('status', 'standup');
+    //     } else {
+    //         $baseQuery->where('status', 'backdated');
+    //     }
+
+    //     $baseQuery->orderBy('id', 'DESC');
+
+    //     $sheets = $baseQuery->get();
+
+    //     // Prepare structured data
+    //     $structuredData = [];
+
+    //     foreach ($sheets as $sheet) {
+    //         $dataArray = json_decode($sheet->data, true);
+
+    //         if (!is_array($dataArray)) {
+    //             continue;
+    //         }
+
+
+    //         $projectId = $dataArray['project_id'] ?? null;
+    //         $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
+
+    //         $projectName = $project->project_name ?? 'No Project Found';
+    //         $clientName = $project->client->client_name ?? 'No Client Found';
+    //         $deadline = $project->deadline ?? 'No Deadline Set';
+
+    //         // Remove unwanted keys
+    //         unset($dataArray['user_id'], $dataArray['user_name']);
+
+    //         // Inject meta values
+    //         $dataArray['project_name'] = $projectName;
+    //         $dataArray['client_name'] = $clientName;
+    //         $dataArray['deadline'] = $deadline;
+    //         $dataArray['status'] = $sheet->status;
+    //         $dataArray['id'] = $sheet->id;
+    //         $dataArray['created_at'] = $sheet->created_at
+    //             ? Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
+    //         $dataArray['updated_at'] = $sheet->updated_at
+    //             ? Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
+
+    //         // Group by user
+    //         if (!isset($structuredData[$sheet->user_id])) {
+    //             $structuredData[$sheet->user_id] = [
+    //                 'user_id' => $sheet->user_id,
+    //                 'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+    //                 'sheets' => []
+    //             ];
+    //         }
+
+    //         $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
+    //     }
+
+    //     $structuredData = array_values($structuredData);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'All pending Performa Sheets fetched successfully',
+    //         'data' => $structuredData
+    //     ]);
+    // }
+
+
+
     public function getAllDraftPerformaSheets(Request $request)
     {
         $user = $request->user();
-        $role_id = $user->role_id;
-        $team_id = $user->team_id ?? [];
-        $isFillable = $request->has('is_fillable') ? (int) $request->query('is_fillable') : null;
 
-        $baseQuery = PerformaSheet::with('user:id,name');
-        $baseQuery->where('user_id', $user->id);
+        $roleIds = is_array($user->role_id)
+            ? $user->role_id
+            : json_decode($user->role_id, true);
+
+        $teamIds = is_array($user->team_id)
+            ? $user->team_id
+            : json_decode($user->team_id, true);
+
+        $roleIds = $roleIds ?? [];
+        $teamIds = $teamIds ?? [];
+
+        $isFillable = $request->has('is_fillable')
+            ? (int) $request->query('is_fillable')
+            : null;
+
+        $baseQuery = PerformaSheet::with('user:id,name,role_id,team_id');
+
+        if (array_intersect($roleIds, [1, 2, 3, 4])) {
+
+            $baseQuery->whereHas('user', function ($q) {
+                $q->whereJsonContains('role_id', 7);
+            });
+
+        }
+        elseif (array_intersect($roleIds, [5, 6]) && !empty($teamIds)) {
+
+            $baseQuery->whereHas('user', function ($q) use ($teamIds) {
+                $q->where(function ($sub) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        $sub->orWhereJsonContains('team_id', $teamId);
+                    }
+                });
+            });
+
+        }
+        elseif (in_array(7, $roleIds)) {
+
+            $baseQuery->where('user_id', $user->id);
+
+        }
+        elseif (!empty($teamIds)) {
+
+            $baseQuery->whereHas('user', function ($q) use ($teamIds) {
+                $q->where(function ($sub) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        $sub->orWhereJsonContains('team_id', $teamId);
+                    }
+                });
+            });
+
+        }
+        else {
+            $baseQuery->whereRaw('1 = 0');
+        }
+
+
         if ($isFillable) {
             $baseQuery->where('status', 'standup');
         } else {
@@ -1642,49 +1767,35 @@ class PerformaSheetController extends Controller
 
         $sheets = $baseQuery->get();
 
-        // Prepare structured data
+
         $structuredData = [];
 
         foreach ($sheets as $sheet) {
-            $dataArray = json_decode($sheet->data, true);
 
+            $dataArray = json_decode($sheet->data, true);
             if (!is_array($dataArray)) {
                 continue;
             }
 
-            // Skip if filter is applied and the row doesn't match
-            if ($isFillable !== null) {
-                if (!isset($dataArray['is_fillable']) || (int) $dataArray['is_fillable'] !== $isFillable) {
-                    continue;
-                }
-            }
-
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
+            $project = $projectId
+                ? ProjectMaster::with('client')->find($projectId)
+                : null;
 
-            $projectName = $project->project_name ?? 'No Project Found';
-            $clientName = $project->client->client_name ?? 'No Client Found';
-            $deadline = $project->deadline ?? 'No Deadline Set';
-
-            // Remove unwanted keys
             unset($dataArray['user_id'], $dataArray['user_name']);
 
-            // Inject meta values
-            $dataArray['project_name'] = $projectName;
-            $dataArray['client_name'] = $clientName;
-            $dataArray['deadline'] = $deadline;
+            $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
+            $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
+            $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
             $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
-            $dataArray['created_at'] = $sheet->created_at
-                ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
-            $dataArray['updated_at'] = $sheet->updated_at
-                ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
+            $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
+            $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
 
-            // Group by user
             if (!isset($structuredData[$sheet->user_id])) {
                 $structuredData[$sheet->user_id] = [
                     'user_id' => $sheet->user_id,
-                    'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+                    'user_name' => $sheet->user->name ?? 'No User Found',
                     'sheets' => []
                 ];
             }
@@ -1692,14 +1803,14 @@ class PerformaSheetController extends Controller
             $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
         }
 
-        $structuredData = array_values($structuredData);
-
         return response()->json([
             'success' => true,
             'message' => 'All pending Performa Sheets fetched successfully',
-            'data' => $structuredData
+            'data' => array_values($structuredData)
         ]);
     }
+
+
     public function getAllStandupPerformaSheets(Request $request)
     {
         try {
@@ -3309,9 +3420,9 @@ class PerformaSheetController extends Controller
             ];
 
             $sheets = [];
-            $filledDates = [];              
-            $leaveDates = [];               
-            $workedMinutesByDate = [];       
+            $filledDates = [];
+            $leaveDates = [];
+            $workedMinutesByDate = [];
             $pendingCount = 0;
 
             foreach ($performaSheets as $row) {

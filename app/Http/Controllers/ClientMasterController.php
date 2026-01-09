@@ -53,8 +53,12 @@ class ClientMasterController extends Controller
                 'type' => 'activity',
                 'description' => $client->client_name . ' client added by ' . auth()->user()->name,
             ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Client created successfully',
+                'data' => new ClientMasterResource($client)
+            ], 200);
 
-            return new ClientMasterResource($client);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
 
