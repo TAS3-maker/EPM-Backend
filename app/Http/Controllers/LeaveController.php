@@ -186,7 +186,7 @@ class LeaveController extends Controller
             ->unique('id');
 
         foreach ($mailUsers as $user) {
-            // Mail::to($user->email)->send(new LeaveAppliedMail($leave, $leaveUser));
+            // Mail::to($user->email)->queue(new LeaveAppliedMail($leave, $leaveUser));
         }
         return response()->json([
             'success' => true,
@@ -388,7 +388,7 @@ class LeaveController extends Controller
 
                 if ($tlUser && $tlUser->email) {
                     $mail = new ProjectAssignedMail($project, $employee, auth()->user());
-                    // Mail::to($tlUser->email)->send($mail);
+                    // Mail::to($tlUser->email)->queue($mail);
                 }
             }
         } catch (\Exception $e) {
@@ -440,7 +440,7 @@ class LeaveController extends Controller
 
 
         if ($user && $user->email) {
-            // Mail::to($user->email)->send(
+            // Mail::to($user->email)->queue(
             //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
             // );
 

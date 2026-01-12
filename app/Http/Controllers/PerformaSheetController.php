@@ -329,7 +329,7 @@ class PerformaSheetController extends Controller
 
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             foreach ($users as $approver) {
-                // Mail::to($approver->email)->send(
+                // Mail::to($approver->email)->queue(
                 //     new EmployeePerformaSheet(
                 //         $sheetsWithDetails,
                 //         $approver,

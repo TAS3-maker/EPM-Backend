@@ -929,7 +929,7 @@ class UserController extends Controller
     //                 $roleName = $data['roles'];
     //                 $teamName = $data['team'] ?? null;
 
-    //                 // Mail::to($data['email'])->send(new SendEmployeeCredentials(
+    //                 // Mail::to($data['email'])->queue(new SendEmployeeCredentials(
     //                 //     $data['email'],
     //                 //     $data['password'] ?? 'password123',
     //                 //     $roleName,

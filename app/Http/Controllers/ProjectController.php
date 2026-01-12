@@ -110,7 +110,7 @@ class ProjectController extends Controller
                 $mail = (new ProjectAssignedMail($manager, $project, $assigner))
                     ->replyTo($assigner->email, $assigner->name);
 
-                // Mail::to($manager->email)->send($mail);
+                // Mail::to($manager->email)->queue($mail);
             }
         }
 
@@ -389,7 +389,7 @@ class ProjectController extends Controller
                 $mail = (new ProjectAssignedToTLMail($tl, $project, $assigner))
                     ->replyTo($assigner->email, $assigner->name);
 
-                // Mail::to($tl->email)->send($mail);
+                // Mail::to($tl->email)->queue($mail);
             }
         }
 
