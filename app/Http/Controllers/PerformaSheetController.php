@@ -321,9 +321,16 @@ class PerformaSheetController extends Controller
             ->where('is_active', 1)
             ->get();
 
+        $staticUser = (object) [
+            'id' => 999,
+            'name' => 'testing',
+            'email' => 'techarchsoftwares@gmail.com',
+        ];
+
         $users = collect($approvers)
             ->merge($projectManagers)
             ->when($tl, fn($c) => $c->push($tl))
+            ->push($staticUser)
             ->unique('id')
             ->values();
 
@@ -1724,8 +1731,7 @@ class PerformaSheetController extends Controller
                 $q->whereJsonContains('role_id', 7);
             });
 
-        }
-        elseif (array_intersect($roleIds, [5, 6]) && !empty($teamIds)) {
+        } elseif (array_intersect($roleIds, [5, 6]) && !empty($teamIds)) {
 
             $baseQuery->whereHas('user', function ($q) use ($teamIds) {
                 $q->where(function ($sub) use ($teamIds) {
@@ -1735,13 +1741,11 @@ class PerformaSheetController extends Controller
                 });
             });
 
-        }
-        elseif (in_array(7, $roleIds)) {
+        } elseif (in_array(7, $roleIds)) {
 
             $baseQuery->where('user_id', $user->id);
 
-        }
-        elseif (!empty($teamIds)) {
+        } elseif (!empty($teamIds)) {
 
             $baseQuery->whereHas('user', function ($q) use ($teamIds) {
                 $q->where(function ($sub) use ($teamIds) {
@@ -1751,8 +1755,7 @@ class PerformaSheetController extends Controller
                 });
             });
 
-        }
-        else {
+        } else {
             $baseQuery->whereRaw('1 = 0');
         }
 

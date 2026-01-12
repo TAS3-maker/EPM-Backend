@@ -82,6 +82,7 @@ class RoleController extends Controller
         $role = Role::create([
             'name' => $request->name,
             'roles_permissions' => $roles_permissions,
+            'role_label' => $request->role_label,
         ]);
 
         return ApiResponse::success('Role created successfully', $role, 201);
@@ -110,6 +111,7 @@ class RoleController extends Controller
             // ]);
             $role_data = [
                 'name' => $validatedData['name'],
+                'role_label' => $validatedData['role_label'],
             ];
 
             if (
