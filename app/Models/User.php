@@ -28,7 +28,9 @@ class User extends Authenticatable implements JWTSubject
         'password',
         'team_id',
         'role_id',
-        'employee_id'
+        'employee_id',
+        'inactive_date',
+        
     ];
 
     /**
@@ -52,6 +54,7 @@ class User extends Authenticatable implements JWTSubject
         'team_id' => 'array',
         'role_id' => 'array',
         'is_active' => 'boolean',
+        'inactive_date' => 'date',
     ];
 
     /**

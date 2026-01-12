@@ -30,6 +30,7 @@ class UserResource extends JsonResource
             'teams' => $teamNames,
             'profile_pic' => $this->profile_pic ? asset('storage/profile_pics/' . $this->profile_pic) : null,
             'is_active' => $this->is_active ? 1 : 0,
+            'inactive_date' => $this->inactive_date ? $this->inactive_date->format('Y-m-d') : null,
         ];
     }
 }

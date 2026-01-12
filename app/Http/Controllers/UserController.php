@@ -459,6 +459,7 @@ class UserController extends Controller
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'password' => 'sometimes|min:6|confirmed',
                 'is_active' => 'nullable|in:0,1',
+                'inactive_date' => 'nullable|date|before_or_equal:today',
             ]);
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -535,7 +536,6 @@ class UserController extends Controller
             }
         }
 
-        /* ================= USER UPDATE ================= */
         $user->name = $validatedData['name'] ?? $user->name;
         $user->email = $validatedData['email'] ?? $user->email;
         $user->phone_num = $validatedData['phone_num'] ?? $user->phone_num;
@@ -570,17 +570,18 @@ class UserController extends Controller
         }
 
         $user->is_active = $validatedData['is_active'] ?? 1;
+        if ($validatedData['is_active'] == 0) {
+            $user->inactive_date = $validatedData['inactive_date'] ?? now();
+        } else {
+            $user->inactive_date = null;
+        }
         $user->save();
 
-        /* ================= PERMISSION SYNC (COLUMN BASED) ================= */
         if (!is_null($roleIds)) {
 
-            // 1. Get permissions JSON from roles
             $rolePermissions = Role::whereIn('id', $roleIds)
                 ->pluck('roles_permissions')
                 ->toArray();
-
-            // 2. Merge permissions (highest value wins)
             $finalPermissions = [];
 
             foreach ($rolePermissions as $perms) {
@@ -600,13 +601,11 @@ class UserController extends Controller
                 }
             }
 
-            // 3. Create permission row if not exists
             $permissionRow = Permission::firstOrCreate(
                 ['user_id' => $user->id],
                 ['user_id' => $user->id]
             );
 
-            // 4. Update only existing permission columns
             $tableColumns = Schema::getColumnListing('permissions');
             $updateData = [];
 
