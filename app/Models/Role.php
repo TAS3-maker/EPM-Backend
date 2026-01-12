@@ -3,7 +3,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
- use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 
 class Role extends Model
@@ -13,15 +13,16 @@ class Role extends Model
     protected $fillable = [
         'name',
         'roles_permissions',
+        'role_label',
     ];
 
- protected $casts = [
+    protected $casts = [
         'roles_permissions' => 'array',
     ];
-public function users(): HasMany
-{
-    return $this->hasMany(User::class, 'role_id', 'id');
-}
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class, 'role_id', 'id');
+    }
 
-    
+
 }

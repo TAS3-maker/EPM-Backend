@@ -33,6 +33,7 @@ class RoleController extends Controller
         try {
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:roles',
+                'role_label' => 'nullable|string|max:255',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -96,6 +97,7 @@ class RoleController extends Controller
             $validatedData = $request->validate([
                 'name' => 'required|string|max:255|unique:roles,name,' . $id,
                 'roles_permissions' => 'nullable',
+                'role_label' => 'nullable|string|max:255',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);

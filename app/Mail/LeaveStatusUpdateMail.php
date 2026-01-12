@@ -5,8 +5,9 @@ namespace App\Mail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class LeaveStatusUpdateMail extends Mailable
+class LeaveStatusUpdateMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;    
 

@@ -8,8 +8,9 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 use Carbon\Carbon;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
-class LeaveAppliedMail extends Mailable
+class LeaveAppliedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
