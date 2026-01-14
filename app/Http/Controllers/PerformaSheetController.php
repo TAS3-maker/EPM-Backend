@@ -3802,7 +3802,7 @@ class PerformaSheetController extends Controller
                 ? Carbon::parse($request->end_date)->endOfDay()
                 : Carbon::today()->endOfDay();
 
-            $dailyExpectedMinutes = 510; 
+            $dailyExpectedMinutes = 510;
 
             $authUser = auth()->user();
 
@@ -3941,7 +3941,9 @@ class PerformaSheetController extends Controller
                                     $finalData[$team->id]['teamMembers'][$user->id]['pendingBackdatedMinutes'] += $minutes;
                                     $finalData[$team->id]['teamMembers'][$user->id]['pendingBackdatedCount'] += 1;
 
-                                    $pendingBackdatedPerDay[$dateStr] = true;
+                                    $pendingBackdatedPerDay[$dateStr] =
+                                        ($pendingBackdatedPerDay[$dateStr] ?? 0) + $minutes;
+
                                 }
                             }
                         }
@@ -3993,24 +3995,25 @@ class PerformaSheetController extends Controller
 
                         $totalWorked = $worked + ($pendingBackdatedPerDay[$dateStr] ?? 0);
 
-                        if (($pendingBackdatedPerDay[$dateStr] ?? false)) {
-                            $pendingMinutes = $finalData[$team->id]['teamMembers'][$user->id]['pendingBackdatedMinutes'] ?? 0;
-                            $pendingunfilled = max(0, $dailyExpectedMinutes - $pendingMinutes);
-                            $finalData[$team->id]['unfilledMinutes'] += $pendingunfilled;
-                            $finalData[$team->id]['teamMembers'][$user->id]['unfilled'] += $pendingunfilled;
-                        } else {
-                            if ($leaveType === 'Short Leave') {
-                                $unfilled = max(0, $dailyExpectedMinutes - $leave - $worked);
-                            } elseif ($leave > 0) {
-                                $unfilled = max(0, $dailyExpectedMinutes - $worked - $leave);
-                            } else {
-                                $unfilled = max(0, $dailyExpectedMinutes - $worked);
-                            }
+                        $pendingMinutes = $pendingBackdatedPerDay[$dateStr] ?? 0;
+                        $totalWorkedToday = $worked + $pendingMinutes;
 
-                            $finalData[$team->id]['unfilledMinutes'] += $unfilled;
-                            $finalData[$team->id]['teamMembers'][$user->id]['unfilled'] += $unfilled;
+                        if ($leave >= $dailyExpectedMinutes) {
+                            $unfilled = 0;
+                        } elseif ($leave > 0) {
+                            $unfilled = max(
+                                0,
+                                $dailyExpectedMinutes - $leave - $totalWorkedToday
+                            );
+                        }else {
+                            $unfilled = max(
+                                0,
+                                $dailyExpectedMinutes - $totalWorkedToday
+                            );
                         }
 
+                        $finalData[$team->id]['unfilledMinutes'] += $unfilled;
+                        $finalData[$team->id]['teamMembers'][$user->id]['unfilled'] += $unfilled;
 
 
                         $finalData[$team->id]['expectedMinutes'] += $dailyExpectedMinutes;
