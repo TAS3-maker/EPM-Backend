@@ -490,7 +490,7 @@ class PerformaSheetController extends Controller
             if (!is_array($data) || empty($data['date'])) {
                 continue;
             }
-            
+
             $sheetDate = Carbon::parse($data['date'])->format('Y-m-d');
 
             $submittedSheetsByDate[$sheetDate][] = $data;
@@ -567,17 +567,33 @@ class PerformaSheetController extends Controller
 
             if ($totalMinutes > $effectiveExpectedMinutes) {
 
-                $prefix = $leaveForDate
-                    ? "You have a {$leaveForDate->leave_type} on " . Carbon::parse($date)->format('d M Y') . ", so "
-                    : "";
+                $dateLabel = Carbon::parse($date)->format('d M Y');
+                $remainingMinutes = max(0, $effectiveExpectedMinutes - $existingMinutes);
+
+                // Base message
+                $message = '';
+
+                if ($leaveForDate) {
+                    $message .= "You have a {$leaveForDate->leave_type} on {$dateLabel}";
+                }
+
+                if ($existingMinutes > 0) {
+                    $existingHours = $this->minutesToHoursforsheetapprovel($existingMinutes);
+                    $message .= $leaveForDate
+                        ? " and {$existingHours} hours of work are already submitted"
+                        : "{$existingHours} hours of work are already submitted";
+                }
+
+                $message .= ", so you can submit up to "
+                    . $this->minutesToHoursforsheetapprovel($remainingMinutes)
+                    . " hours of work for {$dateLabel}.";
 
                 return response()->json([
                     'success' => false,
-                    'message' => $prefix
-                        . "you can submit up to {$this->minutesToHoursforsheetapprovel($effectiveExpectedMinutes)} hours of work for "
-                        . Carbon::parse($date)->format('d M Y') . ".",
+                    'message' => $message,
                 ], 422);
             }
+
 
             $remainingMinutes = $effectiveExpectedMinutes - $totalMinutes;
 
