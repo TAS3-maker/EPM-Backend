@@ -474,14 +474,28 @@ class PerformaSheetController extends Controller
         $updatedCount = 0;
 
         foreach ($validatedData['data'] as $record) {
+
             $sheet = PerformaSheet::where('id', $record['id'])
                 ->where('user_id', $authUser->id)
                 ->first();
 
-            if ($sheet) {
-                $submittedSheetsByDate[$record['date']][] = json_decode($sheet->data, true);
+            if (!$sheet) {
+                continue;
             }
+
+            $data = json_decode($sheet->data, true);
+            if (is_string($data)) {
+                $data = json_decode($data, true);
+            }
+            if (!is_array($data) || empty($data['date'])) {
+                continue;
+            }
+            
+            $sheetDate = Carbon::parse($data['date'])->format('Y-m-d');
+
+            $submittedSheetsByDate[$sheetDate][] = $data;
         }
+
 
         foreach ($submittedSheetsByDate as $date => $newSheets) {
 
