@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Performa Sheets Submitted</title>
+    <title>Performance Sheets Submitted</title>
     <style>
         @media only screen and (max-width: 600px) {
             .container {
@@ -31,13 +31,13 @@
 
         <!-- Header -->
         <div style="background-color: #e04a15; color: white; padding: 20px 30px; border-top-left-radius: 8px; border-top-right-radius: 8px;">
-            <h2 style="margin: 0; font-size: 22px;">New Performa Sheets Submitted</h2>
+            <h2 style="margin: 0; font-size: 22px;">New Performance Sheets Submitted</h2>
         </div>
 
         <!-- Body -->
         <div style="padding: 20px 30px;">
             <!-- <p style="font-size: 16px; margin-top: 0;">Hello Admin,</p> -->
-            <p style="font-size: 16px;"><strong>{{ $submitting_user_name }}</strong> has submitted the following Performa Sheets:</p>
+            <p style="font-size: 16px;"><strong>{{ $submitting_user_name }}</strong> has submitted the following Performance Sheets:</p>
 
             <!-- Table -->
             <div style="overflow-x: auto;">
@@ -71,7 +71,7 @@
                 </table>
             </div>
 
-            <p style="margin-top: 30px; font-size: 16px;">Thanks,<br>TAS-EPM</p>
+            <p style="margin-top: 30px; font-size: 16px;">Thanks,<br>{{ $submitting_user_name }}<br>TAS-EPM</p>
         </div>
     </div>
 </body>

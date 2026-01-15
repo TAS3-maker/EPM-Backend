@@ -206,32 +206,427 @@ class PerformaSheetController extends Controller
         $mins = $minutes % 60;
         return sprintf('%02d:%02d', $hours, $mins);
     }
+
+
+    // public function submitForApproval(Request $request)
+    // {
+    //     $authUser = auth()->user();
+
+    //     $validatedData = $request->validate([
+    //         'data' => 'required|array|min:1',
+    //         'data.*.id' => [
+    //             'required',
+    //             Rule::exists('performa_sheets', 'id')->where('user_id', $authUser->id),
+    //         ],
+    //         'data.*.date' => 'required|date_format:Y-m-d',
+    //     ]);
+
+    //     $submittedSheetsByDate = [];
+    //     $currentSheetIds = collect($validatedData['data'])->pluck('id')->toArray();
+    //     $autoSheetsToCreate = [];
+
+    //     foreach ($validatedData['data'] as $record) {
+    //         $sheet = PerformaSheet::where('id', $record['id'])
+    //             ->where('user_id', $authUser->id)
+    //             ->first();
+
+    //         if ($sheet) {
+    //             $submittedSheetsByDate[$record['date']][] = json_decode($sheet->data, true);
+    //         }
+    //     }
+
+    //     foreach ($submittedSheetsByDate as $date => $newSheets) {
+
+    //         $existingSheets = PerformaSheet::where('user_id', $authUser->id)
+    //             ->whereIn('status', ['pending', 'approved'])
+    //             ->whereNotIn('id', $currentSheetIds)
+    //             ->get()
+    //             ->filter(function ($sheet) use ($date) {
+    //                 $data = json_decode($sheet->data, true);
+    //                 return is_array($data) && ($data['date'] ?? null) === $date;
+    //             });
+
+    //         $existingMinutes = 0;
+    //         $existingWorkTypes = [];
+
+    //         foreach ($existingSheets as $sheet) {
+    //             $data = json_decode($sheet->data, true);
+    //             $existingMinutes += $this->timeToMinutesforsheetapprovel($data['time']);
+    //             $existingWorkTypes[] = $data['work_type'];
+    //         }
+
+    //         $newMinutes = 0;
+    //         $newWorkTypes = [];
+
+    //         foreach ($newSheets as $sheet) {
+    //             $newMinutes += $this->timeToMinutesforsheetapprovel($sheet['time']);
+    //             $newWorkTypes[] = $sheet['work_type'];
+    //         }
+
+    //         $allWorkTypes = array_unique(array_merge($existingWorkTypes, $newWorkTypes));
+    //         $expectedMinutes = in_array('WFH', $allWorkTypes) ? 600 : 510;
+
+    //         $leaveMinutes = 0;
+    //         $leaveForDate = null;
+
+    //         $leaves = LeavePolicy::where('user_id', $authUser->id)
+    //             ->where('status', 'Approved')
+    //             ->get();
+
+    //         foreach ($leaves as $leave) {
+
+    //             if (!Carbon::parse($date)->between($leave->start_date, $leave->end_date)) {
+    //                 continue;
+    //             }
+
+    //             $leaveForDate = $leave;
+
+    //             if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+    //                 return response()->json([
+    //                     'success' => false,
+    //                     'message' => "You cannot submit performa sheets on "
+    //                         . Carbon::parse($date)->format('d M Y')
+    //                         . " due to {$leave->leave_type}.",
+    //                 ], 422);
+    //             }
+
+    //             if ($leave->leave_type === 'Half Day') {
+    //                 $leaveMinutes += ($expectedMinutes / 2);
+    //             }
+
+    //             if ($leave->leave_type === 'Short Leave') {
+    //                 $leaveMinutes += $this->shortLeaveMinutesforsheetapprovel($leave->hours);
+    //             }
+    //         }
+
+    //         $effectiveExpectedMinutes = max(0, $expectedMinutes - $leaveMinutes);
+    //         $totalMinutes = $existingMinutes + $newMinutes;
+
+    //         if ($totalMinutes > $effectiveExpectedMinutes) {
+
+    //             $prefix = $leaveForDate
+    //                 ? "You have a {$leaveForDate->leave_type} on " . Carbon::parse($date)->format('d M Y') . ", so "
+    //                 : "";
+
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => $prefix
+    //                     . "you can submit up to {$this->minutesToHoursforsheetapprovel($effectiveExpectedMinutes)} hours of work for "
+    //                     . Carbon::parse($date)->format('d M Y') . ".",
+    //             ], 422);
+    //         }
+
+    //         $remainingMinutes = $effectiveExpectedMinutes - $totalMinutes;
+
+    //         if ($remainingMinutes > 0) {
+    //             $autoSheetsToCreate[$date] = [
+    //                 'minutes' => $remainingMinutes,
+    //                 'work_type' => in_array('WFH', $allWorkTypes) ? 'WFH' : 'WFO',
+    //             ];
+    //         }
+    //     }
+
+    //     foreach ($autoSheetsToCreate as $date => $info) {
+
+    //         $noWorkProject = ProjectMaster::where('project_name', 'like', '%no work%')
+    //             ->whereHas('relation', function ($q) use ($authUser) {
+    //                 $q->whereJsonContains('assignees', $authUser->id);
+    //             })
+    //             ->first();
+
+    //         if (!$noWorkProject) {
+    //             continue;
+    //         }
+
+    //         $noWorkTask = Task::where('project_id', $noWorkProject->id)
+    //             ->where('title', 'like', '%no work%')
+    //             ->first();
+
+    //         if (!$noWorkTask) {
+    //             continue;
+    //         }
+
+    //         PerformaSheet::create([
+    //             'user_id' => $authUser->id,
+    //             'status' => 'pending',
+    //             'is_tracking' => 0,
+    //             'data' => json_encode([
+    //                 'project_id' => $noWorkProject->id,
+    //                 'date' => $date,
+    //                 'time' => $this->minutesToHoursforsheetapprovel($info['minutes']),
+    //                 'task_id' => $noWorkTask->id,
+    //                 'work_type' => $info['work_type'],
+    //                 'narration' => 'No Work (Auto Generated)',
+    //                 'is_tracking' => 'no',
+    //                 'tracking_mode' => '',
+    //                 'tracked_hours' => '00:00',
+    //                 'is_fillable' => 1,
+    //                 'project_type' => 'Fixed',
+    //                 'project_type_status' => 'Offline',
+    //                 'activity_type' => 'In-House',
+    //                 'offline_hours' => '00:00',
+    //             ]),
+    //         ]);
+    //     }
+
+    //     foreach ($validatedData['data'] as $record) {
+    //         $sheet = PerformaSheet::where('id', $record['id'])
+    //             ->where('user_id', $authUser->id)
+    //             ->first();
+
+    //         if ($sheet) {
+    //             $data = json_decode($sheet->data, true);
+    //             $data['is_fillable'] = 1;
+
+    //             $sheet->update([
+    //                 'data' => json_encode($data),
+    //                 'status' => 'pending',
+    //             ]);
+    //         }
+    //     }
+
+    //     ActivityService::log([
+    //         'type' => 'activity',
+    //         'description' => 'Performa Sheets submitted for approval by ' . $authUser->name,
+    //     ]);
+    //     $submitting_user_name = $authUser->name;
+    //     $submitting_employee_id = $authUser->employee_id;
+
+    //     $tl = User::where('id', $authUser->tl_id)
+    //         ->where('is_active', 1)
+    //         ->first();
+
+    //     $teamIds = $authUser->team_id ?? [];
+
+    //     $projectManagers = User::where('is_active', 1)
+    //         ->whereJsonContains('role_id', 5)
+    //         ->where(function ($q) use ($teamIds) {
+    //             foreach ($teamIds as $teamId) {
+    //                 $q->orWhereJsonContains('team_id', $teamId);
+    //             }
+    //         })
+    //         ->get();
+
+    //     $roleIds = Role::whereIn('name', [
+    //         'superadmin',
+    //         'Billing Manager'
+    //     ])->pluck('id')->toArray();
+
+    //     $approvers = User::where(function ($q) use ($roleIds) {
+    //         foreach ($roleIds as $roleId) {
+    //             $q->orWhereJsonContains('role_id', $roleId);
+    //         }
+    //     })
+    //         ->where('is_active', 1)
+    //         ->get();
+
+    //     $staticUser = (object) [
+    //         'id' => 999,
+    //         'name' => 'testing',
+    //         'email' => 'dm.techarchsoftwares@gmail.com',
+    //     ];
+
+    //     $users = collect($approvers)
+    //         ->merge($projectManagers)
+    //         ->when($tl, fn($c) => $c->push($tl))
+    //         ->push($staticUser)
+    //         ->unique('id')
+    //         ->values();
+
+    //     foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
+    //         foreach ($users as $approver) {
+    //             // Mail::to($approver->email)->queue(
+    //             //     new EmployeePerformaSheet(
+    //             //         $sheetsWithDetails,
+    //             //         $approver,
+    //             //         $submitting_user_name,
+    //             //         $submitting_employee_id,
+    //             //         $date
+    //             //     )
+    //             // );
+    //         }
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => count($validatedData['data']) . ' Performa Sheets submitted for approval successfully.',
+    //     ]);
+    // }
+
+
     public function submitForApproval(Request $request)
     {
         $authUser = auth()->user();
 
-        try {
-            $validatedData = $request->validate([
-                'data' => 'required|array|min:1',
-                'data.*.id' => [
-                    'required',
-                    Rule::exists('performa_sheets', 'id')
-                        ->where('user_id', $authUser->id),
-                ],
-                'data.*.date' => 'required|date_format:Y-m-d',
-                'data.*.is_fillable' => 'nullable|boolean',
-                'data.*.status' => 'nullable|string',
-            ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed!',
-                'errors' => $e->errors()
-            ], 422);
+        $validatedData = $request->validate([
+            'data' => 'required|array|min:1',
+            'data.*.id' => [
+                'required',
+                Rule::exists('performa_sheets', 'id')->where('user_id', $authUser->id),
+            ],
+            'data.*.date' => 'required|date_format:Y-m-d',
+        ]);
+
+        $currentSheetIds = collect($validatedData['data'])->pluck('id')->toArray();
+        $submittedSheetsByDate = [];
+        $autoSheetsToCreate = [];
+        $sheetsWithDetailsByDate = [];
+        $updatedCount = 0;
+
+        foreach ($validatedData['data'] as $record) {
+            $sheet = PerformaSheet::where('id', $record['id'])
+                ->where('user_id', $authUser->id)
+                ->first();
+
+            if ($sheet) {
+                $submittedSheetsByDate[$record['date']][] = json_decode($sheet->data, true);
+            }
         }
 
-        $updatedCount = 0;
-        $sheetsWithDetailsByDate = [];
+        foreach ($submittedSheetsByDate as $date => $newSheets) {
+
+            $existingSheets = PerformaSheet::where('user_id', $authUser->id)
+                ->whereIn('status', ['pending', 'approved'])
+                ->whereNotIn('id', $currentSheetIds)
+                ->get()
+                ->filter(function ($sheet) use ($date) {
+                    $data = json_decode($sheet->data, true);
+                    return is_array($data) && ($data['date'] ?? null) === $date;
+                });
+
+            $existingMinutes = 0;
+            $existingWorkTypes = [];
+
+            foreach ($existingSheets as $sheet) {
+                $data = json_decode($sheet->data, true);
+                $existingMinutes += $this->timeToMinutesforsheetapprovel($data['time']);
+                $existingWorkTypes[] = $data['work_type'];
+            }
+
+            $newMinutes = 0;
+            $newWorkTypes = [];
+
+            foreach ($newSheets as $sheet) {
+                $newMinutes += $this->timeToMinutesforsheetapprovel($sheet['time']);
+                $newWorkTypes[] = $sheet['work_type'];
+            }
+
+            $allWorkTypes = array_unique(array_merge($existingWorkTypes, $newWorkTypes));
+
+            $expectedMinutes = in_array('WFH', $allWorkTypes) ? 600 : 510;
+
+            $leaveMinutes = 0;
+            $leaveForDate = null;
+
+            $leaves = LeavePolicy::where('user_id', $authUser->id)
+                ->where('status', 'Approved')
+                ->get();
+
+            foreach ($leaves as $leave) {
+
+                if (!Carbon::parse($date)->between($leave->start_date, $leave->end_date)) {
+                    continue;
+                }
+
+                $leaveForDate = $leave;
+
+                if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "You cannot submit performa sheets on "
+                            . Carbon::parse($date)->format('d M Y')
+                            . " due to {$leave->leave_type}.",
+                    ], 422);
+                }
+
+                if ($leave->leave_type === 'Half Day') {
+                    $leaveMinutes += ($expectedMinutes / 2);
+                }
+
+                if ($leave->leave_type === 'Short Leave') {
+                    $leaveMinutes += $this->shortLeaveMinutesforsheetapprovel($leave->hours);
+                }
+            }
+
+            $effectiveExpectedMinutes = max(0, $expectedMinutes - $leaveMinutes);
+            $totalMinutes = $existingMinutes + $newMinutes;
+
+            if ($totalMinutes > $effectiveExpectedMinutes) {
+
+                $prefix = $leaveForDate
+                    ? "You have a {$leaveForDate->leave_type} on " . Carbon::parse($date)->format('d M Y') . ", so "
+                    : "";
+
+                return response()->json([
+                    'success' => false,
+                    'message' => $prefix
+                        . "you can submit up to {$this->minutesToHoursforsheetapprovel($effectiveExpectedMinutes)} hours of work for "
+                        . Carbon::parse($date)->format('d M Y') . ".",
+                ], 422);
+            }
+
+            $remainingMinutes = $effectiveExpectedMinutes - $totalMinutes;
+
+            if ($remainingMinutes > 0) {
+                $autoSheetsToCreate[$date] = [
+                    'minutes' => $remainingMinutes,
+                    'work_type' => in_array('WFH', $allWorkTypes) ? 'WFH' : 'WFO',
+                ];
+            }
+        }
+        foreach ($autoSheetsToCreate as $date => $info) {
+
+            $noWorkProject = ProjectMaster::where('project_name', 'like', '%no work%')
+                ->whereHas('relation', function ($q) use ($authUser) {
+                    $q->whereJsonContains('assignees', $authUser->id);
+                })
+                ->first();
+
+            if (!$noWorkProject)
+                continue;
+
+            $noWorkTask = Task::where('project_id', $noWorkProject->id)
+                ->where('title', 'like', '%no work%')
+                ->first();
+
+            if (!$noWorkTask)
+                continue;
+
+            PerformaSheet::create([
+                'user_id' => $authUser->id,
+                'status' => 'pending',
+                'is_tracking' => 0,
+                'data' => json_encode([
+                    'project_id' => $noWorkProject->id,
+                    'date' => $date,
+                    'time' => $this->minutesToHoursforsheetapprovel($info['minutes']),
+                    'task_id' => $noWorkTask->id,
+                    'work_type' => $info['work_type'],
+                    'narration' => 'No Work (Auto Generated)',
+                    'is_tracking' => 'no',
+                    'tracking_mode' => '',
+                    'tracked_hours' => '00:00',
+                    'is_fillable' => 1,
+                    'project_type' => 'Fixed',
+                    'project_type_status' => 'Offline',
+                    'activity_type' => 'In-House',
+                    'offline_hours' => '00:00',
+                ]),
+            ]);
+
+            $sheetsWithDetailsByDate[$date][] = [
+                'submitting_user' => $authUser->name,
+                'project_name' => 'No Work',
+                'task_id' => null,
+                'date' => $date,
+                'time' => $this->minutesToHoursforsheetapprovel($info['minutes']),
+                'work_type' => $info['work_type'],
+                'activity_type' => 'In-House',
+                'narration' => 'No Work (Auto Generated)',
+                'project_type' => 'Fixed',
+                'project_type_status' => 'Offline',
+            ];
+        }
 
         foreach ($validatedData['data'] as $record) {
 
@@ -239,11 +634,10 @@ class PerformaSheetController extends Controller
                 ->where('user_id', $authUser->id)
                 ->first();
 
-            if (!$sheet) {
+            if (!$sheet)
                 continue;
-            }
 
-            $data = json_decode($sheet->data, true) ?? [];
+            $data = json_decode($sheet->data, true);
             $data['is_fillable'] = 1;
 
             $sheet->update([
@@ -251,52 +645,32 @@ class PerformaSheetController extends Controller
                 'status' => 'pending',
             ]);
 
-            $sheet_data = json_decode($sheet->data);
+            $sheetData = (object) $data;
 
             $project = ProjectMaster::select('project_name')
-                ->find($sheet_data->project_id);
+                ->find($sheetData->project_id);
 
-            $sheetsWithDetailsByDate[$sheet_data->date][] = [
+            $sheetsWithDetailsByDate[$sheetData->date][] = [
                 'submitting_user' => $authUser->name,
                 'project_name' => $project->project_name ?? null,
-                'task_id' => $sheet_data->task_id,
-                'date' => $sheet_data->date,
-                'time' => $sheet_data->time,
-                'work_type' => $sheet_data->work_type,
-                'activity_type' => $sheet_data->activity_type,
-                'narration' => $sheet_data->narration,
-                'project_type' => $sheet_data->project_type,
-                'project_type_status' => $sheet_data->project_type_status,
+                'task_id' => $sheetData->task_id,
+                'date' => $sheetData->date,
+                'time' => $sheetData->time,
+                'work_type' => $sheetData->work_type,
+                'activity_type' => $sheetData->activity_type,
+                'narration' => $sheetData->narration,
+                'project_type' => $sheetData->project_type,
+                'project_type_status' => $sheetData->project_type_status,
             ];
-
-            if ($sheet->is_tracking) {
-                $lastIndex = array_key_last(
-                    $sheetsWithDetailsByDate[$sheet_data->date]
-                );
-
-                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['is_tracking']
-                    = $sheet_data->is_tracking;
-                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['tracking_mode']
-                    = $sheet_data->tracking_mode;
-                $sheetsWithDetailsByDate[$sheet_data->date][$lastIndex]['tracked_hours']
-                    = $sheet_data->tracked_hours;
-            }
 
             $updatedCount++;
         }
 
-        ActivityService::log([
-            'type' => 'activity',
-            'description' => 'Performa Sheets submitted for approval by ' . $authUser->name,
-        ]);
-
+        /* ================= MAIL USERS ================= */
         $submitting_user_name = $authUser->name;
         $submitting_employee_id = $authUser->employee_id;
 
-        $tl = User::where('id', $authUser->tl_id)
-            ->where('is_active', 1)
-            ->first();
-
+        $tl = User::where('id', $authUser->tl_id)->where('is_active', 1)->first();
         $teamIds = $authUser->team_id ?? [];
 
         $projectManagers = User::where('is_active', 1)
@@ -305,21 +679,16 @@ class PerformaSheetController extends Controller
                 foreach ($teamIds as $teamId) {
                     $q->orWhereJsonContains('team_id', $teamId);
                 }
-            })
-            ->get();
+            })->get();
 
-        $roleIds = Role::whereIn('name', [
-            'superadmin',
-            'Billing Manager'
-        ])->pluck('id')->toArray();
+        $roleIds = Role::whereIn('name', ['superadmin', 'Billing Manager'])
+            ->pluck('id')->toArray();
 
         $approvers = User::where(function ($q) use ($roleIds) {
             foreach ($roleIds as $roleId) {
                 $q->orWhereJsonContains('role_id', $roleId);
             }
-        })
-            ->where('is_active', 1)
-            ->get();
+        })->where('is_active', 1)->get();
 
         $staticUser = (object) [
             'id' => 999,
@@ -348,11 +717,50 @@ class PerformaSheetController extends Controller
             }
         }
 
+        ActivityService::log([
+            'type' => 'activity',
+            'description' => 'Performa Sheets submitted for approval by ' . $authUser->name,
+        ]);
+
         return response()->json([
             'success' => true,
-            'message' => $updatedCount . ' Performa Sheets submitted for approval successfully',
+            'message' => $updatedCount . ' Performa Sheets submitted for approval successfully.',
         ]);
     }
+
+
+
+    private function timeToMinutesforsheetapprovel($time)
+    {
+        if (!$time)
+            return 0;
+        [$h, $m] = explode(':', $time);
+        return ((int) $h * 60) + (int) $m;
+    }
+    private function minutesToHoursforsheetapprovel($minutes)
+    {
+        $hours = intdiv($minutes, 60);
+        $mins = $minutes % 60;
+
+        return sprintf('%d:%02d', $hours, $mins);
+    }
+
+
+    private function shortLeaveMinutesforsheetapprovel($hours)
+    {
+        if (!$hours || !str_contains($hours, 'to')) {
+            return 0;
+        }
+
+        [$start, $end] = array_map('trim', explode('to', $hours));
+
+        $startTime = Carbon::parse($start);
+        $endTime = Carbon::parse($end);
+
+        return $startTime->diffInMinutes($endTime);
+    }
+
+
 
 
     public function getUserPerformaSheets()
@@ -1938,11 +2346,11 @@ class PerformaSheetController extends Controller
                                 ->where('status', 'approved');
                         })
                         ->with([
-                            'leaves' => function ($q) use ($sheetDate) {
-                                $q->whereDate('start_date', '<=', $sheetDate)
-                                    ->whereDate('end_date', '>=', $sheetDate);
-                            }
-                        ])->get();
+                                'leaves' => function ($q) use ($sheetDate) {
+                                    $q->whereDate('start_date', '<=', $sheetDate)
+                                        ->whereDate('end_date', '>=', $sheetDate);
+                                }
+                            ])->get();
 
                     $allUsersOnLeave->push($users_on_leave);
 
@@ -4005,7 +4413,7 @@ class PerformaSheetController extends Controller
                                 0,
                                 $dailyExpectedMinutes - $leave - $totalWorkedToday
                             );
-                        }else {
+                        } else {
                             $unfilled = max(
                                 0,
                                 $dailyExpectedMinutes - $totalWorkedToday
