@@ -160,34 +160,97 @@ class LeaveController extends Controller
         $SUPER_ADMIN = 1;
         $HR = 3;
         $BILLING_MANAGER = 4;
-        $TL = 6;
         $PM = 5;
+        $TL = 6;
+        $EMPLOYEE = 7;
+
+
+        $ROLE_PRIORITY = [
+            $SUPER_ADMIN,
+            $HR,
+            $BILLING_MANAGER,
+            $PM,
+            $TL,
+            $EMPLOYEE
+        ];
+
+
         $leaveUser = User::findOrFail($user_id);
+
+        $userRoles = $leaveUser->role_id ?? [];
+        $userRoles = is_array($userRoles) ? $userRoles : [$userRoles];
+
+        $effectiveRole = null;
+
+        foreach ($ROLE_PRIORITY as $role) {
+            if (in_array($role, $userRoles)) {
+                $effectiveRole = $role;
+                break;
+            }
+        }
+
+
+        $teamBasedRoles = [];
+        $globalOnlyRoles = [];
+
+        if ($effectiveRole === $EMPLOYEE) {
+            $teamBasedRoles = [$TL, $PM];
+            $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
+
+        } elseif ($effectiveRole === $TL) {
+            $teamBasedRoles = [$PM];
+            $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
+
+        } elseif ($effectiveRole === $PM) {
+            $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
+
+        } elseif ($effectiveRole === $BILLING_MANAGER) {
+            $globalOnlyRoles = [$HR, $SUPER_ADMIN];
+
+        } elseif ($effectiveRole === $HR) {
+            $globalOnlyRoles = [$SUPER_ADMIN];
+        }
+
+
         $globalUsers = User::where('is_active', 1)
-            ->where(function ($q) use ($SUPER_ADMIN, $HR, $BILLING_MANAGER) {
-                $q->whereJsonContains('role_id', $SUPER_ADMIN)
-                    ->orWhereJsonContains('role_id', $HR)
-                    ->orWhereJsonContains('role_id', $BILLING_MANAGER);
-            })
-            ->get();
-        $teamUsers = User::where('is_active', 1)
-            ->where(function ($q) use ($leaveUser) {
-                foreach ($leaveUser->team_id ?? [] as $teamId) {
-                    $q->orWhereJsonContains('team_id', $teamId);
+            ->where(function ($q) use ($globalOnlyRoles) {
+                foreach ($globalOnlyRoles as $roleId) {
+                    $q->orWhereJsonContains('role_id', $roleId);
                 }
             })
-            ->where(function ($q) use ($TL, $PM) {
-                $q->whereJsonContains('role_id', $TL)
-                    ->orWhereJsonContains('role_id', $PM);
-            })
             ->get();
+
+        $teamUsers = collect();
+
+        if (!empty($teamBasedRoles)) {
+            $teamIds = $leaveUser->team_id ?? [];
+            $teamIds = is_array($teamIds) ? $teamIds : [$teamIds];
+
+            $teamUsers = User::where('is_active', 1)
+                ->where(function ($q) use ($teamBasedRoles) {
+                    foreach ($teamBasedRoles as $roleId) {
+                        $q->orWhereJsonContains('role_id', $roleId);
+                    }
+                })
+                ->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        $q->orWhereJsonContains('team_id', $teamId);
+                    }
+                })
+                ->get();
+        }
+
         $mailUsers = $globalUsers
             ->merge($teamUsers)
-            ->unique('id');
-
+            ->unique('id')
+            ->values();
         foreach ($mailUsers as $user) {
-            // Mail::to($user->email)->queue(new LeaveAppliedMail($leave, $leaveUser));
+            // Mail::to($user->email)->queue(
+            //     new LeaveAppliedMail($leave, $leaveUser)
+            // );
         }
+
+
         return response()->json([
             'success' => true,
             'message' => 'Leave request submitted successfully',
