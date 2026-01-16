@@ -25,7 +25,7 @@ use App\Models\Task;
 use App\Models\TagsActivity;
 use App\Models\PerformaSheet;
 use App\Models\ClientMaster;
-
+use Carbon\Carbon;
 
 class ProjectMasterController extends Controller
 {
@@ -1518,13 +1518,19 @@ class ProjectMasterController extends Controller
 
     public function getFullDetailsOfProjectById(Request $request)
     {
+        $startDate = $request->start_date
+            ? Carbon::parse($request->start_date)->startOfDay()
+            : null;
+
+        $endDate = $request->end_date
+            ? Carbon::parse($request->end_date)->endOfDay()
+            : null;    
         if (!$request->project_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Project Id is required',
             ], 422);
         }
-
         $project = ProjectMaster::select('id', 'project_name')
             ->where('id', $request->project_id)
             ->with([
@@ -1566,7 +1572,7 @@ class ProjectMasterController extends Controller
             ->where('status', 'approved')
             ->get();
 
-        $taskUserMinutes = [];
+        $taskUserData = [];
 
         foreach ($performaSheets as $sheet) {
             $decoded = json_decode($sheet->data, true);
@@ -1578,7 +1584,14 @@ class ProjectMasterController extends Controller
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
-                if (!isset($entry['task_id'], $entry['time'])) {
+                if (!isset($entry['task_id'], $entry['time'], $entry['date'])) {
+                    continue;
+                }
+                $entryDate = Carbon::parse($entry['date']);
+                if ($startDate && $entryDate->lt($startDate)) {
+                    continue;
+                }
+                if ($endDate && $entryDate->gt($endDate)) {
                     continue;
                 }
 
@@ -1591,27 +1604,38 @@ class ProjectMasterController extends Controller
                 [$h, $m] = array_map('intval', explode(':', $entry['time']));
                 $minutes = ($h * 60) + $m;
 
-                $taskUserMinutes[$taskId][$sheet->user_id] =
-                    ($taskUserMinutes[$taskId][$sheet->user_id] ?? 0) + $minutes;
+                $taskUserData[$taskId][$sheet->user_id]['minutes'] =
+                    ($taskUserData[$taskId][$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+                $taskUserData[$taskId][$sheet->user_id]['sheets'][] = [
+                    'sheet_id' => $sheet->id,
+                    'status' => $sheet->status,
+                    'project_id' => $entry['project_id'],
+                    'task_id' => $entry['task_id'],
+                    'date' => $entry['date'] ?? null,
+                    'time' => $entry['time'],
+                    'activity_type' => $entry['activity_type'] ?? null,
+                ];
             }
         }
 
-        $project->tasks = $project->tasks->map(function ($task) use ($taskUserMinutes, $usersMap) {
+        $project->tasks = $project->tasks->map(function ($task) use ($taskUserData, $usersMap) {
 
             $totalMinutes = 0;
             $users = [];
 
-            if (isset($taskUserMinutes[$task->id])) {
-                foreach ($taskUserMinutes[$task->id] as $userId => $minutes) {
-                    $totalMinutes += $minutes;
-
+            if (isset($taskUserData[$task->id])) {
+                foreach ($taskUserData[$task->id] as $userId => $data) {
+                    $totalMinutes += $data['minutes'];
                     $users[] = [
                         'id' => $userId,
                         'name' => $usersMap[$userId] ?? 'Unknown',
-                        'hours' => round($minutes / 60, 2),
+                        'hours' => round($data['minutes'] / 60, 2),
+                        'sheets' => $data['sheets'] ?? [],
                     ];
                 }
             }
+
 
             $task->used_hours = round($totalMinutes / 60, 2);
             $task->users = $users;
