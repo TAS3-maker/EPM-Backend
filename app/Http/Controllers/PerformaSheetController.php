@@ -636,7 +636,7 @@ class PerformaSheetController extends Controller
 
                 $message .= "you can submit only "
                     . $this->minutesToHoursforsheetapprovel($remainingMinutes)
-                    . " more hours for {$dateLabel}.";
+                    . " hours for {$dateLabel}.";
 
                 return response()->json([
                     'success' => false,
