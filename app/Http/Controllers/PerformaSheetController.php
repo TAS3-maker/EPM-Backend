@@ -744,6 +744,16 @@ class PerformaSheetController extends Controller
 
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
+
+            Mail::to('dm.techarchsoftwares@gmail.com')->queue(
+                new EmployeePerformaSheet(
+                    $sheetsWithDetails,
+                    $approver,
+                    $submitting_user_name,
+                    $submitting_employee_id,
+                    $formattedDate
+                )
+            );
             foreach ($users as $approver) {
                 // Mail::to($approver->email)->queue(
                 //     new EmployeePerformaSheet(
