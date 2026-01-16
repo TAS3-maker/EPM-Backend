@@ -644,7 +644,7 @@ class PerformaSheetController extends Controller
                 ], 422);
             }
 
-            if ($totalSubmittedMinutes < $effectiveExpectedMinutes) {
+            if (!$isWFH && $totalSubmittedMinutes < $effectiveExpectedMinutes) {
 
                 $missingMinutes = $effectiveExpectedMinutes - $totalSubmittedMinutes;
 
