@@ -37,7 +37,6 @@ class ProjectMasterController extends Controller
 
             $projects = ProjectMaster::with(['relation'])
                 ->get();
-
         } else {
 
             $projects = ProjectMaster::with(['relation'])
@@ -217,7 +216,6 @@ class ProjectMasterController extends Controller
                     'relation' => new ProjectRelationResource($relation)
                 ]
             ], 201);
-
         } catch (\Exception $e) {
             DB::rollBack();
 
@@ -425,7 +423,6 @@ class ProjectMasterController extends Controller
                     'relation' => new ProjectRelationResource($relation)
                 ]
             ], 200);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -667,9 +664,6 @@ class ProjectMasterController extends Controller
 
         try {
             $project = ProjectMaster::findOrFail($validatedData['project_id']);
-
-
-
         } catch (ModelNotFoundException $e) {
             return response()->json([
                 'success' => false,
@@ -715,10 +709,10 @@ class ProjectMasterController extends Controller
                 // Mail::to($tl->email)->queue($mail);
             }
 
-             ActivityService::log([
+            ActivityService::log([
                 'project_id' => $project->id,
                 'type' => 'activity',
-                'description' => 'Project assigned to '. $tl->name .' Team Leaders by' . auth()->user()->name,
+                'description' => 'Project assigned to ' . $tl->name . ' Team Leaders by' . auth()->user()->name,
             ]);
         }
 
@@ -829,7 +823,6 @@ class ProjectMasterController extends Controller
             $relation->assignees = array_values(array_unique($assignees));
             $relation->updated_at = now();
             $relation->save();
-
         } catch (\Exception $e) {
             return ApiResponse::error(
                 'Database Error: ' . $e->getMessage(),
@@ -1073,7 +1066,6 @@ class ProjectMasterController extends Controller
                 'updated_rows' => count($existingManagers),
                 'remaining_managers' => $updatedManagers
             ]);
-
         } catch (\Exception $e) {
             Log::error('Error removing project managers: ' . $e->getMessage());
 
@@ -1127,17 +1119,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1171,7 +1163,6 @@ class ProjectMasterController extends Controller
                 'User projects fetched successfully',
                 $projects
             );
-
         } catch (\Throwable $e) {
             return response()->json([
                 'status' => 'error',
@@ -1279,7 +1270,6 @@ class ProjectMasterController extends Controller
             $query->whereHas('relation', function ($q) use ($currentUser) {
                 $q->whereJsonContains('assignees', $currentUser->id);
             });
-
         } elseif ($currentUser->hasRole(6)) {
 
             $query->whereHas('relation', function ($q) use ($performaUserIds) {
@@ -1287,7 +1277,6 @@ class ProjectMasterController extends Controller
                     $q->orWhereJsonContains('assignees', $userId);
                 }
             });
-
         } else {
             return response()->json([
                 'success' => false,
@@ -1524,7 +1513,7 @@ class ProjectMasterController extends Controller
 
         $endDate = $request->end_date
             ? Carbon::parse($request->end_date)->endOfDay()
-            : null;    
+            : null;
         if (!$request->project_id) {
             return response()->json([
                 'success' => false,
@@ -1633,7 +1622,10 @@ class ProjectMasterController extends Controller
                         'id' => $userId,
                         'name' => $usersMap[$userId] ?? 'Unknown',
                         'hours' => round($data['minutes'] / 60, 2),
-                        'sheets' => $data['sheets'] ?? [],
+                        'sheets' => collect($data['sheets'] ?? [])
+                            ->sortByDesc('sheet_id')
+                            ->values()
+                            ->toArray(),
                     ];
                 }
             }
@@ -1645,6 +1637,66 @@ class ProjectMasterController extends Controller
             return $task;
         });
 
+        $projectUserData = [];
+
+        foreach ($performaSheets as $sheet) {
+
+            $decoded = json_decode($sheet->data, true);
+            if (is_string($decoded)) {
+                $decoded = json_decode($decoded, true);
+            }
+
+            $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+            foreach ($entries as $entry) {
+                if (!isset($entry['project_id'], $entry['time'], $entry['date'])) {
+                    continue;
+                }
+
+                if ((int) $entry['project_id'] !== (int) $project->id) {
+                    continue;
+                }
+
+                $entryDate = Carbon::parse($entry['date']);
+                if ($startDate && $entryDate->lt($startDate)) continue;
+                if ($endDate && $entryDate->gt($endDate)) continue;
+
+                [$h, $m] = array_map('intval', explode(':', $entry['time']));
+                $minutes = ($h * 60) + $m;
+
+                $projectUserData[$sheet->user_id]['minutes'] =
+                    ($projectUserData[$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+                $projectUserData[$sheet->user_id]['sheets'][] = [
+                    'sheet_id' => $sheet->id,
+                    'status' => $sheet->status,
+                    'project_id' => $entry['project_id'],
+                    'task_id' => $entry['task_id'] ?? null,
+                    'date' => $entry['date'] ?? null,
+                    'time' => $entry['time'],
+                    'activity_type' => $entry['activity_type'] ?? null,
+                    'work_type' => $entry['work_type'] ?? null,
+                    'narration' => $entry['narration'] ?? null,
+                ];
+            }
+        }
+        $projectUsers = [];
+        foreach ($projectUserData as $userId => $data) {
+            $projectUsers[] = [
+                'id' => $userId,
+                'name' => $usersMap[$userId] ?? 'Unknown',
+                'hours' => round($data['minutes'] / 60, 2),
+                'sheets' => collect($data['sheets'] ?? [])
+                    ->sortByDesc('sheet_id')
+                    ->values()
+                    ->toArray(),
+            ];
+        }
+
+        $project->projectSheets = [
+            'users' => $projectUsers
+        ];
+
         unset($project->relation);
 
         return response()->json([
@@ -1652,7 +1704,4 @@ class ProjectMasterController extends Controller
             'data' => $project,
         ]);
     }
-
-
-
 }
