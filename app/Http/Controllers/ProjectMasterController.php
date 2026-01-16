@@ -1615,6 +1615,8 @@ class ProjectMasterController extends Controller
                     'date' => $entry['date'] ?? null,
                     'time' => $entry['time'],
                     'activity_type' => $entry['activity_type'] ?? null,
+                    'work_type' => $entry['work_type'] ?? null,
+                    'narration' => $entry['narration'] ?? null,
                 ];
             }
         }
