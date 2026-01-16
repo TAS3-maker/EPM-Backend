@@ -4278,7 +4278,7 @@ class PerformaSheetController extends Controller
             ];
 
             $performaSheets = DB::table('performa_sheets')
-                ->get()
+                ->get()->where('status', '!=', 'rejected')
                 ->groupBy('user_id');
 
             $leaves = LeavePolicy::where('status', 'Approved')
