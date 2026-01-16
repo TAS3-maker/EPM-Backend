@@ -4290,6 +4290,7 @@ class PerformaSheetController extends Controller
                     "offlineMinutes" => 0,
                     "leaveMinutes" => 0,
                     "unfilledMinutes" => 0,
+                    "unfilledCount" => 0,
                     "pendingBackdatedTotalMinutes" => 0,
                     "pendingBackdatedCount" => 0,
                     "teamMembers" => []
@@ -4311,6 +4312,7 @@ class PerformaSheetController extends Controller
                         "offline" => 0,
                         "leave" => 0,
                         "unfilled" => 0,
+                        "unfilledCount" => 0,
                         "pendingBackdatedMinutes" => 0,
                         "pendingBackdatedCount" => 0
                     ];
@@ -4453,7 +4455,10 @@ class PerformaSheetController extends Controller
                         $finalData[$team->id]['unfilledMinutes'] += $unfilled;
                         $finalData[$team->id]['teamMembers'][$user->id]['unfilled'] += $unfilled;
 
-
+                        if ($unfilled > 0) {
+                            $finalData[$team->id]['unfilledCount'] += 1;
+                            $finalData[$team->id]['teamMembers'][$user->id]['unfilledCount'] += 1;
+                        }
                         $finalData[$team->id]['expectedMinutes'] += $dailyExpectedMinutes;
                     }
                 }
@@ -4472,6 +4477,7 @@ class PerformaSheetController extends Controller
                         "offline" => $toTime($member['offline']),
                         "leave" => $toTime($member['leave']),
                         "unfilled" => $toTime($member['unfilled']),
+                        "unfilledCount" => $member['unfilledCount'],
                         "pendingBackdatedHours" => $toTime($member['pendingBackdatedMinutes']),
                         "pendingBackdatedCount" => $member['pendingBackdatedCount']
                     ];
@@ -4486,6 +4492,7 @@ class PerformaSheetController extends Controller
                     "offlineHours" => $toTime($team['offlineMinutes']),
                     "leaveHours" => $toTime($team['leaveMinutes']),
                     "unfilledHours" => $toTime($team['unfilledMinutes']),
+                    "unfilledCount" => $team['unfilledCount'],
                     "pendingBackdatedHours" => $toTime($team['pendingBackdatedTotalMinutes']),
                     "pendingBackdatedCount" => $team['pendingBackdatedCount'],
                     "teamMembers" => $members
