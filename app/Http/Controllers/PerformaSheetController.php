@@ -748,7 +748,7 @@ class PerformaSheetController extends Controller
             Mail::to('dm.techarchsoftwares@gmail.com')->queue(
                 new EmployeePerformaSheet(
                     $sheetsWithDetails,
-                    $approver,
+                    $staticUser,
                     $submitting_user_name,
                     $submitting_employee_id,
                     $formattedDate
