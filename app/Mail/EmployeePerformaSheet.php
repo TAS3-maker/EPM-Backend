@@ -22,7 +22,7 @@ class EmployeePerformaSheet extends Mailable implements ShouldQueue
     public $submitting_user_employee_id;
     public $submitting_date;
 
-    public function __construct($sheets, $user, $submitting_user_name,$submitting_user_employee_id,$submitting_date)
+    public function __construct($sheets, $user, $submitting_user_name, $submitting_user_employee_id, $submitting_date)
     {
         $this->sheets = $sheets;
         $this->user = $user;
@@ -33,7 +33,8 @@ class EmployeePerformaSheet extends Mailable implements ShouldQueue
 
     public function build()
     {
-        return $this->subject(sprintf('DSR/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->submitting_date))
+        return $this->from(config('mail.from.address'), $this->submitting_user_name)
+            ->subject(sprintf('DSR/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->submitting_date))
             ->view('emails.employeeperformasheet');
 
     }
