@@ -9,7 +9,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 
 class LeaveStatusUpdateMail extends Mailable implements ShouldQueue
 {
-    use Queueable, SerializesModels;    
+    use Queueable, SerializesModels;
 
     public $user;
     public $leave;
@@ -27,13 +27,15 @@ class LeaveStatusUpdateMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        return $this->subject('Your Leave Status Updated')
-                    ->view('emails.leave_status_update')
-                    ->with([
-                        'user' => $this->user,
-                        'leave' => $this->leave,
-                        'managerName' => $this->managerName,
-                        'managerRole' => $this->managerRole,
-                    ]);
+        return $this
+            ->from(config('mail.from.address'), $this->managerName)
+            ->subject('Your Leave Status Updated')
+            ->view('emails.leave_status_update')
+            ->with([
+                'user' => $this->user,
+                'leave' => $this->leave,
+                'managerName' => $this->managerName,
+                'managerRole' => $this->managerRole,
+            ]);
     }
 }
