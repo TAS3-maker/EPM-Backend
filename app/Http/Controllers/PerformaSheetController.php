@@ -4297,6 +4297,7 @@ class PerformaSheetController extends Controller
                     "noWorkMinutes" => 0,
                     "offlineMinutes" => 0,
                     "leaveMinutes" => 0,
+                    "leaveCount" => 0,
                     "unfilledMinutes" => 0,
                     "unfilledCount" => 0,
                     "pendingBackdatedTotalMinutes" => 0,
@@ -4467,6 +4468,9 @@ class PerformaSheetController extends Controller
                             $finalData[$team->id]['unfilledCount'] += 1;
                             $finalData[$team->id]['teamMembers'][$user->id]['unfilledCount'] += 1;
                         }
+                        if ($leave > 0) {
+                            $finalData[$team->id]['leaveCount']++;
+                        }
                         $finalData[$team->id]['expectedMinutes'] += $dailyExpectedMinutes;
                     }
                 }
@@ -4499,6 +4503,7 @@ class PerformaSheetController extends Controller
                     "noWorkHours" => $toTime($team['noWorkMinutes']),
                     "offlineHours" => $toTime($team['offlineMinutes']),
                     "leaveHours" => $toTime($team['leaveMinutes']),
+                    "leaveCount" => $team['leaveCount'],
                     "unfilledHours" => $toTime($team['unfilledMinutes']),
                     "unfilledCount" => $team['unfilledCount'],
                     "pendingBackdatedHours" => $toTime($team['pendingBackdatedTotalMinutes']),
