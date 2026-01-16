@@ -3854,7 +3854,7 @@ class PerformaSheetController extends Controller
 
             $performaSheets = DB::table('performa_sheets')
                 ->where('user_id', $request->user_id)
-                ->whereIn('status', ['approved', 'pending'])
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
                 ->get();
 
             $projects = DB::table('projects_master')
@@ -4278,7 +4278,7 @@ class PerformaSheetController extends Controller
             ];
 
             $performaSheets = DB::table('performa_sheets')
-                ->get()->where('status', '!=', 'rejected')
+                ->get()->whereIn('status', ['approved', 'pending', 'backdated'])
                 ->groupBy('user_id');
 
             $leaves = LeavePolicy::where('status', 'Approved')
