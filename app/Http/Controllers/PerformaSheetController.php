@@ -730,7 +730,7 @@ class PerformaSheetController extends Controller
         })->where('is_active', 1)->get();
 
         $staticUser = (object) [
-            'id' => 999,
+            'id' => 111,
             'name' => 'testing',
             'email' => 'dm.techarchsoftwares@gmail.com',
         ];
@@ -745,7 +745,7 @@ class PerformaSheetController extends Controller
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
 
-            Mail::to('dm.techarchsoftwares@gmail.com')->queue(
+            Mail::to('prince@techarchsoftwares.in')->queue(
                 new EmployeePerformaSheet(
                     $sheetsWithDetails,
                     $staticUser,
