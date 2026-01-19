@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Storage;
 use App\Models\PerformaSheet;
 use App\Models\User;
 use App\Services\ActivityService;
-
+use Carbon\Carbon;
 
 class ProjectActivityAndCommentController extends Controller
 {
@@ -415,8 +415,9 @@ class ProjectActivityAndCommentController extends Controller
 
             return [
                 'message' => $data['narration'] ?? null,
+                'time' => $data['time'] ?? null,
                 'user' => $user?->name,
-                'created_at' => $sheet->created_at,
+                'created_at' => Carbon::parse($sheet->created_at)->format('d-m-Y'),
             ];
         })->filter();
 
