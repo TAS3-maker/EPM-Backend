@@ -89,7 +89,7 @@ class PerformaSheetController extends Controller
                 $record['project_type'] = 'No Work';
             }
 
-            if ($record['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+            if ( $project && $project->project_tracking && $record['is_tracking'] === 'yes' ) {
                 if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
                     $record['offline_hours'] = '00:00';
@@ -120,7 +120,16 @@ class PerformaSheetController extends Controller
                     $offlineMinutes = $totalMinutes - $trackedMinutes;
                     $record['offline_hours'] = $this->minutesToTime($offlineMinutes);
                 }
-            } else {
+            } else if ($project && $project->project_tracking && $record['is_tracking'] === 'no' ) {
+                $record['is_tracking'] = 'no';
+                if ((int) $project->offline_hours !== 1) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                    ], 422);
+                }
+                $record['offline_hours'] = ($record['time']);
+            }else {
                 $record['is_tracking'] = 'no';
                 $record['tracking_mode'] = '';
                 $record['tracked_hours'] = '00:00';
@@ -1453,7 +1462,7 @@ class PerformaSheetController extends Controller
             $oldStatus = $performaSheet->status;
             // $newData = $validatedData['data'];
 
-            if ($newData['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+            if ( $project && $project->project_tracking && $newData['is_tracking'] === 'yes' ) {
                 if ($newData['tracking_mode'] === 'all') {
                     $newData['tracked_hours'] = $newData['time'];
                     $newData['offline_hours'] = '00:00';
@@ -1484,6 +1493,15 @@ class PerformaSheetController extends Controller
                     $offlineMinutes = $totalMinutes - $trackedMinutes;
                     $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
                 }
+            } else if ($project && $project->project_tracking && $newData['is_tracking'] === 'no' ) {
+                $newData['is_tracking'] = 'no';
+                if ((int) $project->offline_hours !== 1) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                    ], 422);
+                }
+                $newData['offline_hours'] = ($newData['time']);
             } else {
                 $newData['is_tracking'] = 'no';
                 $newData['tracking_mode'] = '';
