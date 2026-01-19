@@ -575,7 +575,7 @@ class ProjectController extends Controller
     public function getProjectManagerTl()
     {
         $user = auth()->user();
-        if (!$user->hasRole(1) && !$user->team_id) {
+        if (!$user->hasAnyRole([1,2]) && !$user->team_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Team ID not found for this user.',
@@ -601,7 +601,7 @@ class ProjectController extends Controller
         //     })
         //     ->select('id', 'name', 'email', 'profile_pic', 'role_id')
         //     ->get();
-        if (!$user->hasRole(1)) {
+        if (!$user->hasAnyRole([1,2])) {
             return response()->json([
                 'success' => true,
                 'message' => $employees->isEmpty() ? 'No employees found for this team.' : 'Employees fetched successfully',
@@ -623,7 +623,7 @@ class ProjectController extends Controller
         $user = auth()->user();
 
         // SUPER ADMIN
-        if ($user->hasRole(1)) {
+        if ($user->hasAnyRole([1,2])) {
 
             $tls = User::whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(6)])
                 ->where('is_active', 1)
@@ -1014,7 +1014,7 @@ class ProjectController extends Controller
 
         $user = auth()->user();
 
-        if (!$user->hasRole(1)) {
+        if (!$user->hasAnyRole([1,2])) {
             return response()->json([
                 'success' => false,
                 'message' => 'Access Only Super Admin!'
