@@ -1247,7 +1247,7 @@ class ProjectMasterController extends Controller
 
         $performaUserIds = [$currentUser->id];
 
-        if ($currentUser->hasRole(1)) {
+        if ($currentUser->hasAnyRole([1,2])) {
             $teamIds = is_string($currentUser->team_id)
                 ? json_decode($currentUser->team_id, true)
                 : (array) $currentUser->team_id;
