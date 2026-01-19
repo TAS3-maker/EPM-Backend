@@ -1119,17 +1119,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                            return [
-                                'id' => $task->id,
-                                'project_id' => $task->project_id,
-                                'title' => $task->title,
-                                'description' => $task->description,
-                                'hours' => $task->hours,
-                                'deadline' => $task->deadline,
-                                'status' => $task->status,
-                                'start_date' => $task->start_date,
-                            ];
-                        });
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
 
                     return [
                         'id' => $project->id,
@@ -1658,8 +1658,10 @@ class ProjectMasterController extends Controller
                 }
 
                 $entryDate = Carbon::parse($entry['date']);
-                if ($startDate && $entryDate->lt($startDate)) continue;
-                if ($endDate && $entryDate->gt($endDate)) continue;
+                if ($startDate && $entryDate->lt($startDate))
+                    continue;
+                if ($endDate && $entryDate->gt($endDate))
+                    continue;
 
                 [$h, $m] = array_map('intval', explode(':', $entry['time']));
                 $minutes = ($h * 60) + $m;
@@ -1704,6 +1706,58 @@ class ProjectMasterController extends Controller
             'data' => $project,
         ]);
     }
+
+    public function getProjectsMasterNameId()
+    {
+        $currentUser = auth()->user();
+
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+
+            $projects = ProjectMaster::select('id', 'project_name')
+                ->with(['relation:id,project_id,assignees'])
+                ->get();
+
+        } else {
+
+            $projects = ProjectMaster::select('id', 'project_name')
+                ->with(['relation:id,project_id,assignees'])
+                ->get()
+                ->filter(function (ProjectMaster $project) use ($currentUser) {
+
+                    if (!$project->relation) {
+                        return false;
+                    }
+
+                    $assignees = $project->relation->assignees ?? [];
+
+                    if (is_numeric($assignees)) {
+                        $assignees = [(int) $assignees];
+                    } elseif (is_string($assignees)) {
+                        $assignees = json_decode($assignees, true) ?? [];
+                    } elseif (!is_array($assignees)) {
+                        $assignees = [];
+                    }
+
+                    return in_array($currentUser->id, $assignees, true);
+                })
+                ->values();
+        }
+
+        $data = $projects->map(function (ProjectMaster $project) {
+            return [
+                'id' => $project->id,
+                'project_name' => $project->project_name,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
+
+
 
     public function getUsersAllSheetsDataReporting(Request $request)
     {
