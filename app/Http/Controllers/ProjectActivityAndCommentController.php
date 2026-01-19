@@ -417,7 +417,7 @@ class ProjectActivityAndCommentController extends Controller
                 'message' => $data['narration'] ?? null,
                 'time' => $data['time'] ?? null,
                 'user' => $user?->name,
-                'created_at' => Carbon::parse($sheet->created_at)->format('d-m-Y'),
+                'created_at' => Carbon::parse($sheet->created_at)->format('d-m-Y H:i:s'),
             ];
         })->filter();
 
