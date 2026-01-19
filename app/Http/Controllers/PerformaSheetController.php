@@ -734,19 +734,25 @@ class PerformaSheetController extends Controller
             'name' => 'testing',
             'email' => 'dm.techarchsoftwares@gmail.com',
         ];
+         $staticUser1 = (object) [
+            'id' => 176,
+            'name' => 'testing',
+            'email' => 'Prince@techarchsoftwares.in',
+        ];
 
-        $users = collect($approvers)
-            ->merge($projectManagers)
-            ->when($tl, fn($c) => $c->push($tl))
-            ->push($staticUser)
-            ->unique('id')
-            ->values();
+        // $users = collect($approvers)
+        //     ->merge($projectManagers)
+        //     ->when($tl, fn($c) => $c->push($tl))
+        //     ->push($staticUser)
+        //     ->unique('id')
+        //     ->values();
+        $users = collect($staticUser) ->push($staticUser1);
 
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
 
             foreach ($users as $approver) {
-                Mail::to('Prince@techarchsoftwares.in')->queue(
+                Mail::to($approver->email)->queue(
                     new EmployeePerformaSheet(
                         $sheetsWithDetails,
                         $approver,
