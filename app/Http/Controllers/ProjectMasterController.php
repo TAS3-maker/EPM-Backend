@@ -1247,7 +1247,7 @@ class ProjectMasterController extends Controller
 
         $performaUserIds = [$currentUser->id];
 
-        if ($currentUser->hasAnyRole([1,2])) {
+        if ($currentUser->hasAnyRole([1, 2])) {
             $teamIds = is_string($currentUser->team_id)
                 ? json_decode($currentUser->team_id, true)
                 : (array) $currentUser->team_id;
@@ -1702,6 +1702,100 @@ class ProjectMasterController extends Controller
         return response()->json([
             'success' => true,
             'data' => $project,
+        ]);
+    }
+
+    public function getUsersAllSheetsDataReporting(Request $request)
+    {
+        $user_id = $request->user_id ?? null;
+        $client_id = $request->client_id ?? null;
+        $project_id = $request->project_id ?? null;
+        $activity_tag = $request->activity_tag ?? null;
+        $status = $request->status ?? null;
+        $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
+        $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
+
+        $baseQuery = PerformaSheet::query()->with('user:id,name');
+
+
+        if ($user_id) {
+            $baseQuery->where('user_id', $user_id);
+        }
+        if (!empty($status)) {
+            $baseQuery->where('status', $status);
+        }
+        $sheets = $baseQuery
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+            $projectActivityMap = ProjectMaster::with('tagActivityRelated:id')
+            ->get()
+            ->mapWithKeys(function ($project) {
+                return [
+                    $project->id => $project->tagActivityRelated->id ?? null
+                ];
+            })
+            ->toArray();
+    
+        $filtered = $sheets->filter(function ($sheet) use (
+            $startDate,
+            $endDate,
+            $project_id,
+            $client_id,
+            $activity_tag,
+            $projectActivityMap
+        ) {
+            $data = json_decode($sheet->data, true);
+
+            if (!$data) {
+                return false;
+            }
+
+            if (!is_array($data)) {
+                return false;
+            }
+
+            if ($startDate && $endDate && !empty($data['date'])) {
+                $sheetDate = Carbon::parse($data['date']);
+                if (!$sheetDate->between($startDate, $endDate)) {
+                    return false;
+                }
+            }
+
+            if (!empty($project_id) && ($data['project_id'] ?? null) != $project_id) {
+                return false;
+            }
+
+            if (!empty($activity_tag) && !empty($data['project_id'])) {
+
+                $projectActivityId = $projectActivityMap[$data['project_id']] ?? null;
+
+                if ($projectActivityId === null || (int)$projectActivityId !== (int)$activity_tag) {
+                    return false;
+                }
+            }
+
+
+            if (!empty($client_id) && !empty($data['project_id'])) {
+                $projectRelation = DB::table('project_relations')
+                    ->select('project_id', 'client_id')
+                    ->where('project_id', $data['project_id'])
+                    ->first();
+
+                if (!$projectRelation || $projectRelation->client_id != $client_id) {
+                    return false;
+                }
+            }
+
+            return true;
+        })->values();
+
+
+
+        return response()->json([
+            'success' => true,
+            'message' => 'All Reporting data',
+            'data' => $filtered
         ]);
     }
 }
