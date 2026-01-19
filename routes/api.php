@@ -237,6 +237,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-users-offline-hours', [PerformaSheetController::class,'getUsersOfflineHours']);
         Route::get('/get-user-performa-data-with-sheets', [PerformaSheetController::class,'getUserPerformaDataWithsheets']);
         Route::get('/team-wise-daily-working-hours-by-performa', [PerformaSheetController::class, 'TeamWiseDailyWorkingHoursByperforma']);
+        Route::get('/get-projects-master-name-id', [ProjectMasterController::class, 'getProjectsMasterNameId']);
 
     });
 });
