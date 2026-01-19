@@ -33,7 +33,7 @@ class EmployeePerformaSheet extends Mailable implements ShouldQueue
 
     public function build()
     {
-        return $this->from(config('mail.from.address'), $this->submitting_user_name)
+        return $this->from(config('mail.from.address'), $this->submitting_user_name. ' - EPM')
             ->subject(sprintf('DSR/%s/%s/%s', $this->submitting_user_employee_id, $this->submitting_user_name, $this->submitting_date))
             ->view('emails.employeeperformasheet');
 

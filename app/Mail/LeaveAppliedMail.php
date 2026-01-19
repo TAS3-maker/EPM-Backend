@@ -25,7 +25,7 @@ class LeaveAppliedMail extends Mailable implements ShouldQueue
 
     public function build()
     {
-        return $this->from(config('mail.from.address'), $this->leaveUser->name)->subject(sprintf(
+        return $this->from(config('mail.from.address'), $this->leaveUser->name. ' - EPM')->subject(sprintf(
             'Leave Applied/%s/%s/%s',
             $this->leaveUser->employee_id,
             $this->leaveUser->name,
