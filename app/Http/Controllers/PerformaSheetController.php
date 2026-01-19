@@ -89,7 +89,7 @@ class PerformaSheetController extends Controller
                 $record['project_type'] = 'No Work';
             }
 
-            if ( $project && $project->project_tracking && $record['is_tracking'] === 'yes' ) {
+            if ($project && $project->project_tracking && $record['is_tracking'] === 'yes') {
                 if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
                     $record['offline_hours'] = '00:00';
@@ -120,7 +120,7 @@ class PerformaSheetController extends Controller
                     $offlineMinutes = $totalMinutes - $trackedMinutes;
                     $record['offline_hours'] = $this->minutesToTime($offlineMinutes);
                 }
-            } else if ($project && $project->project_tracking && $record['is_tracking'] === 'no' ) {
+            } else if ($project && $project->project_tracking && $record['is_tracking'] === 'no') {
                 $record['is_tracking'] = 'no';
                 if ((int) $project->offline_hours !== 1) {
                     return response()->json([
@@ -129,7 +129,7 @@ class PerformaSheetController extends Controller
                     ], 422);
                 }
                 $record['offline_hours'] = ($record['time']);
-            }else {
+            } else {
                 $record['is_tracking'] = 'no';
                 $record['tracking_mode'] = '';
                 $record['tracked_hours'] = '00:00';
@@ -1462,7 +1462,7 @@ class PerformaSheetController extends Controller
             $oldStatus = $performaSheet->status;
             // $newData = $validatedData['data'];
 
-            if ( $project && $project->project_tracking && $newData['is_tracking'] === 'yes' ) {
+            if ($project && $project->project_tracking && $newData['is_tracking'] === 'yes') {
                 if ($newData['tracking_mode'] === 'all') {
                     $newData['tracked_hours'] = $newData['time'];
                     $newData['offline_hours'] = '00:00';
@@ -1493,7 +1493,7 @@ class PerformaSheetController extends Controller
                     $offlineMinutes = $totalMinutes - $trackedMinutes;
                     $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
                 }
-            } else if ($project && $project->project_tracking && $newData['is_tracking'] === 'no' ) {
+            } else if ($project && $project->project_tracking && $newData['is_tracking'] === 'no') {
                 $newData['is_tracking'] = 'no';
                 if ((int) $project->offline_hours !== 1) {
                     return response()->json([
@@ -3693,164 +3693,6 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-    // public function getUserPerformaDataWithsheets(Request $request)
-    // {
-    //     if (!$request->user_id) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'user id is required'
-    //         ], 404);
-    //     }
-
-    //     try {
-
-    //         $startDate = $request->start_date
-    //             ? Carbon::parse($request->start_date)->startOfDay()
-    //             : Carbon::today();
-
-    //         $endDate = $request->end_date
-    //             ? Carbon::parse($request->end_date)->endOfDay()
-    //             : Carbon::today();
-
-    //         $performaSheets = DB::table('performa_sheets')
-    //             ->where('user_id', $request->user_id)
-    //             ->where('status', 'approved')
-    //             ->get();
-
-    //         $projects = DB::table('projects_master')
-    //             ->pluck('project_name', 'id');
-
-    //         $activityTotals = [
-    //             'Billable' => 0,
-    //             'In-House' => 0,
-    //             'No Work' => 0,
-    //             'Offline' => 0,
-    //             'Unfilled' => 0,
-    //         ];
-
-    //         $sheets = [];
-    //         $filledDates = [];
-    //         $leaveDates = [];
-
-    //         foreach ($performaSheets as $row) {
-
-    //             $decoded = json_decode($row->data, true);
-    //             if (is_string($decoded)) {
-    //                 $decoded = json_decode($decoded, true);
-    //             }
-
-    //             $entries = isset($decoded[0]) ? $decoded : [$decoded];
-
-    //             foreach ($entries as $entry) {
-
-    //                 if (!isset($entry['activity_type'], $entry['time'], $entry['date'])) {
-    //                     continue;
-    //                 }
-
-    //                 $entryDate = Carbon::parse($entry['date']);
-    //                 if ($entryDate->lt($startDate) || $entryDate->gt($endDate)) {
-    //                     continue;
-    //                 }
-
-    //                 $dateStr = $entryDate->toDateString();
-    //                 $filledDates[$dateStr] = true;
-
-    //                 $entry['project_name'] = $projects[$entry['project_id']] ?? null;
-
-    //                 $sheets[] = $entry;
-
-    //                 if (isset($activityTotals[$entry['activity_type']])) {
-    //                     $activityTotals[$entry['activity_type']] +=
-    //                         $this->timeToMinutesforgetUserPerformaData($entry['time']);
-    //                 }
-    //             }
-    //         }
-
-    //         $leaves = LeavePolicy::where('user_id', $request->user_id)
-    //             ->where('status', 'Approved')
-    //             ->where(function ($q) use ($startDate, $endDate) {
-    //                 $q->where('start_date', '<=', $endDate)
-    //                     ->where('end_date', '>=', $startDate);
-    //             })
-    //             ->get();
-
-    //         $totalLeaveMinutes = 0;
-
-    //         foreach ($leaves as $leave) {
-
-    //             $period = CarbonPeriod::create(
-    //                 Carbon::parse($leave->start_date),
-    //                 Carbon::parse($leave->end_date)
-    //             );
-
-    //             foreach ($period as $date) {
-
-    //                 if ($date->isWeekend()) {
-    //                     continue;
-    //                 }
-
-    //                 if (!$date->between($startDate, $endDate)) {
-    //                     continue;
-    //                 }
-
-    //                 $dateStr = $date->toDateString();
-    //                 $leaveDates[$dateStr] = true;
-
-    //                 switch ($leave->leave_type) {
-    //                     case 'Full Leave':
-    //                         $totalLeaveMinutes += 510;
-    //                         break;
-
-    //                     case 'Half Day':
-    //                         $totalLeaveMinutes += 255;
-    //                         break;
-
-    //                     case 'Short Leave':
-    //                         if ($leave->hours) {
-    //                             $totalLeaveMinutes +=
-    //                                 $this->timeToMinutesforgetUserPerformaData($leave->hours);
-    //                         }
-    //                         break;
-    //                 }
-    //             }
-    //         }
-
-    //         $period = CarbonPeriod::create($startDate, $endDate);
-
-    //         foreach ($period as $date) {
-
-    //             if ($date->isWeekend()) {
-    //                 continue;
-    //             }
-
-    //             $dateStr = $date->toDateString();
-
-    //             if (!isset($filledDates[$dateStr]) && !isset($leaveDates[$dateStr])) {
-    //                 $activityTotals['Unfilled'] += 510; // 8:30 hrs
-    //             }
-    //         }
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Performa & Leave summary fetched successfully',
-    //             'data' => [
-    //                 'activities' => collect($activityTotals)->map(function ($minutes) {
-    //                     return $this->minutesToHours($minutes);
-    //                 }),
-    //                 'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
-    //                 'sheets' => $sheets
-    //             ]
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Internal Server Error',
-    //             'error' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
 
     public function getUserPerformaDataWithsheets(Request $request)
     {
@@ -3927,15 +3769,15 @@ class PerformaSheetController extends Controller
 
                     $sheets[] = $entry;
 
-                    if ($row->status === 'pending') {
-                        $pendingCount++;
-                        continue;
-                    }
-
                     $minutes = $this->timeToMinutesforgetUserPerformaData($entry['time']);
 
                     $workedMinutesByDate[$dateStr] =
                         ($workedMinutesByDate[$dateStr] ?? 0) + $minutes;
+
+                    if ($row->status === 'pending') {
+                        $pendingCount++;
+                        continue;
+                    }
 
                     if (isset($activityTotals[$entry['activity_type']])) {
                         $activityTotals[$entry['activity_type']] += $minutes;
