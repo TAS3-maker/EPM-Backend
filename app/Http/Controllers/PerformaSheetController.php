@@ -745,15 +745,16 @@ class PerformaSheetController extends Controller
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
 
-            Mail::to('prince@techarchsoftwares.in')->queue(
-                new EmployeePerformaSheet(
-                    $sheetsWithDetails,
-                    $staticUser,
-                    $submitting_user_name,
-                    $submitting_employee_id,
-                    $formattedDate
-                )
-            );
+             try {
+                Mail::raw('mail is sent.', function ($message) {
+                    $message->to('Prince@techarchsoftwares.in')
+                        ->subject('EPM TAS Performasheet sheet.');
+                });
+            } catch (\Throwable $e) {
+                \Log::error('Mail send failed', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
             foreach ($users as $approver) {
                 // Mail::to($approver->email)->queue(
                 //     new EmployeePerformaSheet(
