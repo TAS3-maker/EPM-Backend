@@ -730,18 +730,18 @@ class PerformaSheetController extends Controller
         })->where('is_active', 1)->get();
 
         $staticUser = (object) [
-            'id' => 111,
+            'id' => 999,
             'name' => 'testing',
             'email' => 'dm.techarchsoftwares@gmail.com',
         ];
 
-        $staticUser1 = (object) [
-            'id' => 176,
-            'name' => 'testing',
-            'email' => 'Prince@techarchsoftwares.in',
-        ];
+        $users = collect($approvers)
+            ->merge($projectManagers)
+            ->when($tl, fn($c) => $c->push($tl))
+            ->push($staticUser)
+            ->unique('id')
+            ->values();
 
-        $users = collect([$staticUser, $staticUser1]);
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
             foreach ($users as $approver) {
