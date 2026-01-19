@@ -1119,17 +1119,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1716,7 +1716,6 @@ class ProjectMasterController extends Controller
             $projects = ProjectMaster::select('id', 'project_name')
                 ->with(['relation:id,project_id,assignees'])
                 ->get();
-
         } else {
 
             $projects = ProjectMaster::select('id', 'project_name')
@@ -1781,8 +1780,8 @@ class ProjectMasterController extends Controller
         $sheets = $baseQuery
             ->orderBy('created_at', 'desc')
             ->get();
-        
-            $projectActivityMap = ProjectMaster::with('tagActivityRelated:id')
+
+        $projectActivityMap = ProjectMaster::with('tagActivityRelated:id')
             ->get()
             ->mapWithKeys(function ($project) {
                 return [
@@ -1790,14 +1789,14 @@ class ProjectMasterController extends Controller
                 ];
             })
             ->toArray();
-    
+
         $filtered = $sheets->filter(function ($sheet) use (
             $startDate,
             $endDate,
             $project_id,
             $client_id,
             $activity_tag,
-            $projectActivityMap
+            $projectActivityMap,
         ) {
             $data = json_decode($sheet->data, true);
 
@@ -1844,12 +1843,48 @@ class ProjectMasterController extends Controller
             return true;
         })->values();
 
+        $structuredData = [];
+
+        foreach ($filtered as $sheet) {
+
+            $data = json_decode($sheet->data, true);
+            if (!is_array($data)) {
+                continue;
+            }
+
+            $projectId = $data['project_id'] ?? null;
+            $project   = $projectId ? ($projects[$projectId] ?? null) : null;
+
+            unset($data['user_id'], $data['user_name']);
+
+            $sheetData = array_merge($data, [
+                'project_name' => $project->project_name ?? 'No Project Found',
+                'client_name'  => $project->client->client_name ?? 'No Client Found',
+                'deadline'     => $project->deadline ?? 'No Deadline Set',
+                'status'       => $sheet->status,
+                'id'           => $sheet->id,
+                'created_at'   => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                'updated_at'   => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+            ]);
+
+            $userId = $sheet->user_id;
+
+            if (!isset($structuredData[$userId])) {
+                $structuredData[$userId] = [
+                    'user_id'   => $userId,
+                    'user_name' => $sheet->user->name ?? 'No User Found',
+                    'sheets'    => [],
+                ];
+            }
+
+            $structuredData[$userId]['sheets'][] = $sheetData;
+        }
 
 
         return response()->json([
             'success' => true,
             'message' => 'All Reporting data',
-            'data' => $filtered
+            'data' => array_values($structuredData)
         ]);
     }
 }
