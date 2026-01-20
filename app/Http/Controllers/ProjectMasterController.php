@@ -37,8 +37,13 @@ class ProjectMasterController extends Controller
 
             $projects = ProjectMaster::with(['relation'])
                 ->get();
+        } else if (in_array(2, $currentUser->team_id)) {
+            $projects = ProjectMaster::with(['relation'])
+                ->whereHas('relation', function ($q) use ($currentUser) {
+                    $q->where('sales_person_id', $currentUser->id);
+                })
+                ->get();
         } else {
-
             $projects = ProjectMaster::with(['relation'])
                 ->get()
                 ->filter(function (ProjectMaster $project) use ($currentUser) {
