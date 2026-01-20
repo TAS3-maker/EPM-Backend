@@ -2625,8 +2625,10 @@ class PerformaSheetController extends Controller
                 $current->addDay();
             }
 
+            $bd_team = Team::where('name', 'LIKE', '%Business Development%')->pluck('id')->toArray();
             $query = User::whereJsonContains('role_id', 7)
-                ->where("is_active", 1);
+                ->where('is_active', 1)
+                ->whereJsonDoesntContain('team_id', $bd_team);
 
             // TL
             if ($authUser->hasRole(6)) {
