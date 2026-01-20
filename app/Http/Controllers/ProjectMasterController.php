@@ -1771,7 +1771,6 @@ class ProjectMasterController extends Controller
 
         $baseQuery = PerformaSheet::query()->with('user:id,name,team_id');
 
-
         if ($user_id) {
             $baseQuery->where('user_id', $user_id);
         }
@@ -1798,7 +1797,6 @@ class ProjectMasterController extends Controller
 
         $projects = ProjectMaster::with(['Relation.client:id,client_name'])->get()->keyBy('id');
 
-
         $filtered = $sheets->filter(function ($sheet) use (
             $startDate,
             $endDate,
@@ -1823,13 +1821,12 @@ class ProjectMasterController extends Controller
             if ($startDate && $endDate) {
 
                 if (empty($data['date'])) {
-                    return false; // no date = reject
+                    return false;
                 }
-
                 try {
                     $sheetDate = Carbon::parse($data['date'])->startOfDay();
                 } catch (\Exception $e) {
-                    return false; // invalid date = reject
+                    return false;
                 }
 
                 if (!$sheetDate->between($startDate, $endDate)) {
@@ -1845,7 +1842,6 @@ class ProjectMasterController extends Controller
                     return false;
                 }
             }
-
 
             if (!empty($client_id) && !empty($data['project_id'])) {
                 $projectRelation = DB::table('project_relations')
@@ -1869,8 +1865,6 @@ class ProjectMasterController extends Controller
             ],
             'users' => []
         ];
-        $userSummary = [];
-
 
         $timeToMinutes = function ($time) {
             if (!$time || !str_contains($time, ':')) {
@@ -1885,9 +1879,7 @@ class ProjectMasterController extends Controller
             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
         };
 
-
         foreach ($filtered as $sheet) {
-
             $data = json_decode($sheet->data, true);
             if (!is_array($data)) {
                 continue;
@@ -1896,7 +1888,6 @@ class ProjectMasterController extends Controller
             $project   = $projectId ? ($projects[$projectId] ?? null) : null;
 
             unset($data['user_id'], $data['user_name']);
-
             $sheetData = array_merge($data, [
                 'project_name' => $project->project_name ?? 'No Project Found',
                 'client_name'  => $project->Relation->client->client_name ?? 'No Client Found',
@@ -1909,7 +1900,6 @@ class ProjectMasterController extends Controller
 
             $userId = $sheet->user_id;
             $minutes = $timeToMinutes($data['time'] ?? null);
-            $date    = $data['date'] ?? null;
 
             if (!isset($structuredData['users'][$userId])) {
                 $structuredData['users'][$userId] = [
@@ -1927,7 +1917,7 @@ class ProjectMasterController extends Controller
 
             $workType = strtolower($data['activity_type'] ?? '');
 
-            /** ---------- GLOBAL SUMMARY ---------- */
+            /** global summary */ 
             if ($workType === 'billable') {
                 $structuredData['summary']['billable'] += $minutes;
                 $structuredData['users'][$userId]['summary']['billable'] += $minutes;
@@ -1948,18 +1938,14 @@ class ProjectMasterController extends Controller
                 $structuredData['users'][$userId]['summary']['no_work'] += $minutes;
             }
 
-
-            /** ---------------- STRUCTURE DATA ---------------- */
+            /** structured data */
             $structuredData['users'][$userId]['sheets'][] = $sheetData;
         }
-
-        // Global
         $structuredData['summary']['billable'] = $minutesToTime($structuredData['summary']['billable']);
         $structuredData['summary']['inhouse']  = $minutesToTime($structuredData['summary']['inhouse']);
         $structuredData['summary']['offline']  = $minutesToTime($structuredData['summary']['offline']);
         $structuredData['summary']['no_work']  = $minutesToTime($structuredData['summary']['no_work']);
 
-        // Per user
         foreach ($structuredData['users'] as &$user) {
             $user['summary']['billable'] = $minutesToTime($user['summary']['billable']);
             $user['summary']['inhouse']  = $minutesToTime($user['summary']['inhouse']);
