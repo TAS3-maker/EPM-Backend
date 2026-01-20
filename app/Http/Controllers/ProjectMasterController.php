@@ -1863,7 +1863,6 @@ class ProjectMasterController extends Controller
             'summary' => [
                 'billable' => 0,
                 'inhouse'  => 0,
-                'offline'  => 0,
                 'no_work'  => 0,
             ],
             'users' => []
@@ -1922,7 +1921,6 @@ class ProjectMasterController extends Controller
                     'summary'   => [
                         'billable' => 0,
                         'inhouse'  => 0,
-                        'offline'  => 0,
                         'no_work'  => 0,
                     ],
                     'sheets' => [],
@@ -1942,11 +1940,6 @@ class ProjectMasterController extends Controller
                 $structuredData['users'][$userId]['summary']['inhouse'] += $minutes;
             }
 
-            if ($workType === 'offline') {
-                $structuredData['summary']['offline'] += $minutes;
-                $structuredData['users'][$userId]['summary']['offline'] += $minutes;
-            }
-
             if ($workType === 'no-work' || $workType === 'no work') {
                 $structuredData['summary']['no_work'] += $minutes;
                 $structuredData['users'][$userId]['summary']['no_work'] += $minutes;
@@ -1957,13 +1950,11 @@ class ProjectMasterController extends Controller
         }
         $structuredData['summary']['billable'] = $minutesToTime($structuredData['summary']['billable']);
         $structuredData['summary']['inhouse']  = $minutesToTime($structuredData['summary']['inhouse']);
-        $structuredData['summary']['offline']  = $minutesToTime($structuredData['summary']['offline']);
         $structuredData['summary']['no_work']  = $minutesToTime($structuredData['summary']['no_work']);
 
         foreach ($structuredData['users'] as &$user) {
             $user['summary']['billable'] = $minutesToTime($user['summary']['billable']);
             $user['summary']['inhouse']  = $minutesToTime($user['summary']['inhouse']);
-            $user['summary']['offline']  = $minutesToTime($user['summary']['offline']);
             $user['summary']['no_work']  = $minutesToTime($user['summary']['no_work']);
         }
         unset($user);
