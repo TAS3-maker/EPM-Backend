@@ -1769,11 +1769,16 @@ class ProjectMasterController extends Controller
         $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
         $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
 
-        $baseQuery = PerformaSheet::query()->with('user:id,name');
+        $baseQuery = PerformaSheet::query()->with('user:id,name,team_id');
 
 
         if ($user_id) {
             $baseQuery->where('user_id', $user_id);
+        }
+        if (!empty($team_id)) {
+            $baseQuery->whereHas('user', function ($q) use ($team_id) {
+                $q->whereJsonContains('team_id', (int)$team_id);
+            });
         }
         if (!empty($status)) {
             $baseQuery->where('status', $status);
@@ -1855,7 +1860,15 @@ class ProjectMasterController extends Controller
 
             return true;
         })->values();
-        $structuredData = [];
+        $structuredData = [
+            'summary' => [
+                'billable' => 0,
+                'inhouse'  => 0,
+                'offline'  => 0,
+                'no_work'  => 0,
+            ],
+            'users' => []
+        ];
         $userSummary = [];
 
 
@@ -1898,8 +1911,8 @@ class ProjectMasterController extends Controller
             $minutes = $timeToMinutes($data['time'] ?? null);
             $date    = $data['date'] ?? null;
 
-            if (!isset($structuredData[$userId])) {
-                $structuredData[$userId] = [
+            if (!isset($structuredData['users'][$userId])) {
+                $structuredData['users'][$userId] = [
                     'user_id'   => $userId,
                     'user_name' => $sheet->user->name ?? 'No User Found',
                     'summary'   => [
@@ -1911,29 +1924,43 @@ class ProjectMasterController extends Controller
                     'sheets' => [],
                 ];
             }
+
             $workType = strtolower($data['activity_type'] ?? '');
 
+            /** ---------- GLOBAL SUMMARY ---------- */
             if ($workType === 'billable') {
-                $structuredData[$userId]['summary']['billable'] += $minutes;
+                $structuredData['summary']['billable'] += $minutes;
+                $structuredData['users'][$userId]['summary']['billable'] += $minutes;
             }
 
             if ($workType === 'inhouse' || $workType === 'in-house') {
-                $structuredData[$userId]['summary']['inhouse'] += $minutes;
+                $structuredData['summary']['inhouse'] += $minutes;
+                $structuredData['users'][$userId]['summary']['inhouse'] += $minutes;
             }
+
             if ($workType === 'offline') {
-                $structuredData[$userId]['summary']['offline'] += $minutes;
+                $structuredData['summary']['offline'] += $minutes;
+                $structuredData['users'][$userId]['summary']['offline'] += $minutes;
             }
 
             if ($workType === 'no-work' || $workType === 'no work') {
-                $structuredData[$userId]['summary']['no_work'] += $minutes;
+                $structuredData['summary']['no_work'] += $minutes;
+                $structuredData['users'][$userId]['summary']['no_work'] += $minutes;
             }
 
-            /** ---------------- STRUCTURE DATA ---------------- */
 
-            $structuredData[$userId]['sheets'][] = $sheetData;
+            /** ---------------- STRUCTURE DATA ---------------- */
+            $structuredData['users'][$userId]['sheets'][] = $sheetData;
         }
 
-        foreach ($structuredData as &$user) {
+        // Global
+        $structuredData['summary']['billable'] = $minutesToTime($structuredData['summary']['billable']);
+        $structuredData['summary']['inhouse']  = $minutesToTime($structuredData['summary']['inhouse']);
+        $structuredData['summary']['offline']  = $minutesToTime($structuredData['summary']['offline']);
+        $structuredData['summary']['no_work']  = $minutesToTime($structuredData['summary']['no_work']);
+
+        // Per user
+        foreach ($structuredData['users'] as &$user) {
             $user['summary']['billable'] = $minutesToTime($user['summary']['billable']);
             $user['summary']['inhouse']  = $minutesToTime($user['summary']['inhouse']);
             $user['summary']['offline']  = $minutesToTime($user['summary']['offline']);
@@ -1943,7 +1970,10 @@ class ProjectMasterController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'All Reporting data',
-            'data' => array_values($structuredData)
+            'data'    => [
+                'summary' => $structuredData['summary'],
+                'users'   => array_values($structuredData['users'])
+            ]
         ]);
     }
 }
