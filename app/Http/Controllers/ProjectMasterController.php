@@ -1765,6 +1765,7 @@ class ProjectMasterController extends Controller
         $project_id = $request->project_id ?? null;
         $activity_tag = $request->activity_tag ?? null;
         $status = $request->status ?? null;
+        $team_id = $request->team_id ?? null;
         $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
         $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
 
@@ -1790,6 +1791,9 @@ class ProjectMasterController extends Controller
             })
             ->toArray();
 
+        $projects = ProjectMaster::with(['Relation.client:id,client_name'])->get()->keyBy('id');
+
+
         $filtered = $sheets->filter(function ($sheet) use (
             $startDate,
             $endDate,
@@ -1807,16 +1811,25 @@ class ProjectMasterController extends Controller
             if (!is_array($data)) {
                 return false;
             }
+            if (!empty($project_id) && ($data['project_id'] ?? null) != $project_id) {
+                return false;
+            }
 
-            if ($startDate && $endDate && !empty($data['date'])) {
-                $sheetDate = Carbon::parse($data['date']);
+            if ($startDate && $endDate) {
+
+                if (empty($data['date'])) {
+                    return false; // no date = reject
+                }
+
+                try {
+                    $sheetDate = Carbon::parse($data['date'])->startOfDay();
+                } catch (\Exception $e) {
+                    return false; // invalid date = reject
+                }
+
                 if (!$sheetDate->between($startDate, $endDate)) {
                     return false;
                 }
-            }
-
-            if (!empty($project_id) && ($data['project_id'] ?? null) != $project_id) {
-                return false;
             }
 
             if (!empty($activity_tag) && !empty($data['project_id'])) {
@@ -1842,8 +1855,23 @@ class ProjectMasterController extends Controller
 
             return true;
         })->values();
-
         $structuredData = [];
+        $userSummary = [];
+
+
+        $timeToMinutes = function ($time) {
+            if (!$time || !str_contains($time, ':')) {
+                return 0;
+            }
+            [$h, $m] = explode(':', $time);
+            return ((int)$h * 60) + (int)$m;
+        };
+        $minutesToTime = function ($minutes) {
+            $h = floor($minutes / 60);
+            $m = $minutes % 60;
+            return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+        };
+
 
         foreach ($filtered as $sheet) {
 
@@ -1851,7 +1879,6 @@ class ProjectMasterController extends Controller
             if (!is_array($data)) {
                 continue;
             }
-
             $projectId = $data['project_id'] ?? null;
             $project   = $projectId ? ($projects[$projectId] ?? null) : null;
 
@@ -1859,7 +1886,7 @@ class ProjectMasterController extends Controller
 
             $sheetData = array_merge($data, [
                 'project_name' => $project->project_name ?? 'No Project Found',
-                'client_name'  => $project->client->client_name ?? 'No Client Found',
+                'client_name'  => $project->Relation->client->client_name ?? 'No Client Found',
                 'deadline'     => $project->deadline ?? 'No Deadline Set',
                 'status'       => $sheet->status,
                 'id'           => $sheet->id,
@@ -1868,19 +1895,51 @@ class ProjectMasterController extends Controller
             ]);
 
             $userId = $sheet->user_id;
+            $minutes = $timeToMinutes($data['time'] ?? null);
+            $date    = $data['date'] ?? null;
 
             if (!isset($structuredData[$userId])) {
                 $structuredData[$userId] = [
                     'user_id'   => $userId,
                     'user_name' => $sheet->user->name ?? 'No User Found',
-                    'sheets'    => [],
+                    'summary'   => [
+                        'billable' => 0,
+                        'inhouse'  => 0,
+                        'offline'  => 0,
+                        'no_work'  => 0,
+                    ],
+                    'sheets' => [],
                 ];
             }
+            $workType = strtolower($data['activity_type'] ?? '');
+
+            if ($workType === 'billable') {
+                $structuredData[$userId]['summary']['billable'] += $minutes;
+            }
+
+            if ($workType === 'inhouse' || $workType === 'in-house') {
+                $structuredData[$userId]['summary']['inhouse'] += $minutes;
+            }
+            if ($workType === 'offline') {
+                $structuredData[$userId]['summary']['offline'] += $minutes;
+            }
+
+            if ($workType === 'no-work' || $workType === 'no work') {
+                $structuredData[$userId]['summary']['no_work'] += $minutes;
+            }
+
+            /** ---------------- STRUCTURE DATA ---------------- */
 
             $structuredData[$userId]['sheets'][] = $sheetData;
         }
 
-
+        foreach ($structuredData as &$user) {
+            $user['summary']['billable'] = $minutesToTime($user['summary']['billable']);
+            $user['summary']['inhouse']  = $minutesToTime($user['summary']['inhouse']);
+            $user['summary']['offline']  = $minutesToTime($user['summary']['offline']);
+            $user['summary']['no_work']  = $minutesToTime($user['summary']['no_work']);
+        }
+        unset($user);
         return response()->json([
             'success' => true,
             'message' => 'All Reporting data',
