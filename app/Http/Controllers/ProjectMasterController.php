@@ -1766,20 +1766,51 @@ class ProjectMasterController extends Controller
         $activity_tag = $request->activity_tag ?? null;
         $status = $request->status ?? null;
         $team_id = $request->team_id ?? null;
+        $department_id = $request->department_id ?? null;
         $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
         $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
+        $departmentTeamIds = [];
+
+        if (!empty($department_id)) {
+            $departmentTeamIds = \App\Models\Team::where('department_id', $department_id)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($departmentTeamIds)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Department not found',
+                    'data' => [
+                        'summary' => [
+                            'billable' => '00:00',
+                            'inhouse'  => '00:00',
+                            'no_work'  => '00:00',
+                        ],
+                        'users' => []
+                    ]
+                ]);
+            }
+        }
 
         $baseQuery = PerformaSheet::query()->with('user:id,name,team_id,is_active');
 
         if ($user_id) {
             $baseQuery->where('user_id', $user_id);
         }
-        $baseQuery->whereHas('user', function ($q) use ($team_id) {
+        $baseQuery->whereHas('user', function ($q) use ($team_id, $departmentTeamIds) {
             $q->where('is_active', 1);
             if (!empty($team_id)) {
                 $q->whereJsonContains('team_id', (int)$team_id);
             }
+            if (!empty($departmentTeamIds)) {
+                $q->where(function ($sub) use ($departmentTeamIds) {
+                    foreach ($departmentTeamIds as $tid) {
+                        $sub->orWhereJsonContains('team_id', (int)$tid);
+                    }
+                });
+            }
         });
+
         if (!empty($status)) {
             $baseQuery->where('status', $status);
         }
