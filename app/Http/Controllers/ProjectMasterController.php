@@ -1797,6 +1797,9 @@ class ProjectMasterController extends Controller
 
         $projects = ProjectMaster::with(['Relation.client:id,client_name'])->get()->keyBy('id');
 
+        $allTeamIds = $sheets->pluck('user.team_id')->flatten()->unique()->filter()->values();
+        $teams = \App\Models\Team::whereIn('id', $allTeamIds)->pluck('name', 'id')->toArray();
+
         $filtered = $sheets->filter(function ($sheet) use (
             $startDate,
             $endDate,
@@ -1901,10 +1904,21 @@ class ProjectMasterController extends Controller
             $userId = $sheet->user_id;
             $minutes = $timeToMinutes($data['time'] ?? null);
 
+            $userTeamIds = $sheet->user->team_id ?? [];
+            $userTeamNames = [];
+
+            if (!empty($userTeamIds)) {
+                foreach ($userTeamIds as $tid) {
+                    if (isset($teams[$tid])) {
+                        $userTeamNames[] = $teams[$tid];
+                    }
+                }
+            }
             if (!isset($structuredData['users'][$userId])) {
                 $structuredData['users'][$userId] = [
                     'user_id'   => $userId,
                     'user_name' => $sheet->user->name ?? 'No User Found',
+                    'team_name'  => implode(', ', $userTeamNames),
                     'summary'   => [
                         'billable' => 0,
                         'inhouse'  => 0,
@@ -1917,7 +1931,7 @@ class ProjectMasterController extends Controller
 
             $workType = strtolower($data['activity_type'] ?? '');
 
-            /** global summary */ 
+            /** global summary */
             if ($workType === 'billable') {
                 $structuredData['summary']['billable'] += $minutes;
                 $structuredData['users'][$userId]['summary']['billable'] += $minutes;
