@@ -1769,16 +1769,17 @@ class ProjectMasterController extends Controller
         $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
         $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
 
-        $baseQuery = PerformaSheet::query()->with('user:id,name,team_id');
+        $baseQuery = PerformaSheet::query()->with('user:id,name,team_id,is_active');
 
         if ($user_id) {
             $baseQuery->where('user_id', $user_id);
         }
-        if (!empty($team_id)) {
-            $baseQuery->whereHas('user', function ($q) use ($team_id) {
+        $baseQuery->whereHas('user', function ($q) use ($team_id) {
+            $q->where('is_active', 1);
+            if (!empty($team_id)) {
                 $q->whereJsonContains('team_id', (int)$team_id);
-            });
-        }
+            }
+        });
         if (!empty($status)) {
             $baseQuery->where('status', $status);
         }
