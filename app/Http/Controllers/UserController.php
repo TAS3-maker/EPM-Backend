@@ -200,7 +200,9 @@ class UserController extends Controller
                     'message' => 'Team Leader is required for employees'
                 ], 422);
             }
-
+            $employeeId = isset($validatedData['employee_id'])
+                ? str_replace(' ', '', $validatedData['employee_id'])
+                : null;
             // ================= USER CREATE =================
             $user = User::create([
                 'name' => $validatedData['name'],
@@ -212,7 +214,7 @@ class UserController extends Controller
                 'team_id' => $teamIds,
                 'role_id' => $roleIds,
                 'tl_id' => $validatedData['tl_id'] ?? null,
-                'employee_id' => $validatedData['employee_id'],
+                'employee_id' => $employeeId,
                 'is_active' => 1,
             ]);
             // ================= PROFILE PIC =================

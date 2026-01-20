@@ -4123,7 +4123,7 @@ class PerformaSheetController extends Controller
                     "data" => []
                 ]);
             } else {
-                $teams = Team::all();
+                $teams = Team::all()->whereNotIn('name', ['Business Development']);
             }
 
             $toTime = function ($minutes) {
