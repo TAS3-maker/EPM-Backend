@@ -2742,9 +2742,10 @@ class PerformaSheetController extends Controller
     }
 
 
-    public function getMissingUserPerformaSheets(Request $request)
+     public function getMissingUserPerformaSheets(Request $request)
     {
         try {
+
             $user = User::find($request->user_id);
 
             if (!$user) {
@@ -2761,8 +2762,8 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
             if ($request->start_date && $request->end_date) {
-                $startDate = Carbon::parse($request->start_date);
-                $endDate = Carbon::parse($request->end_date);
+                $startDate = Carbon::parse($request->start_date)->startOfDay();
+                $endDate = Carbon::parse($request->end_date)->startOfDay();
             } else {
                 $startDate = Carbon::parse($user->created_at)->startOfDay();
                 $endDate = Carbon::now()->startOfDay();
@@ -2776,31 +2777,121 @@ class PerformaSheetController extends Controller
                 }
                 $current->addDay();
             }
+            $workedMinutesByDate = [];
 
-            $submittedDates = PerformaSheet::where('user_id', $user->id)
-                ->get()
-                ->map(function ($sheet) {
-                    $data = json_decode($sheet->data, true);
-                    return isset($data['date']) ? $data['date'] : null;
+            $sheets = PerformaSheet::where('user_id', $user->id)->get();
+
+            foreach ($sheets as $sheet) {
+
+                $decoded = json_decode($sheet->data, true);
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+                foreach ($entries as $entry) {
+
+                    if (!empty($entry['date']) && !empty($entry['time'])) {
+
+                        $dateStr = Carbon::parse($entry['date'])->toDateString();
+                        $minutes = $this->timeToMinutesforgetUserPerformaData($entry['time']);
+
+                        $workedMinutesByDate[$dateStr] =
+                            ($workedMinutesByDate[$dateStr] ?? 0) + $minutes;
+                    }
+                }
+            }
+
+            $leaveMinutesByDate = [];  
+            $fullLeaveDates = collect();
+
+            $leaves = LeavePolicy::where('user_id', $user->id)
+                ->where('status', 'Approved')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<=', $endDate)
+                        ->where('end_date', '>=', $startDate);
                 })
-                ->filter()
-                ->unique()
-                ->values();
+                ->get();
 
-            $missingDates = $allDates->diff($submittedDates)->values();
+            foreach ($leaves as $leave) {
+
+                $period = CarbonPeriod::create(
+                    Carbon::parse($leave->start_date),
+                    Carbon::parse($leave->end_date)
+                );
+
+                foreach ($period as $date) {
+
+                    if (!$date->isWeekday() || !$date->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+
+                    switch ($leave->leave_type) {
+
+                        case 'Full Leave':
+                            $fullLeaveDates->push($dateStr);
+                            break;
+
+                        case 'Half Day':
+                            $leaveMinutesByDate[$dateStr] = 255;
+                            break;
+
+                        case 'Short Leave':
+                            if ($leave->hours && str_contains($leave->hours, 'to')) {
+                                [$start, $end] = explode('to', $leave->hours);
+                                $leaveMin = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
+                                $leaveMinutesByDate[$dateStr] = $leaveMin;
+                            }
+                            break;
+                    }
+                }
+            }
+
+            $fullLeaveDates = $fullLeaveDates->unique();
+
+            $missingData = [];
+            $totalMissingMinutes = 0;
+
+            foreach ($allDates as $dateStr) {
+
+                if ($fullLeaveDates->contains($dateStr)) {
+                    continue;
+                }
+
+                $worked = $workedMinutesByDate[$dateStr] ?? 0;
+                $leave = $leaveMinutesByDate[$dateStr] ?? 0;
+
+                $missing = max(0, 510 - $worked - $leave);
+
+                if ($missing > 0) {
+
+                    $missingData[] = [
+                        'date' => $dateStr,
+                        'missing_hours' => $this->minutesToHours($missing),
+                    ];
+
+                    $totalMissingMinutes += $missing;
+                }
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Missing timesheet dates fetched successfully',
+                'message' => 'Missing timesheet hours fetched successfully',
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
                     'created_date' => $user->created_at,
                 ],
-                'total_missing_days' => $missingDates->count(),
-                'data' => $missingDates
+                'total_missing_days' => count($missingData),
+                'total_missing_hours' => $this->minutesToHours($totalMissingMinutes),
+                'data' => $missingData
             ]);
+
         } catch (\Exception $e) {
+
             return response()->json([
                 'success' => false,
                 'message' => 'Internal Server Error',
