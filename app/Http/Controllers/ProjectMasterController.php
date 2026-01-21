@@ -2209,7 +2209,6 @@ class ProjectMasterController extends Controller
             ->get();
 
         /*USERS*/
-        if(empty($userIds)){
         $users = User::query()
             ->select('id', 'name', 'team_id')
             ->where('is_active', 1)
@@ -2224,11 +2223,7 @@ class ProjectMasterController extends Controller
                 $q->whereJsonContains('team_id', $teamIds)
             )
             ->get();
-        }else{
-            $users = User::query()
-            ->select('id', 'name', 'team_id')
-            ->where('is_active', 1);
-        }
+
         /*TEAMS*/
         $derivedTeamIds = $users->pluck('team_id')
             ->flatten()
