@@ -240,6 +240,6 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-projects-master-name-id', [ProjectMasterController::class, 'getProjectsMasterNameId']);
         
         Route::get('/users-all-sheets-data-reporting', [ProjectMasterController::class, 'getUsersAllSheetsDataReporting']);
-        Route::get('/get-all-data-master-reporting', [ProjectMasterController::class, 'getAllDataMasterReporting']);
+        Route::get('/get-all-data-master-reporting', [ProjectMasterController::class, 'getFilterOfAllDataMasterReporting']);
     });
 });

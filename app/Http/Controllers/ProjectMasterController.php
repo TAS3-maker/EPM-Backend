@@ -26,6 +26,7 @@ use App\Models\TagsActivity;
 use App\Models\PerformaSheet;
 use App\Models\ClientMaster;
 use App\Models\Department;
+use App\Models\LeavePolicy;
 use App\Models\Team;
 use Carbon\Carbon;
 
@@ -1781,6 +1782,15 @@ class ProjectMasterController extends Controller
             $startDate = Carbon::yesterday()->startOfDay();
             $endDate   = Carbon::yesterday()->endOfDay();
         }
+        $dates = [];
+        $current = $startDate->copy();
+        while ($current->lte($endDate)) {
+            if (!$current->isWeekend()) {
+                $dates[] = $current->toDateString();
+            }
+            $current->addDay();
+        }
+
         $departmentTeamIds = [];
 
         if (!empty($department_id)) {
@@ -1798,11 +1808,41 @@ class ProjectMasterController extends Controller
                             'inhouse'  => '00:00',
                             'no_work'  => '00:00',
                         ],
-                        'users' => []
+                        'users' => [],
+                        'not_filled' => [
+                            'count' => 0,
+                            'users' => []
+                        ]
                     ]
                 ]);
             }
         }
+
+        $eligibleUsersQuery = User::query()
+            ->select('id', 'name', 'team_id', 'role_id')
+            ->where('is_active', 1)
+            ->whereJsonContains('role_id', 7)
+            ->where(function ($q) {
+                $q->whereNull('team_id')
+                    ->orWhereJsonDoesntContain('team_id', 2);
+            });
+
+        if ($user_id) {
+            $eligibleUsersQuery->where('id', $user_id);
+        }
+
+        if (!empty($team_id)) {
+            $eligibleUsersQuery->whereJsonContains('team_id', (int)$team_id);
+        }
+
+        if (!empty($departmentTeamIds)) {
+            $eligibleUsersQuery->where(function ($q) use ($departmentTeamIds) {
+                foreach ($departmentTeamIds as $tid) {
+                    $q->orWhereJsonContains('team_id', (int)$tid);
+                }
+            });
+        }
+        $eligibleUsers = $eligibleUsersQuery->get()->keyBy('id');
 
         $baseQuery = PerformaSheet::query()->with('user:id,name,team_id,is_active');
 
@@ -1841,7 +1881,23 @@ class ProjectMasterController extends Controller
 
         $projects = ProjectMaster::with(['Relation.client:id,client_name'])->get()->keyBy('id');
 
-        $allTeamIds = $sheets->pluck('user.team_id')->flatten()->unique()->filter()->values();
+        $filledDatesByUser = [];
+        foreach ($sheets as $sheet) {
+            $data = json_decode($sheet->data, true);
+            if (!is_array($data) || empty($data['date']) || empty($sheet->user_id)) {
+                continue;
+            }
+            $uid = (int)$sheet->user_id;
+            $date = Carbon::parse($data['date'])->format('Y-m-d');
+            $filledDatesByUser[$uid][] = $date;
+        }
+        $leaves = LeavePolicy::whereIn('leave_type', ['Full Leave', 'Multiple Days Leave'])
+            ->where('status', 'Approved')
+            ->get()
+            ->groupBy('user_id');
+
+        // $allTeamIds = $sheets->pluck('user.team_id')->flatten()->unique()->filter()->values();
+        $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->filter();
         $teams = \App\Models\Team::whereIn('id', $allTeamIds)->pluck('name', 'id')->toArray();
 
         $filtered = $sheets->filter(function ($sheet) use (
@@ -1903,6 +1959,66 @@ class ProjectMasterController extends Controller
 
             return true;
         })->values();
+        $filledUserIds = $filtered
+            ->pluck('user_id')
+            ->filter(fn($id) => is_numeric($id))
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $filledDatesByUser = [];
+
+        foreach ($filtered as $sheet) {
+            $data = json_decode($sheet->data, true);
+
+            if (!is_array($data) || empty($data['date']) || empty($sheet->user_id)) {
+                continue;
+            }
+
+            try {
+                $date = Carbon::parse($data['date'])->format('Y-m-d');
+            } catch (\Exception $e) {
+                continue;
+            }
+
+            $uid = (int) $sheet->user_id;
+
+            $filledDatesByUser[$uid][] = $date;
+        }
+
+        $notFilledUsers = $eligibleUsers
+            ->except($filledUserIds)
+            ->map(function ($user) use ($teams, $expectedDates, $filledDatesByUser) {
+
+                $teamIds = is_array($user->team_id)
+                    ? $user->team_id
+                    : (json_decode($user->team_id, true) ?? []);
+
+                $teamNames = [];
+                foreach ($teamIds as $tid) {
+                    if (isset($teams[(int)$tid])) {
+                        $teamNames[] = $teams[(int)$tid];
+                    }
+                }
+
+                $userFilledDates = array_unique($filledDatesByUser[$user->id] ?? []);
+
+                $missingDates = array_values(
+                    array_diff($expectedDates, $userFilledDates)
+                );
+
+                return [
+                    'user_id'        => $user->id,
+                    'user_name'      => $user->name,
+                    'team_name'      => implode(', ', $teamNames),
+                    'missing_dates'  => $missingDates,
+                    'missing_count'  => count($missingDates),
+                ];
+            })
+            ->filter(fn($u) => $u['missing_count'] > 0)
+            ->values();
+
         $structuredData = [
             'summary' => [
                 'billable' => 0,
@@ -2007,11 +2123,16 @@ class ProjectMasterController extends Controller
             'message' => 'All Reporting data',
             'data'    => [
                 'summary' => $structuredData['summary'],
-                'users'   => array_values($structuredData['users'])
+                'users'   => array_values($structuredData['users']),
+                'not_filled' => [
+                    'count' => $notFilledUsers->count(),
+                    'users' => $notFilledUsers
+                ]
             ]
         ]);
     }
-    public function getAllDataMasterReporting(Request $request)
+
+    public function getFilterOfAllDataMasterReporting(Request $request)
     {
         $userIds       = $request->user_id
             ? array_map('intval', explode(',', $request->user_id))
@@ -2088,6 +2209,7 @@ class ProjectMasterController extends Controller
             ->get();
 
         /*USERS*/
+        if(empty($userIds)){
         $users = User::query()
             ->select('id', 'name', 'team_id')
             ->where('is_active', 1)
@@ -2102,7 +2224,11 @@ class ProjectMasterController extends Controller
                 $q->whereJsonContains('team_id', $teamIds)
             )
             ->get();
-
+        }else{
+            $users = User::query()
+            ->select('id', 'name', 'team_id')
+            ->where('is_active', 1);
+        }
         /*TEAMS*/
         $derivedTeamIds = $users->pluck('team_id')
             ->flatten()
