@@ -659,7 +659,7 @@ class UserController extends Controller
             ->whereRaw(
                 'JSON_CONTAINS(project_relations.assignees, ?)',
                 [json_encode((int) $id)]
-            )
+            )->unique('project_id')
             ->get();
 
         $allAssigneeIds = $projectRelations
