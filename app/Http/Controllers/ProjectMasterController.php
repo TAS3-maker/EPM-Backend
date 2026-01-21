@@ -2146,8 +2146,8 @@ class ProjectMasterController extends Controller
             ? array_map('intval', explode(',', $request->project_id))
             : [];
 
-        $activityTagIds    = $request->activity_ids
-            ? array_map('intval', explode(',', $request->activity_ids))
+        $activityTagIds = $request->activity_id
+            ? array_map('intval', explode(',', $request->activity_id))
             : [];
 
         $clientIds     = $request->client_id
@@ -2158,109 +2158,115 @@ class ProjectMasterController extends Controller
             ? array_map('intval', explode(',', $request->department_id))
             : [];
 
-        /*PROJECTS*/
-        $projects = ProjectMaster::query()
-            ->select('id', 'project_name', 'project_tag_activity')
-            ->when(
-                !empty($projectIds),
-                fn($q) =>
-                $q->whereIn('id', $projectIds)
-            )
-            ->when(
-                !empty($activityTagIds),
-                fn($q) =>
-                $q->whereIn('project_tag_activity', $activityTagIds)
-            )
-            ->when(
-                !empty($clientIds),
-                fn($q) =>
-                $q->whereHas('relation', function ($qr) use ($clientIds) {
-                    $qr->whereIn('client_id', $clientIds);
-                })
-            )
-            ->when(!empty($userIds), function ($q) use ($userIds) {
-                $q->whereHas('relation', function ($qr) use ($userIds) {
-                    $qr->where(function ($sub) use ($userIds) {
-                        foreach ($userIds as $uid) {
-                            $sub->orWhereJsonContains('assignees', $uid);
-                        }
-                    });
-                });
-            })
-            ->get();
+        /* DEPARTMENTS*/
+        $departments = Department::select('id', 'name')->get();
 
+        /*TEAMS*/
+        $teamsQuery = Team::query()->select('id', 'name', 'department_id');
+
+        if (!empty($departmentIds)) {
+            $teamsQuery->whereIn('department_id', $departmentIds);
+        }
+
+        $teams = $teamsQuery->get();
+
+        /*USERS */
+        $usersQuery = User::query()
+            ->select('id', 'name', 'team_id')
+            ->where('is_active', 1)
+            ->whereJsonContains('role_id', 7);
+
+        if (!empty($teamIds)) {
+            $usersQuery->where(function ($q) use ($teamIds) {
+                foreach ($teamIds as $teamId) {
+                    $q->orWhereJsonContains('team_id', $teamId);
+                }
+            });
+        } elseif (!empty($departmentIds)) {
+            $teamIdsInDept = Team::whereIn('department_id', $departmentIds)
+                ->pluck('id')
+                ->toArray();
+
+            $usersQuery->where(function ($q) use ($teamIdsInDept) {
+                foreach ($teamIdsInDept as $teamId) {
+                    $q->orWhereJsonContains('team_id', $teamId);
+                }
+            });
+        }
+
+        $users = $usersQuery->get();
+        $finalUserIds = $users->pluck('id')->toArray();
+
+        /* PROJECTS */
+        $projectsQuery = ProjectMaster::query()
+            ->select('id', 'project_name', 'project_tag_activity');
+
+        if (!empty($userIds)) {
+            $projectsQuery->whereHas('relation', function ($q) use ($userIds) {
+                $q->where(function ($sub) use ($userIds) {
+                    foreach ($userIds as $uid) {
+                        $sub->orWhereJsonContains('assignees', $uid);
+                    }
+                });
+            });
+        } elseif (!empty($finalUserIds)) {
+            $projectsQuery->whereHas('relation', function ($q) use ($finalUserIds) {
+                $q->where(function ($sub) use ($finalUserIds) {
+                    foreach ($finalUserIds as $uid) {
+                        $sub->orWhereJsonContains('assignees', $uid);
+                    }
+                });
+            });
+        }
+
+        if (!empty($clientIds)) {
+            $projectsQuery->whereHas('relation', function ($q) use ($clientIds) {
+                $q->whereIn('client_id', $clientIds);
+            });
+        }
+
+        if (!empty($activityTagIds)) {
+            $projectsQuery->whereIn('project_tag_activity', $activityTagIds);
+        }
+
+        if (!empty($finalUserIds)) {
+            $projectsQuery->whereHas('relation', function ($q) use ($finalUserIds) {
+                $q->where(function ($sub) use ($finalUserIds) {
+                    foreach ($finalUserIds as $uid) {
+                        $sub->orWhereJsonContains('assignees', $uid);
+                    }
+                });
+            });
+        }
+
+        if (!empty($clientIds)) {
+            $projectsQuery->whereHas('relation', function ($q) use ($clientIds) {
+                $q->whereIn('client_id', $clientIds);
+            });
+        }
+
+        $projects = $projectsQuery->get();
         $projectIds = $projects->pluck('id');
 
-        /*PROJECT RELATIONS*/
-        $relations = ProjectRelation::query()
-            ->select('project_id', 'client_id')
+        /* PROJECT RELATIONS  */
+        $relations = ProjectRelation::select('project_id', 'client_id')
             ->whereIn('project_id', $projectIds)
             ->get();
 
-        /* */
-        $activity_tags = DB::table('tagsactivity')->select('id', 'name')->orderBy('id', 'DESC')->get();
-        /**CLIENTS*/
-        $clients = ClientMaster::query()
-            ->select('id', 'client_name')
+        /*CLIENTS */
+        $clients = ClientMaster::select('id', 'client_name')
             ->whereIn(
                 'id',
-                $relations->pluck('client_id')->unique()
+                ProjectRelation::whereIn('project_id', $projectIds)
+                    ->pluck('client_id')
+                    ->unique()
             )
             ->get();
 
-        /*USERS*/
-        
-        $users = User::query()
-            ->select('id', 'name', 'team_id')
-            ->where('is_active', 1)
-            ->when(
-                !empty($userIds),
-                fn($q) =>
-                $q->whereIn('id', $userIds)
-            )
-            ->when(
-                !empty($teamIds),
-                fn($q) =>
-                $q->whereJsonContains('team_id', $teamIds)
-            )
-            ->get();
+        /*ACTIVITY TAGS*/
+        $activityTags = TagsActivity::select('id', 'name')->get();
 
-        /*TEAMS*/
-        $derivedTeamIds = $users->pluck('team_id')
-            ->flatten()
-            ->unique()
-            ->filter();
-
-        if (!empty($teamIds)) {
-            $derivedTeamIds = $derivedTeamIds->intersect($teamIds);
-        }
-
-        $teams = Team::query()
-            ->select('id', 'name', 'department_id')
-            ->whereIn('id', $derivedTeamIds)
-            ->when(
-                !empty($departmentIds),
-                fn($q) =>
-                $q->whereIn('department_id', $departmentIds)
-            )
-            ->get();
-
-        /**DEPARTMENTS*/
-        $departments = Department::query()
-            ->select('id', 'name')
-            ->whereIn(
-                'id',
-                $teams->pluck('department_id')->unique()
-            )
-            ->get();
-
-        $activityTags = TagsActivity::query()
-            ->select('id', 'name')
-            ->get();
-        if (
-            !empty($request->user_id) &&
-            $users->isEmpty()
-        ) {
+        if (!empty($request->user_id) && $users->isEmpty()) {
             return response()->json([
                 'success' => true,
                 'message' => 'No Filtered Master Reporting Data Found',
@@ -2274,16 +2280,17 @@ class ProjectMasterController extends Controller
                 ]
             ]);
         }
+
         return response()->json([
             'success' => true,
             'message' => 'Fetched all Filtered Master Reporting Data',
             'data' => [
-                'employees'   => $users,
-                'teams'       => $teams,
-                'clients'     => $clients,
-                'projects'    => $projects,
-                'activity_tags'    => $activityTags,
-                'departments' => $departments,
+                'departments'    => $departments,
+                'teams'          => $teams,
+                'employees'      => $users,
+                'clients'        => $clients,
+                'projects'       => $projects,
+                'activity_tags'  => $activityTags,
             ]
         ]);
     }
