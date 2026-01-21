@@ -659,8 +659,10 @@ class UserController extends Controller
             ->whereRaw(
                 'JSON_CONTAINS(project_relations.assignees, ?)',
                 [json_encode((int) $id)]
-            )
-            ->get();
+            )->orderBy('project_relations.updated_at', 'desc')   // latest first
+            ->get()
+            ->unique('project_id')
+            ->values();
 
         $allAssigneeIds = $projectRelations
             ->pluck('assignees')
