@@ -2223,7 +2223,7 @@ class ProjectMasterController extends Controller
             $projectsQuery->whereHas('relation', function ($q) use ($clientIds) {
                 $q->whereIn('client_id', $clientIds);
             });
-        }
+        } 
 
         if (!empty($activityTagIds)) {
             $projectsQuery->whereIn('project_tag_activity', $activityTagIds);
