@@ -2161,6 +2161,21 @@ class ProjectMasterController extends Controller
         $users = $usersQuery->get();
         $finalUserIds = $users->pluck('id')->toArray();
 
+        /*CLIENTS */
+        if (!empty($projectIds)) {
+            $clients = ClientMaster::select('id', 'client_name')
+                ->whereIn(
+                    'id',
+                    ProjectRelation::whereIn('project_id', $projectIds)
+                        ->pluck('client_id')
+                        ->unique()
+                )
+                ->get();
+        } else {
+            $clients = ClientMaster::select('id', 'client_name')
+                ->get();
+        }
+
         /* PROJECTS */
         $projectsQuery = ProjectMaster::query()
             ->select('id', 'project_name', 'project_tag_activity');
@@ -2187,7 +2202,7 @@ class ProjectMasterController extends Controller
             $projectsQuery->whereHas('relation', function ($q) use ($clientIds) {
                 $q->whereIn('client_id', $clientIds);
             });
-        } 
+        }
 
         if (!empty($activityTagIds)) {
             $projectsQuery->whereIn('project_tag_activity', $activityTagIds);
@@ -2212,19 +2227,9 @@ class ProjectMasterController extends Controller
         $projects = $projectsQuery->get();
         $projectIds = $projects->pluck('id');
 
-        /* PROJECT RELATIONS  */
+        /* PROJECT RELATIONS */
         $relations = ProjectRelation::select('project_id', 'client_id')
             ->whereIn('project_id', $projectIds)
-            ->get();
-
-        /*CLIENTS */
-        $clients = ClientMaster::select('id', 'client_name')
-            ->whereIn(
-                'id',
-                ProjectRelation::whereIn('project_id', $projectIds)
-                    ->pluck('client_id')
-                    ->unique()
-            )
             ->get();
 
         /*ACTIVITY TAGS*/
