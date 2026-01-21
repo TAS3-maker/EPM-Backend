@@ -25,6 +25,8 @@ use App\Models\Task;
 use App\Models\TagsActivity;
 use App\Models\PerformaSheet;
 use App\Models\ClientMaster;
+use App\Models\Department;
+use App\Models\Team;
 use Carbon\Carbon;
 
 class ProjectMasterController extends Controller
@@ -2001,6 +2003,27 @@ class ProjectMasterController extends Controller
             'data'    => [
                 'summary' => $structuredData['summary'],
                 'users'   => array_values($structuredData['users'])
+            ]
+        ]);
+    }
+    public function getAllDataMasterReporting(Request $request)
+    {
+        $users = User::select(['id', 'name'])->where('is_active', 1)->orderBy('id', 'desc')->get();
+        $teams = Team::select(['id', 'name'])->latest()->get();
+        $clients = ClientMaster::select('id', 'client_name')->orderBy('id', 'DESC')->get();
+        $projects = ProjectMaster::select(['id', 'project_name'])
+            ->get();
+        $departments = Department::select(['id', 'name'])->get();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Fetched All Data for Master Reporting',
+            'data'    => [
+                'employees' => $users,
+                'teams' => $teams,
+                'clients' => $clients,
+                'projects' => $projects,
+                'departments' => $departments,
             ]
         ]);
     }
