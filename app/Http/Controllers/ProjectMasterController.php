@@ -1987,38 +1987,6 @@ class ProjectMasterController extends Controller
             $filledDatesByUser[$uid][] = $date;
         }
 
-        $notFilledUsers = $eligibleUsers
-            ->except($filledUserIds)
-            ->map(function ($user) use ($teams, $expectedDates, $filledDatesByUser) {
-
-                $teamIds = is_array($user->team_id)
-                    ? $user->team_id
-                    : (json_decode($user->team_id, true) ?? []);
-
-                $teamNames = [];
-                foreach ($teamIds as $tid) {
-                    if (isset($teams[(int)$tid])) {
-                        $teamNames[] = $teams[(int)$tid];
-                    }
-                }
-
-                $userFilledDates = array_unique($filledDatesByUser[$user->id] ?? []);
-
-                $missingDates = array_values(
-                    array_diff($expectedDates, $userFilledDates)
-                );
-
-                return [
-                    'user_id'        => $user->id,
-                    'user_name'      => $user->name,
-                    'team_name'      => implode(', ', $teamNames),
-                    'missing_dates'  => $missingDates,
-                    'missing_count'  => count($missingDates),
-                ];
-            })
-            ->filter(fn($u) => $u['missing_count'] > 0)
-            ->values();
-
         $structuredData = [
             'summary' => [
                 'billable' => 0,
@@ -2124,10 +2092,6 @@ class ProjectMasterController extends Controller
             'data'    => [
                 'summary' => $structuredData['summary'],
                 'users'   => array_values($structuredData['users']),
-                'not_filled' => [
-                    'count' => $notFilledUsers->count(),
-                    'users' => $notFilledUsers
-                ]
             ]
         ]);
     }
