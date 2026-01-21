@@ -1774,8 +1774,13 @@ class ProjectMasterController extends Controller
         $status = $request->status ?? null;
         $team_id = $request->team_id ?? null;
         $department_id = $request->department_id ?? null;
-        $startDate = $request->start_date ? Carbon::parse($request->start_date)->startOfDay() : null;
-        $endDate = $request->end_date ? Carbon::parse($request->end_date)->endOfDay() : null;
+        if ($request->start_date && $request->end_date) {
+            $startDate = Carbon::parse($request->start_date)->startOfDay();
+            $endDate   = Carbon::parse($request->end_date)->endOfDay();
+        } else {
+            $startDate = Carbon::yesterday()->startOfDay();
+            $endDate   = Carbon::yesterday()->endOfDay();
+        }
         $departmentTeamIds = [];
 
         if (!empty($department_id)) {
@@ -2008,21 +2013,154 @@ class ProjectMasterController extends Controller
     }
     public function getAllDataMasterReporting(Request $request)
     {
-        $users = User::select(['id', 'name'])->where('is_active', 1)->orderBy('id', 'desc')->get();
-        $teams = Team::select(['id', 'name'])->latest()->get();
-        $clients = ClientMaster::select('id', 'client_name')->orderBy('id', 'DESC')->get();
-        $projects = ProjectMaster::select(['id', 'project_name'])
-            ->get();
-        $departments = Department::select(['id', 'name'])->get();
+        $userIds       = $request->user_id
+            ? array_map('intval', explode(',', $request->user_id))
+            : [];
 
+        $teamIds       = $request->team_id
+            ? array_map('intval', explode(',', $request->team_id))
+            : [];
+
+        $projectIds    = $request->project_id
+            ? array_map('intval', explode(',', $request->project_id))
+            : [];
+
+        $activityTagIds    = $request->activity_ids
+            ? array_map('intval', explode(',', $request->activity_ids))
+            : [];
+
+        $clientIds     = $request->client_id
+            ? array_map('intval', explode(',', $request->client_id))
+            : [];
+
+        $departmentIds = $request->department_id
+            ? array_map('intval', explode(',', $request->department_id))
+            : [];
+
+        /*PROJECTS*/
+        $projects = ProjectMaster::query()
+            ->select('id', 'project_name', 'project_tag_activity')
+            ->when(
+                !empty($projectIds),
+                fn($q) =>
+                $q->whereIn('id', $projectIds)
+            )
+            ->when(
+                !empty($activityTagIds),
+                fn($q) =>
+                $q->whereIn('project_tag_activity', $activityTagIds)
+            )
+            ->when(
+                !empty($clientIds),
+                fn($q) =>
+                $q->whereHas('relation', function ($qr) use ($clientIds) {
+                    $qr->whereIn('client_id', $clientIds);
+                })
+            )
+            ->when(!empty($userIds), function ($q) use ($userIds) {
+                $q->whereHas('relation', function ($qr) use ($userIds) {
+                    $qr->where(function ($sub) use ($userIds) {
+                        foreach ($userIds as $uid) {
+                            $sub->orWhereJsonContains('assignees', $uid);
+                        }
+                    });
+                });
+            })
+            ->get();
+
+        $projectIds = $projects->pluck('id');
+
+        /*PROJECT RELATIONS*/
+        $relations = ProjectRelation::query()
+            ->select('project_id', 'client_id')
+            ->whereIn('project_id', $projectIds)
+            ->get();
+
+        /* */
+        $activity_tags = DB::table('tagsactivity')->select('id', 'name')->orderBy('id', 'DESC')->get();
+        /**CLIENTS*/
+        $clients = ClientMaster::query()
+            ->select('id', 'client_name')
+            ->whereIn(
+                'id',
+                $relations->pluck('client_id')->unique()
+            )
+            ->get();
+
+        /*USERS*/
+        $users = User::query()
+            ->select('id', 'name', 'team_id')
+            ->where('is_active', 1)
+            ->when(
+                !empty($userIds),
+                fn($q) =>
+                $q->whereIn('id', $userIds)
+            )
+            ->when(
+                !empty($teamIds),
+                fn($q) =>
+                $q->whereJsonContains('team_id', $teamIds)
+            )
+            ->get();
+
+        /*TEAMS*/
+        $derivedTeamIds = $users->pluck('team_id')
+            ->flatten()
+            ->unique()
+            ->filter();
+
+        if (!empty($teamIds)) {
+            $derivedTeamIds = $derivedTeamIds->intersect($teamIds);
+        }
+
+        $teams = Team::query()
+            ->select('id', 'name', 'department_id')
+            ->whereIn('id', $derivedTeamIds)
+            ->when(
+                !empty($departmentIds),
+                fn($q) =>
+                $q->whereIn('department_id', $departmentIds)
+            )
+            ->get();
+
+        /**DEPARTMENTS*/
+        $departments = Department::query()
+            ->select('id', 'name')
+            ->whereIn(
+                'id',
+                $teams->pluck('department_id')->unique()
+            )
+            ->get();
+
+        $activityTags = TagsActivity::query()
+            ->select('id', 'name')
+            ->get();
+        if (
+            !empty($request->user_id) &&
+            $users->isEmpty()
+        ) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No Filtered Master Reporting Data Found',
+                'data' => [
+                    'employees' => [],
+                    'teams' => [],
+                    'clients' => [],
+                    'projects' => [],
+                    'activity_tags' => [],
+                    'departments' => [],
+                ]
+            ]);
+        }
         return response()->json([
             'success' => true,
-            'message' => 'Fetched All Data for Master Reporting',
-            'data'    => [
-                'employees' => $users,
-                'teams' => $teams,
-                'clients' => $clients,
-                'projects' => $projects,
+            'message' => 'Fetched all Filtered Master Reporting Data',
+            'data' => [
+                'employees'   => $users,
+                'teams'       => $teams,
+                'clients'     => $clients,
+                'projects'    => $projects,
+                'activity_tags'    => $activityTags,
                 'departments' => $departments,
             ]
         ]);
