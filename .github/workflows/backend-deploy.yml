@@ -1,0 +1,47 @@
+name: Laravel Backend Deploy (Staging)
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, bcmath, pdo, tokenizer, xml, ctype, json, openssl
+          tools: composer
+      - name: Install Composer dependencies
+        run: composer install --no-dev --optimize-autoloader --no-scripts
+      - name: Deploy Laravel backend to staging
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOSTINGER_STAGING_HOST }}
+          username: ${{ secrets.HOSTINGER_STAGING_USERNAME }}
+          password: ${{ secrets.HOSTINGER_STAGING_PASSWORD }}
+          port: 22
+          source: "./"
+          target: "/var/www/EPM/Backend/EPM-backend/"
+          rm: false
+      - name: Run Artisan and permissions on staging
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOSTINGER_STAGING_HOST }}
+          username: ${{ secrets.HOSTINGER_STAGING_USERNAME }}
+          password: ${{ secrets.HOSTINGER_STAGING_PASSWORD }}
+          port: 22
+          script: |
+            cd /var/www/EPM/Backend/EPM-backend
+            composer install --no-dev --optimize-autoloader
+            php artisan config:clear
+            php artisan route:clear
+            php artisan view:clear
+            php artisan cache:clear
+            php artisan optimize
+            chmod -R 775 storage bootstrap/cache
+            chown -R www-data:www-data storage bootstrap/cache
+            php artisan migrate --force

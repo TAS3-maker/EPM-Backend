@@ -1,0 +1,36 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class ProjectRelationResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'client_id' => $this->client_id,
+            'project_id' => $this->project_id,
+            'communication_id' => $this->communication_id,
+            'assignees_id' => $this->assignees,
+            'source_id' => $this->source_id,
+            'account_id' => $this->account_id,
+            'tracking_id' => $this->tracking_id,
+            'tracking_account' => $this->trackingID(),
+            'sales_person_id' => $this->sales_person_id,
+            'sales_person_data' => $this->sales_person_id(),
+            'client_name' => $this->client ? $this->client->client_name : null,
+            'client_email' => $this->client ? $this->client->client_email : null,
+            'client_number' => $this->client ? $this->client->client_number : null,
+            'project' => $this->project ? $this->project->project_name : null,
+            'communications' => $this->communications(),
+            'assignees' => $this->assignees(),
+            'source' => $this->source ? $this->source->source_name : null,
+            'account' => $this->account ? $this->account->account_name : null,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+    }
+}
