@@ -2126,6 +2126,7 @@ class ProjectMasterController extends Controller
             $clientName = $project?->client?->client_name ?? null;
 
             $data['project_name'] = $projectName;
+            $data['status'] = $sheet->status;
             $data['client_name'] = $clientName;
 
             $usersData[$uid]['sheets'][] = $data;
