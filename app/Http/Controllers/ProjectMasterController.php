@@ -1917,6 +1917,11 @@ class ProjectMasterController extends Controller
 
             ->pluck('id')
             ->toArray();
+        $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
+
+        $teamNamesMap = Team::whereIn('id', $allTeamIds)
+            ->pluck('name', 'id')
+            ->toArray();
 
         $allSheets = PerformaSheet::with('user:id,name,team_id,is_active')
             ->when($status, fn($q) => $q->whereIn('status', $status))
@@ -2078,10 +2083,20 @@ class ProjectMasterController extends Controller
             $minutes = $timeToMinutes($data['time'] ?? null);
             $type = strtolower($data['activity_type'] ?? '');
             */
+            $userTeamIds = $eligibleUsers[$uid]->team_id ?? [];
+            $userTeamNames = [];
+            if (is_array($userTeamIds)) {
+                foreach ($userTeamIds as $tid) {
+                    if (isset($teamNamesMap[$tid])) {
+                        $userTeamNames[] = $teamNamesMap[$tid];
+                    }
+                }
+            }
             if (!isset($usersData[$uid])) {
                 $usersData[$uid] = [
                     'user_id' => $uid,
                     'user_name' => $eligibleUsers[$uid]->name,
+                    'team_names' => $userTeamNames,
                     'summary' => ['billable' => 0, 'inhouse' => 0, 'no_work' => 0],
                     'sheets' => []
                 ];
