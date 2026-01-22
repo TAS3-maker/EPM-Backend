@@ -1844,32 +1844,21 @@ class ProjectMasterController extends Controller
             $cursor->addDay();
         }
 
-        /**
-         * -------------------------------------------------
-         * ELIGIBLE USERS
-         * -------------------------------------------------
-         */
+        /*ELIGIBLE USERS*/
         $eligibleUsers = User::query()
             ->select('id', 'name', 'team_id', 'role_id')
             ->where('is_active', 1)
+            ->where(function ($q) {
+                $q->whereJsonDoesntContain('team_id', 2);
+            })
             ->whereJsonContains('role_id', 7)
             ->where(function ($q) use ($userIds, $teamIds, $departmentIds) {
 
-                /*
-        |--------------------------------------------------------------------------
-        | 1️⃣ USER FILTER (highest priority)
-        |--------------------------------------------------------------------------
-        */
                 if ($userIds->isNotEmpty()) {
                     $q->whereIn('id', $userIds);
                     return;
                 }
 
-                /*
-        |--------------------------------------------------------------------------
-        | 2️⃣ TEAM FILTER
-        |--------------------------------------------------------------------------
-        */
                 if ($teamIds->isNotEmpty()) {
                     $q->where(function ($sub) use ($teamIds) {
                         foreach ($teamIds as $teamId) {
@@ -1879,11 +1868,6 @@ class ProjectMasterController extends Controller
                     return;
                 }
 
-                /*
-        |--------------------------------------------------------------------------
-        | 3️⃣ DEPARTMENT FILTER
-        |--------------------------------------------------------------------------
-        */
                 if ($departmentIds->isNotEmpty()) {
 
                     $teamIdsFromDept = Team::whereIn('department_id', $departmentIds)
@@ -2028,7 +2012,6 @@ class ProjectMasterController extends Controller
                                 case 'Half Day':
                                     $fillableMinutes = min($fillableMinutes, 255);
                                     break;
-
                                 case 'Short Leave':
                                     $fillableMinutes = min($fillableMinutes, 390);
                                     break;
