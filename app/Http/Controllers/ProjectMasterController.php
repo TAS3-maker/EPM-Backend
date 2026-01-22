@@ -102,6 +102,8 @@ class ProjectMasterController extends Controller
             'source_id' => 'required|integer|exists:project_source,id',
             'account_id' => 'required|integer|exists:project_accounts,id',
             'sales_person_id' => 'nullable|integer|exists:users,id',
+            'project_estimation_by' => 'nullable|integer|exists:users,id',
+            'project_call_by' => 'nullable|integer|exists:users,id',
             'project_tracking' => 'required|integer',
             'tracking_id' => 'nullable|integer',
             'project_status' => 'nullable|string',
@@ -117,6 +119,8 @@ class ProjectMasterController extends Controller
             'source_id.exists' => 'Source does not exist',
             'account_id.exists' => 'Account does not exist',
             'sales_person_id.exists' => 'Sales person does not exist',
+            'project_estimation_by.exists' => 'Project Estimation by User does not exist',
+            'project_call_by.exists' => 'Project Call Taken by User does not exist',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -203,6 +207,8 @@ class ProjectMasterController extends Controller
                 'account_id' => $request->account_id,
                 'tracking_id' => $request->tracking_id,
                 'sales_person_id' => $request->sales_person_id,
+                'project_estimation_by' => $request->project_estimation_by,
+                'project_call_by' => $request->project_call_by,
             ]);
 
             DB::commit();
@@ -275,6 +281,8 @@ class ProjectMasterController extends Controller
             'source_id' => 'sometimes|required|integer|exists:project_source,id',
             'account_id' => 'sometimes|required|integer|exists:project_accounts,id',
             'sales_person_id' => 'sometimes|nullable|integer|exists:users,id',
+            'project_estimation_by' => 'sometimes|nullable|integer|exists:users,id',
+            'project_call_by' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
             'tracking_id' => 'sometimes|nullable|integer',
             'project_status' => 'sometimes|nullable|string',
@@ -290,6 +298,8 @@ class ProjectMasterController extends Controller
             'source_id.exists' => 'Source does not exist',
             'account_id.exists' => 'Account does not exist',
             'sales_person_id.exists' => 'Sales person does not exist',
+            'project_estimation_by.exists' => 'Project Estimation by User does not exist',
+            'project_call_by.exists' => 'Project Call Taken by User does not exist',
         ]);
 
         if ($validator->fails()) {
@@ -407,6 +417,8 @@ class ProjectMasterController extends Controller
                 'account_id',
                 'tracking_id',
                 'sales_person_id',
+                'project_estimation_by',
+                'project_call_by',
             ]);
 
             if (!empty($relationData)) {
@@ -719,10 +731,10 @@ class ProjectMasterController extends Controller
                 // Mail::to($tl->email)->queue($mail);
             }
 
-             ActivityService::log([
+            ActivityService::log([
                 'project_id' => $project->id,
                 'type' => 'activity',
-                'description' => 'Project assigned to '. $tl->name .' Team Leaders by' . auth()->user()->name,
+                'description' => 'Project assigned to ' . $tl->name . ' Team Leaders by' . auth()->user()->name,
             ]);
         }
 
@@ -1260,7 +1272,7 @@ class ProjectMasterController extends Controller
 
         $performaUserIds = [$currentUser->id];
 
-        if ($currentUser->hasAnyRole([1,2])) {
+        if ($currentUser->hasAnyRole([1, 2])) {
             $teamIds = is_string($currentUser->team_id)
                 ? json_decode($currentUser->team_id, true)
                 : (array) $currentUser->team_id;
@@ -1673,8 +1685,10 @@ class ProjectMasterController extends Controller
                 }
 
                 $entryDate = Carbon::parse($entry['date']);
-                if ($startDate && $entryDate->lt($startDate)) continue;
-                if ($endDate && $entryDate->gt($endDate)) continue;
+                if ($startDate && $entryDate->lt($startDate))
+                    continue;
+                if ($endDate && $entryDate->gt($endDate))
+                    continue;
 
                 [$h, $m] = array_map('intval', explode(':', $entry['time']));
                 $minutes = ($h * 60) + $m;

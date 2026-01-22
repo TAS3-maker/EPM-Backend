@@ -19,6 +19,8 @@ class ProjectRelation extends Model
         'account_id',
         'tracking_id',
         'sales_person_id',
+        'project_estimation_by',
+        'project_call_by',
     ];
     protected $casts = [
         'communication_id' => 'array',
@@ -39,6 +41,20 @@ class ProjectRelation extends Model
         return User::where(
             'id',
             $this->sales_person_id ?? ''
+        )->get();
+    }
+    public function project_estimation_by()
+    {
+        return User::where(
+            'id',
+            $this->project_estimation_by ?? ''
+        )->get();
+    }
+    public function project_call_by()
+    {
+        return User::where(
+            'id',
+            $this->project_call_by ?? ''
         )->get();
     }
     public function communications()
