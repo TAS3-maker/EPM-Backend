@@ -1825,9 +1825,8 @@ class ProjectMasterController extends Controller
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
 
-    
-        $workedMinutesByUserDate = [];
 
+        $workedMinutesByUserDate = [];
         foreach ($allSheets as $sheet) {
             $data = json_decode($sheet->data, true);
             if (!is_array($data) || empty($data['date'])) continue;
@@ -1854,7 +1853,7 @@ class ProjectMasterController extends Controller
             ->get()
             ->groupBy('user_id');
 
-    
+
         $notFilledUsers = [];
 
         foreach ($eligibleUsers as $user) {
@@ -1871,19 +1870,46 @@ class ProjectMasterController extends Controller
                 if (isset($leaves[$uid])) {
                     foreach ($leaves[$uid] as $leave) {
                         if ($leave->start_date <= $date && $leave->end_date >= $date) {
-                                $onLeave = true;
-                                break;
-                            }
+                            $onLeave = true;
+                            break;
+                        }
 
                         if ($leave->start_date <= $dateStr && $leave->end_date >= $dateStr) {
-                            if ($leave->leave_type === 'Full Leave') {
-                                $required = 0;
-                            } elseif ($leave->leave_type === 'Half Day') {
-                                $required = 0;
-                            } elseif (strtolower($leave->leave_type) === 'short leave') {
-                                $required = 0;
+                            switch ($leave->leave_type) {
+
+                                case 'Full Leave':
+                                    $totalLeaveMinutes += 510;
+                                    break;
+
+                                case 'Half Day':
+                                    $totalLeaveMinutes += 255;
+
+                                    $remaining = max(0, 510 - 255 - $worked);
+                                    $activityTotals['Unfilled'] += $remaining;
+
+                                    if ($remaining > 0) {
+                                        $unfilledDates[$dateStr] = $remaining;
+                                        // $unfilledCount++;
+                                    }
+                                    break;
+
+                                case 'Short Leave':
+                                    if ($leave->hours && str_contains($leave->hours, 'to')) {
+                                        [$start, $end] = explode('to', $leave->hours);
+                                        $leaveMin = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
+
+                                        $totalLeaveMinutes += $leaveMin;
+
+                                        $remaining = max(0, 510 - $leaveMin - $worked);
+                                        $activityTotals['Unfilled'] += $remaining;
+
+                                        if ($remaining > 0) {
+                                            $unfilledDates[$dateStr] = $remaining;
+                                            // $unfilledCount++;
+                                        }
+                                    }
+                                    break;
                             }
-                            break;
                         }
                     }
                 }
@@ -1912,11 +1938,14 @@ class ProjectMasterController extends Controller
          */
         $summary = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
         $usersData = [];
-
+        $userCategoryFlags = [];
         foreach ($allSheets as $sheet) {
 
             $data = json_decode($sheet->data, true);
             if (!is_array($data) || empty($data['date'])) continue;
+
+            $date = Carbon::parse($data['date']);
+            if ($date->isWeekend() || !$date->between($startDate, $endDate)) continue;
 
             $uid = (int) $sheet->user_id;
             if (!isset($eligibleUsers[$uid])) continue;
@@ -1935,20 +1964,37 @@ class ProjectMasterController extends Controller
                     'summary' => ['billable' => 0, 'inhouse' => 0, 'no_work' => 0],
                     'sheets' => []
                 ];
+
+                $userCategoryFlags[$uid] = [
+                    'billable' => false,
+                    'inhouse'  => false,
+                    'no_work'  => false,
+                ];
             }
 
             if ($type === 'billable') {
                 $summary['billable'] += $minutes;
                 $usersData[$uid]['summary']['billable'] += $minutes;
+                $userCategoryFlags[$uid]['billable'] = true;
             } elseif (in_array($type, ['inhouse', 'in-house'])) {
                 $summary['inhouse'] += $minutes;
                 $usersData[$uid]['summary']['inhouse'] += $minutes;
+                $userCategoryFlags[$uid]['inhouse'] = true;
             } elseif (in_array($type, ['no work', 'no-work'])) {
                 $summary['no_work'] += $minutes;
                 $usersData[$uid]['summary']['no_work'] += $minutes;
+                $userCategoryFlags[$uid]['no_work'] = true;
             }
 
             $usersData[$uid]['sheets'][] = $data;
+        }
+
+        $userCounts = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
+
+        foreach ($userCategoryFlags as $flags) {
+            if ($flags['billable']) $userCounts['billable']++;
+            if ($flags['inhouse'])  $userCounts['inhouse']++;
+            if ($flags['no_work'])  $userCounts['no_work']++;
         }
 
         $toTime = fn($m) => sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
@@ -1963,6 +2009,7 @@ class ProjectMasterController extends Controller
             'message' => 'All Reporting data',
             'data' => [
                 'summary' => $summary,
+                'user_counts' => $userCounts,
                 'users' => array_values($usersData),
                 'not_filled' => [
                     'count' => count($notFilledUsers),
