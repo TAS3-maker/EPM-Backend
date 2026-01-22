@@ -2656,7 +2656,7 @@ class PerformaSheetController extends Controller
 
             $users = $query->get();
 
-            $submissions = PerformaSheet::select("user_id", "data")->get()
+            $submissions = PerformaSheet::select("user_id", "data")->whereIn('status', ['approved', 'pending', 'backdated'])->get()
                 ->map(function ($sheet) {
                     $d = json_decode($sheet->data, true);
                     return isset($d["date"])
