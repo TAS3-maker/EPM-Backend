@@ -868,6 +868,16 @@ class PerformaSheetController extends Controller
         $baseQuery = PerformaSheet::with('user:id,name');
         if ($user->hasRole(7)) {
             $baseQuery->where('user_id', $user->id);
+        } elseif ($user->hasRole(6)) {
+
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->where('tl_id', $user->id)
+                ->whereNot('id', $user->id)
+                ->pluck('id')
+                ->toArray();
+            $baseQuery->whereIn('user_id', $teamMemberIds);
+
         } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -2196,8 +2206,17 @@ class PerformaSheetController extends Controller
                 $q->whereJsonContains('role_id', 7);
             });
 
-        } elseif (array_intersect($roleIds, [5, 6]) && !empty($teamIds)) {
+        } elseif ($user->hasRole(6)) {
 
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->where('tl_id', $user->id)
+                ->whereNot('id', $user->id)
+                ->pluck('id')
+                ->toArray();
+            $baseQuery->whereIn('user_id', $teamMemberIds);
+
+        } elseif (in_array(5, $roleIds) && !empty($teamIds)) {
             $baseQuery->whereHas('user', function ($q) use ($teamIds) {
                 $q->where(function ($sub) use ($teamIds) {
                     foreach ($teamIds as $teamId) {
@@ -2317,6 +2336,16 @@ class PerformaSheetController extends Controller
                     ->toArray();
 
                 $baseQuery->whereIn('user_id', $teamMemberIds);
+            } elseif ($user->hasRole(6)) {
+
+                $teamMemberIds = User::whereJsonContains('role_id', 7)
+                    ->where('is_active', 1)
+                    ->where('tl_id', $user->id)
+                    ->whereNot('id', $user->id)
+                    ->pluck('id')
+                    ->toArray();
+                $baseQuery->whereIn('user_id', $teamMemberIds);
+
             } elseif (!empty($team_id)) {
                 $teamMemberIds = User::whereJsonContains('role_id', 7)
                     ->where("is_active", 1)
@@ -2630,13 +2659,16 @@ class PerformaSheetController extends Controller
                 ->where('is_active', 1)
                 ->whereJsonDoesntContain('team_id', $bd_team);
 
-            // TL
             if ($authUser->hasRole(6)) {
-                $query->where(function ($q) use ($authUser) {
-                    foreach ($authUser->team_id as $t) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
-                    }
-                });
+
+                $teamMemberIds = User::whereJsonContains('role_id', 7)
+                    ->where('is_active', 1)
+                    ->where('tl_id', $authUser->id)
+                    ->whereNot('id', $authUser->id)
+                    ->pluck('id')
+                    ->toArray();
+                $query->whereIn('id', $teamMemberIds);
+
             }
 
             // PM
@@ -4302,5 +4334,63 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function getPerformaofUserNotInTeam(Request $request)
+    // {
+    //     $user = auth()->user();
+    //     $status = $request->status ?? null;
 
+    //     if (!$user || !$user->hasRole(6)) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Only Team Lead can access this',
+    //         ], 403);
+    //     }
+
+    //     $projects = ProjectMaster::whereHas('relation', function ($q) use ($user) {
+    //         $q->whereJsonContains('assignees', $user->id);
+    //     })->with('relation')->get();
+
+    //     if ($projects->isEmpty()) {
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => [],
+    //         ]);
+    //     }
+
+    //     $assigneeUserIds = [];
+
+    //     foreach ($projects as $project) {
+    //         $assignees = $project->relation->assignees;
+    //         if (is_array($assignees)) {
+    //             $assigneeUserIds = array_merge($assigneeUserIds, $assignees);
+    //         }
+    //     }
+
+    //     $assigneeUserIds = array_unique($assigneeUserIds);
+
+    //     $otherUsers = User::whereIn('id', $assigneeUserIds)
+    //         ->where('is_active', 1)
+    //         ->whereJsonContains('role_id', (7))
+    //         ->where(function ($q) use ($user) {
+    //             $q->orWhere('tl_id', '!=', $user->id);
+    //         })
+    //         ->pluck('id')
+    //         ->toArray();
+
+    //     $performaSheetsquery = PerformaSheet::whereIn('user_id', $otherUsers)
+    //         ->with('user:id,name');
+
+    //     if (!empty($status)) {
+    //         $performaSheetsquery->where('status', $status);
+    //     } else {
+    //         $performaSheetsquery->whereIn('status', ['approved', 'rejected']);
+    //     }
+
+    //     $performaSheets = $performaSheetsquery->get();
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $performaSheets,
+    //     ]);
+    // }
 }
