@@ -12,29 +12,47 @@ class TeamController extends Controller
 {
     // public function index()
     // {
-    //     $teams = Team::with('users')->latest()->get();
+    //     $teams = Team::latest()->get()->map(function ($team) {
+    //         $team->users = User::whereJsonContains('team_id', $team->id)
+    //             ->where('is_active', 1)
+    //             ->get();
+    //         return $team;
+    //     });
+
     //     return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
     // }
-    // public function show($id)
-    // {
-    //     $team = Team::with('users')->find($id);
 
-    //     if (!$team) {
-    //         return ApiResponse::error('Team not found', [], 404);
-    //     }
-
-    //     return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
-    // }
     public function index()
     {
         $teams = Team::latest()->get()->map(function ($team) {
-            $team->users = User::whereJsonContains('team_id', $team->id)
+
+            $tls = User::whereJsonContains('team_id', $team->id)
                 ->where('is_active', 1)
-                ->get();
+                ->whereJsonContains('role_id', 6)
+                ->select('id', 'name')->get();
+
+            $tls = $tls->map(function ($tl) use ($team) {
+
+                $employees = User::whereJsonContains('team_id', $team->id)
+                    ->where('is_active', 1)
+                    ->where('tl_id', $tl->id)
+                    ->whereNot('id', $tl->id)
+                    ->get();
+
+                $tl->employees = $employees;
+
+                return $tl;
+            });
+
+            $team->tls = $tls;
+
             return $team;
         });
 
-        return ApiResponse::success('Teams fetched successfully', TeamResource::collection($teams));
+        return ApiResponse::success(
+            'Teams with TLs and employees fetched successfully',
+            $teams
+        );
     }
 
     public function show($id)
@@ -44,13 +62,31 @@ class TeamController extends Controller
         if (!$team) {
             return ApiResponse::error('Team not found', [], 404);
         }
-
-        // Fetch users dynamically
-        $team->users = User::whereJsonContains('team_id', $team->id)
+        $tls = User::whereJsonContains('team_id', $team->id)
             ->where('is_active', 1)
+            ->whereJsonContains('role_id', 6)    
+            ->select('id', 'name')
             ->get();
 
-        return ApiResponse::success('Team details fetched successfully', new TeamResource($team));
+        $tls = $tls->map(function ($tl) use ($team) {
+
+            $employees = User::whereJsonContains('team_id', $team->id)
+                ->where('is_active', 1)
+                ->where('tl_id', $tl->id)
+                ->whereNot('id', $tl->id)
+                ->get();
+
+            $tl->employees = $employees;
+
+            return $tl;
+        });
+
+        $team->tls = $tls;
+
+        return ApiResponse::success(
+            'Team details fetched successfully',
+            $team
+        );
     }
 
 

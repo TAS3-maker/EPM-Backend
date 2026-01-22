@@ -1837,13 +1837,9 @@ class ProjectMasterController extends Controller
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
 
-<<<<<<< HEAD
-=======
 
         $workedMinutesByUserDate = [];
->>>>>>> 84d90df815bafe8477fe5bdfaf36b3a8c35d29c0
 
-        $workedMinutesByUserDate = [];
         foreach ($allSheets as $sheet) {
             $data = json_decode($sheet->data, true);
             if (!is_array($data) || empty($data['date']))
