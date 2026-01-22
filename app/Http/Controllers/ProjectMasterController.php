@@ -1836,6 +1836,7 @@ class ProjectMasterController extends Controller
         $timeToMinutes = fn($t) => ($t && str_contains($t, ':'))
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
+            
         $workedMinutesByUserDate = [];
         foreach ($allSheets as $sheet) {
             $data = json_decode($sheet->data, true);
