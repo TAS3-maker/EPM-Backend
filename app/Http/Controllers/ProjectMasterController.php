@@ -2128,6 +2128,8 @@ class ProjectMasterController extends Controller
             $data['project_name'] = $projectName;
             $data['status'] = $sheet->status;
             $data['client_name'] = $clientName;
+            $data['created_at'] = $sheet->created_at;
+            $data['updated_at'] = $sheet->updated_at;
 
             $usersData[$uid]['sheets'][] = $data;
         }
