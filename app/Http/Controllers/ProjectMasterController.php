@@ -105,6 +105,8 @@ class ProjectMasterController extends Controller
             'source_id' => 'required|integer|exists:project_source,id',
             'account_id' => 'required|integer|exists:project_accounts,id',
             'sales_person_id' => 'nullable|integer|exists:users,id',
+            'project_estimation_by' => 'nullable|integer|exists:users,id',
+            'project_call_by' => 'nullable|integer|exists:users,id',
             'project_tracking' => 'required|integer',
             'tracking_id' => 'nullable|integer',
             'project_status' => 'nullable|string',
@@ -120,6 +122,8 @@ class ProjectMasterController extends Controller
             'source_id.exists' => 'Source does not exist',
             'account_id.exists' => 'Account does not exist',
             'sales_person_id.exists' => 'Sales person does not exist',
+            'project_estimation_by.exists' => 'Project Estimation by User does not exist',
+            'project_call_by.exists' => 'Project Call Taken by User does not exist',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -206,6 +210,8 @@ class ProjectMasterController extends Controller
                 'account_id' => $request->account_id,
                 'tracking_id' => $request->tracking_id,
                 'sales_person_id' => $request->sales_person_id,
+                'project_estimation_by' => $request->project_estimation_by,
+                'project_call_by' => $request->project_call_by,
             ]);
 
             DB::commit();
@@ -277,6 +283,8 @@ class ProjectMasterController extends Controller
             'source_id' => 'sometimes|required|integer|exists:project_source,id',
             'account_id' => 'sometimes|required|integer|exists:project_accounts,id',
             'sales_person_id' => 'sometimes|nullable|integer|exists:users,id',
+            'project_estimation_by' => 'sometimes|nullable|integer|exists:users,id',
+            'project_call_by' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
             'tracking_id' => 'sometimes|nullable|integer',
             'project_status' => 'sometimes|nullable|string',
@@ -292,6 +300,8 @@ class ProjectMasterController extends Controller
             'source_id.exists' => 'Source does not exist',
             'account_id.exists' => 'Account does not exist',
             'sales_person_id.exists' => 'Sales person does not exist',
+            'project_estimation_by.exists' => 'Project Estimation by User does not exist',
+            'project_call_by.exists' => 'Project Call Taken by User does not exist',
         ]);
 
         if ($validator->fails()) {
@@ -409,6 +419,8 @@ class ProjectMasterController extends Controller
                 'account_id',
                 'tracking_id',
                 'sales_person_id',
+                'project_estimation_by',
+                'project_call_by',
             ]);
 
             if (!empty($relationData)) {
@@ -1127,17 +1139,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                            return [
-                                'id' => $task->id,
-                                'project_id' => $task->project_id,
-                                'title' => $task->title,
-                                'description' => $task->description,
-                                'hours' => $task->hours,
-                                'deadline' => $task->deadline,
-                                'status' => $task->status,
-                                'start_date' => $task->start_date,
-                            ];
-                        });
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
 
                     return [
                         'id' => $project->id,
@@ -1765,12 +1777,12 @@ class ProjectMasterController extends Controller
 
     public function getUsersAllSheetsDataReporting(Request $request)
     {
-        $user_id       = $request->user_id ?? null;
-        $client_id     = $request->client_id ?? null;
-        $project_id    = $request->project_id ?? null;
-        $activity_tag  = $request->activity_tag ?? null;
-        $status        = $request->status ?? null;
-        $team_id       = $request->team_id ?? null;
+        $user_id = $request->user_id ?? null;
+        $client_id = $request->client_id ?? null;
+        $project_id = $request->project_id ?? null;
+        $activity_tag = $request->activity_tag ?? null;
+        $status = $request->status ?? null;
+        $team_id = $request->team_id ?? null;
         $department_id = $request->department_id ?? null;
 
         $startDate = $request->start_date
@@ -1825,18 +1837,21 @@ class ProjectMasterController extends Controller
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
 
-    
+
         $workedMinutesByUserDate = [];
 
         foreach ($allSheets as $sheet) {
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date'])) continue;
+            if (!is_array($data) || empty($data['date']))
+                continue;
 
             $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate)) continue;
+            if ($date->isWeekend() || !$date->between($startDate, $endDate))
+                continue;
 
             $uid = (int) $sheet->user_id;
-            if (!isset($eligibleUsers[$uid])) continue;
+            if (!isset($eligibleUsers[$uid]))
+                continue;
 
             $dateStr = $date->toDateString();
             $workedMinutesByUserDate[$uid][$dateStr] =
@@ -1854,7 +1869,7 @@ class ProjectMasterController extends Controller
             ->get()
             ->groupBy('user_id');
 
-    
+
         $notFilledUsers = [];
 
         foreach ($eligibleUsers as $user) {
@@ -1871,9 +1886,9 @@ class ProjectMasterController extends Controller
                 if (isset($leaves[$uid])) {
                     foreach ($leaves[$uid] as $leave) {
                         if ($leave->start_date <= $date && $leave->end_date >= $date) {
-                                $onLeave = true;
-                                break;
-                            }
+                            $onLeave = true;
+                            break;
+                        }
 
                         if ($leave->start_date <= $dateStr && $leave->end_date >= $dateStr) {
                             if ($leave->leave_type === 'Full Leave') {
@@ -1896,10 +1911,10 @@ class ProjectMasterController extends Controller
 
             if (!empty($missingDates)) {
                 $notFilledUsers[] = [
-                    'user_id'         => $uid,
-                    'user_name'       => $user->name,
-                    'missing_dates'   => $missingDates,
-                    'missing_days'    => count($missingDates),
+                    'user_id' => $uid,
+                    'user_name' => $user->name,
+                    'missing_dates' => $missingDates,
+                    'missing_days' => count($missingDates),
                     'missing_minutes' => $missingMinutes,
                 ];
             }
@@ -1916,14 +1931,18 @@ class ProjectMasterController extends Controller
         foreach ($allSheets as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date'])) continue;
+            if (!is_array($data) || empty($data['date']))
+                continue;
 
             $uid = (int) $sheet->user_id;
-            if (!isset($eligibleUsers[$uid])) continue;
+            if (!isset($eligibleUsers[$uid]))
+                continue;
 
             // Apply filters ONLY here
-            if ($project_id && ($data['project_id'] ?? null) != $project_id) continue;
-            if ($activity_tag && strtolower($data['activity_type'] ?? '') !== strtolower($activity_tag)) continue;
+            if ($project_id && ($data['project_id'] ?? null) != $project_id)
+                continue;
+            if ($activity_tag && strtolower($data['activity_type'] ?? '') !== strtolower($activity_tag))
+                continue;
 
             $minutes = $timeToMinutes($data['time'] ?? null);
             $type = strtolower($data['activity_type'] ?? '');
@@ -1974,15 +1993,15 @@ class ProjectMasterController extends Controller
 
     public function getFilterOfAllDataMasterReporting(Request $request)
     {
-        $userIds       = $request->user_id
+        $userIds = $request->user_id
             ? array_map('intval', explode(',', $request->user_id))
             : [];
 
-        $teamIds       = $request->team_id
+        $teamIds = $request->team_id
             ? array_map('intval', explode(',', $request->team_id))
             : [];
 
-        $projectIds    = $request->project_id
+        $projectIds = $request->project_id
             ? array_map('intval', explode(',', $request->project_id))
             : [];
 
@@ -1990,7 +2009,7 @@ class ProjectMasterController extends Controller
             ? array_map('intval', explode(',', $request->activity_id))
             : [];
 
-        $clientIds     = $request->client_id
+        $clientIds = $request->client_id
             ? array_map('intval', explode(',', $request->client_id))
             : [];
 
@@ -2130,12 +2149,12 @@ class ProjectMasterController extends Controller
             'success' => true,
             'message' => 'Fetched all Filtered Master Reporting Data',
             'data' => [
-                'departments'    => $departments,
-                'teams'          => $teams,
-                'employees'      => $users,
-                'clients'        => $clients,
-                'projects'       => $projects,
-                'activity_tags'  => $activityTags,
+                'departments' => $departments,
+                'teams' => $teams,
+                'employees' => $users,
+                'clients' => $clients,
+                'projects' => $projects,
+                'activity_tags' => $activityTags,
             ]
         ]);
     }

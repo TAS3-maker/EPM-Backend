@@ -19,6 +19,8 @@ class ProjectRelation extends Model
         'account_id',
         'tracking_id',
         'sales_person_id',
+        'project_estimation_by',
+        'project_call_by',
     ];
     protected $casts = [
         'communication_id' => 'array',
@@ -26,12 +28,12 @@ class ProjectRelation extends Model
     ];
     public function client()
     {
-        return $this->belongsTo(\App\Models\ClientMaster::class, 'client_id');
+        return $this->belongsTo(ClientMaster::class, 'client_id');
     }
 
     public function project()
     {
-        return $this->belongsTo(\App\Models\ProjectMaster::class, 'project_id');
+        return $this->belongsTo(ProjectMaster::class, 'project_id');
     }
 
     public function sales_person_id()
@@ -39,6 +41,20 @@ class ProjectRelation extends Model
         return User::where(
             'id',
             $this->sales_person_id ?? ''
+        )->get();
+    }
+    public function project_estimation_by()
+    {
+        return User::where(
+            'id',
+            $this->project_estimation_by ?? ''
+        )->get();
+    }
+    public function project_call_by()
+    {
+        return User::where(
+            'id',
+            $this->project_call_by ?? ''
         )->get();
     }
     public function communications()
@@ -53,7 +69,7 @@ class ProjectRelation extends Model
         $assigneeIds = $this->assignees ?? [];
 
         if (empty($assigneeIds)) {
-            return collect(); 
+            return collect();
         }
 
         $users = User::whereIn('id', $assigneeIds)
@@ -80,12 +96,12 @@ class ProjectRelation extends Model
 
     public function source()
     {
-        return $this->belongsTo(\App\Models\ProjectSource::class, 'source_id');
+        return $this->belongsTo(ProjectSource::class, 'source_id');
     }
 
     public function account()
     {
-        return $this->belongsTo(\App\Models\ProjectAccount::class, 'account_id');
+        return $this->belongsTo(ProjectAccount::class, 'account_id');
     }
     public function trackingID()
     {
