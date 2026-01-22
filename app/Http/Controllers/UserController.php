@@ -462,6 +462,7 @@ class UserController extends Controller
                 'password' => 'sometimes|min:6|confirmed',
                 'is_active' => 'nullable|in:0,1',
                 'inactive_date' => 'nullable|date|before_or_equal:today',
+                'tl_id' => 'nullable|exists:users,id',
             ]);
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -522,21 +523,21 @@ class UserController extends Controller
         }
 
         /* ================= TL ASSIGNMENT ================= */
-        $tlId = null;
-        if (!empty($teamIds)) {
-            $userWithRole6 = User::where('is_active', 1)
-                ->whereJsonContains('role_id', 6)
-                ->where(function ($q) use ($teamIds) {
-                    foreach ($teamIds as $t) {
-                        $q->orWhereJsonContains('team_id', $t);
-                    }
-                })
-                ->first();
+        // $tlId = null;
+        // if (!empty($teamIds)) {
+        //     $userWithRole6 = User::where('is_active', 1)
+        //         ->whereJsonContains('role_id', 6)
+        //         ->where(function ($q) use ($teamIds) {
+        //             foreach ($teamIds as $t) {
+        //                 $q->orWhereJsonContains('team_id', $t);
+        //             }
+        //         })
+        //         ->first();
 
-            if ($userWithRole6) {
-                $tlId = $userWithRole6->id;
-            }
-        }
+        //     if ($userWithRole6) {
+        //         $tlId = $userWithRole6->id;
+        //     }
+        // }
 
         $user->name = $validatedData['name'] ?? $user->name;
         $user->email = $validatedData['email'] ?? $user->email;
@@ -544,14 +545,15 @@ class UserController extends Controller
         $user->emergency_phone_num = $validatedData['emergency_phone_num'] ?? $user->emergency_phone_num;
         $user->address = $validatedData['address'] ?? $user->address;
         $user->team_id = !empty($teamIds) ? $teamIds : $user->team_id;
+        $user->tl_id = $validatedData['tl_id'] ?? $user->tl_id;
 
         if (!is_null($roleIds)) {
             $user->role_id = $roleIds;
         }
 
-        if (!empty($teamIds)) {
-            $user->tl_id = $tlId;
-        }
+        // if (!empty($teamIds)) {
+        //     $user->tl_id = $tlId;
+        // }
 
         if (isset($validatedData['password'])) {
             $user->password = Hash::make($validatedData['password']);
