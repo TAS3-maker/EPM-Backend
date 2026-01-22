@@ -1139,17 +1139,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1781,10 +1781,10 @@ class ProjectMasterController extends Controller
         $client_id = $request->client_id ?? null;
         $project_id = $request->project_id ?? null;
         $activity_tag = $request->activity_tag ?? null;
-        $status = $request->status ?? null;
         $team_id = $request->team_id ?? null;
         $department_id = $request->department_id ?? null;
 
+        $status = $request->status ?? null;
         $startDate = $request->start_date
             ? Carbon::parse($request->start_date)->startOfDay()
             : Carbon::yesterday()->startOfDay();
@@ -1836,13 +1836,6 @@ class ProjectMasterController extends Controller
         $timeToMinutes = fn($t) => ($t && str_contains($t, ':'))
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
-
-<<<<<<< HEAD
-=======
-
-        $workedMinutesByUserDate = [];
->>>>>>> 84d90df815bafe8477fe5bdfaf36b3a8c35d29c0
-
         $workedMinutesByUserDate = [];
         foreach ($allSheets as $sheet) {
             $data = json_decode($sheet->data, true);
@@ -2072,10 +2065,32 @@ class ProjectMasterController extends Controller
         /* DEPARTMENTS*/
         $departments = Department::select('id', 'name')->get();
 
+        $userTeamIds = [];
+
+        $userTeamIds = User::whereIn('id', $userIds)
+            ->pluck('team_id')
+            ->flatMap(function ($t) {
+                if (is_array($t)) {
+                    return $t;
+                }
+
+                if (is_string($t)) {
+                    return json_decode($t, true) ?? [];
+                }
+
+                return [];
+            })
+            ->unique()
+            ->toArray();
+
+
         /*TEAMS*/
         $teamsQuery = Team::query()->select('id', 'name', 'department_id');
 
-        if (!empty($departmentIds)) {
+        if (!empty($userIds)) {
+            // Only teams of selected users
+            $teamsQuery->whereIn('id', $userTeamIds);
+        } elseif (!empty($departmentIds)) {
             $teamsQuery->whereIn('department_id', $departmentIds);
         }
 
@@ -2087,29 +2102,47 @@ class ProjectMasterController extends Controller
             ->where('is_active', 1)
             ->whereJsonContains('role_id', 7);
 
-        if (!empty($teamIds)) {
-            $usersQuery->where(function ($q) use ($teamIds) {
-                foreach ($teamIds as $teamId) {
-                    $q->orWhereJsonContains('team_id', $teamId);
-                }
-            });
-        } elseif (!empty($departmentIds)) {
-            $teamIdsInDept = Team::whereIn('department_id', $departmentIds)
-                ->pluck('id')
-                ->toArray();
+        if (empty($userIds)) {
+            // Apply team/department filters ONLY when user_id not provided
+            if (!empty($teamIds)) {
+                $usersQuery->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        $q->orWhereJsonContains('team_id', $teamId);
+                    }
+                });
+            } elseif (!empty($departmentIds)) {
+                $teamIdsInDept = Team::whereIn('department_id', $departmentIds)
+                    ->pluck('id')
+                    ->toArray();
 
-            $usersQuery->where(function ($q) use ($teamIdsInDept) {
-                foreach ($teamIdsInDept as $teamId) {
-                    $q->orWhereJsonContains('team_id', $teamId);
-                }
-            });
+                $usersQuery->where(function ($q) use ($teamIdsInDept) {
+                    foreach ($teamIdsInDept as $teamId) {
+                        $q->orWhereJsonContains('team_id', $teamId);
+                    }
+                });
+            }
         }
 
         $users = $usersQuery->get();
         $finalUserIds = $users->pluck('id')->toArray();
 
+        $teamUserIds = [];
+
+        if (!empty($teamIds)) {
+            $teamUserIds = User::where('is_active', 1)
+                ->whereJsonContains('role_id', 7)
+                ->where(function ($q) use ($teamIds) {
+                    foreach ($teamIds as $teamId) {
+                        $q->orWhereJsonContains('team_id', $teamId);
+                    }
+                })
+                ->pluck('id')
+                ->toArray();
+        }
+
         /*CLIENTS */
         if (!empty($projectIds)) {
+            // MOST specific → project filter always wins
             $clients = ClientMaster::select('id', 'client_name')
                 ->whereIn(
                     'id',
@@ -2118,10 +2151,40 @@ class ProjectMasterController extends Controller
                         ->unique()
                 )
                 ->get();
-        } else {
-            $clients = ClientMaster::select('id', 'client_name')
-                ->get();
         }
+        else if (!empty($userIds)) {
+            // Clients only from projects assigned to selected users
+            $clients = ClientMaster::select('id', 'client_name')
+                ->whereIn(
+                    'id',
+                    ProjectRelation::whereIn(
+                        'project_id',
+                        ProjectRelation::where(function ($q) use ($userIds) {
+                            foreach ($userIds as $uid) {
+                                $q->orWhereJsonContains('assignees', $uid);
+                            }
+                        })->pluck('project_id')
+                    )->pluck('client_id')->unique()
+                )
+                ->get();
+        } elseif (!empty($teamUserIds)) {
+
+            // Clients from team users' projects
+            $clients = ClientMaster::select('id', 'client_name')
+                ->whereIn(
+                    'id',
+                    ProjectRelation::where(function ($q) use ($teamUserIds) {
+                        foreach ($teamUserIds as $uid) {
+                            $q->orWhereJsonContains('assignees', $uid);
+                        }
+                    })->pluck('client_id')->unique()
+                )
+                ->get();
+        } else {
+            // All clients
+            $clients = ClientMaster::select('id', 'client_name')->get();
+        }
+
 
         /* PROJECTS */
         $projectsQuery = ProjectMaster::query()
@@ -2131,6 +2194,15 @@ class ProjectMasterController extends Controller
             $projectsQuery->whereHas('relation', function ($q) use ($userIds) {
                 $q->where(function ($sub) use ($userIds) {
                     foreach ($userIds as $uid) {
+                        $sub->orWhereJsonContains('assignees', $uid);
+                    }
+                });
+            });
+        } elseif (!empty($teamUserIds)) {
+
+            $projectsQuery->whereHas('relation', function ($q) use ($teamUserIds) {
+                $q->where(function ($sub) use ($teamUserIds) {
+                    foreach ($teamUserIds as $uid) {
                         $sub->orWhereJsonContains('assignees', $uid);
                     }
                 });
@@ -2155,15 +2227,15 @@ class ProjectMasterController extends Controller
             $projectsQuery->whereIn('project_tag_activity', $activityTagIds);
         }
 
-        if (!empty($finalUserIds)) {
-            $projectsQuery->whereHas('relation', function ($q) use ($finalUserIds) {
-                $q->where(function ($sub) use ($finalUserIds) {
-                    foreach ($finalUserIds as $uid) {
-                        $sub->orWhereJsonContains('assignees', $uid);
-                    }
-                });
-            });
-        }
+        // if (!empty($finalUserIds)) {
+        //     $projectsQuery->whereHas('relation', function ($q) use ($finalUserIds) {
+        //         $q->where(function ($sub) use ($finalUserIds) {
+        //             foreach ($finalUserIds as $uid) {
+        //                 $sub->orWhereJsonContains('assignees', $uid);
+        //             }
+        //         });
+        //     });
+        // }
 
         if (!empty($clientIds)) {
             $projectsQuery->whereHas('relation', function ($q) use ($clientIds) {
