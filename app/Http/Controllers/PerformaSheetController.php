@@ -2040,6 +2040,16 @@ class PerformaSheetController extends Controller
                 ->toArray();
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
+        } elseif ($user->hasRole(6)) {
+
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->where('tl_id', $user->id)
+                ->whereNot('id', $user->id)
+                ->pluck('id')
+                ->toArray();
+            $baseQuery->whereIn('user_id', $teamMemberIds);
+
         } elseif (!empty($team_id)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
