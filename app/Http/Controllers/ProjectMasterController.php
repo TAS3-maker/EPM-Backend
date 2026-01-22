@@ -2106,6 +2106,12 @@ class ProjectMasterController extends Controller
                 $usersData[$uid]['summary']['no_work'] += $minutes;
                 $userCategoryFlags[$uid]['no_work'] = true;
             }
+            $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
+            $projectName = $project->project_name ?? null;
+            $clientName = $project?->client?->client_name ?? null;
+
+            $data['project_name'] = $projectName;
+            $data['client_name'] = $clientName;
 
             $usersData[$uid]['sheets'][] = $data;
         }
