@@ -1892,11 +1892,11 @@ class ProjectMasterController extends Controller
                             switch ($leave->leave_type) {
 
                                 case 'Full Leave':
-                                    $totalLeaveMinutes += 510;
+                                    // $totalLeaveMinutes += 510;
                                     break;
 
                                 case 'Half Day':
-                                    $totalLeaveMinutes += 255;
+                                    // $totalLeaveMinutes += 255;
 
                                     $remaining = max(0, 510 - 255 - $worked);
                                     $activityTotals['Unfilled'] += $remaining;
@@ -1912,7 +1912,7 @@ class ProjectMasterController extends Controller
                                         [$start, $end] = explode('to', $leave->hours);
                                         $leaveMin = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
 
-                                        $totalLeaveMinutes += $leaveMin;
+                                        // $totalLeaveMinutes += $leaveMin;
 
                                         $remaining = max(0, 510 - $leaveMin - $worked);
                                         $activityTotals['Unfilled'] += $remaining;
