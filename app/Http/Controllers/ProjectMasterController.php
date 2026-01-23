@@ -1951,10 +1951,7 @@ class ProjectMasterController extends Controller
                 return true;
             });
 
-        // return response()->json([
-        //     'success' => true,
-        //     'data' => $allSheets,
-        // ], 200);
+
         $timeToMinutes = fn($t) => ($t && str_contains($t, ':'))
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
@@ -1986,7 +1983,6 @@ class ProjectMasterController extends Controller
             ->get()
             ->groupBy('user_id');
 
-
         $notFilledUsers = [];
 
         foreach ($eligibleUsers as $user) {
@@ -2008,16 +2004,20 @@ class ProjectMasterController extends Controller
 
                         if ($leave->start_date <= $dateStr && $leave->end_date >= $dateStr) {
 
-                            switch ($leave->leave_type) {
+                            switch (strtolower($leave->leave_type)) {
 
-                                case 'Full Leave':
+                                case 'multiple days leave':
+                                    $fillableMinutes = 0;
+                                    break 2;
+                                    
+                                case 'full leave':
                                     $fillableMinutes = 0;
                                     break 2;
 
-                                case 'Half Day':
+                                case 'half day':
                                     $fillableMinutes = min($fillableMinutes, 255);
                                     break;
-                                case 'Short Leave':
+                                case 'short leave':
                                     $fillableMinutes = min($fillableMinutes, 390);
                                     break;
                             }
