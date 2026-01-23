@@ -334,21 +334,28 @@ class LeaveController extends Controller
         ];
 
         $employeesQuery = User::where('id', '!=', $user->id)
-            ->where('is_active', '1')
-            ->where(function ($q) use ($team_id) {
+            ->where('is_active', '1');
+
+        // If Team Lead → only employees
+        if ($isTeamLead) {
+
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->where('tl_id', $user->id)
+                ->whereNot('id', $user->id)
+                ->pluck('id')
+                ->toArray();
+
+
+            $employeesQuery->whereIn('id', $teamMemberIds);
+        } else if ($isManager) {
+            $employeesQuery->where(function ($q) use ($team_id) {
                 foreach ($team_id as $t) {
                     if ($t !== null) {
                         $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
                     }
                 }
             });
-
-        // If Team Lead → only employees
-        if ($isTeamLead) {
-            $employeesQuery->whereRaw(
-                'JSON_CONTAINS(role_id, ?)',
-                [json_encode(7)]
-            );
         }
 
         $employees = $employeesQuery->get();
@@ -527,14 +534,15 @@ class LeaveController extends Controller
         if ($currentUser->hasRole(7)) {
             $leavesQuery->where('user_id', $currentUser->id);
         } elseif ($currentUser->hasRole(6)) {
-            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
-                    ->where(function ($sub) use ($teamIds) {
-                        foreach ($teamIds as $teamId) {
-                            $sub->orWhereJsonContains('team_id', $teamId);
-                        }
-                    });
-            });
+
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->where('tl_id', $currentUser->id)
+                ->whereNot('id', $currentUser->id)
+                ->pluck('id')
+                ->toArray();
+            $leavesQuery->whereIn('user_id', $teamMemberIds);
+
         } elseif ($currentUser->hasRole(5)) {
             $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
                 $q->where(function ($r) {
