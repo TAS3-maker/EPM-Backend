@@ -1139,17 +1139,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                            return [
-                                'id' => $task->id,
-                                'project_id' => $task->project_id,
-                                'title' => $task->title,
-                                'description' => $task->description,
-                                'hours' => $task->hours,
-                                'deadline' => $task->deadline,
-                                'status' => $task->status,
-                                'start_date' => $task->start_date,
-                            ];
-                        });
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
 
                     return [
                         'id' => $project->id,
@@ -1813,8 +1813,8 @@ class ProjectMasterController extends Controller
             ->values();
 
         $activityIdToType = [
-            5  => 'billable',
-            8  => 'in-house',
+            5 => 'billable',
+            8 => 'in-house',
             18 => 'no work',
         ];
         $allowedActivityTypes = $activityTags
@@ -1966,7 +1966,8 @@ class ProjectMasterController extends Controller
             if ($date->isWeekend() || !$date->between($startDate, $endDate))
                 continue;
 
-            if (!isset($eligibleUsers[$uid])) continue;
+            if (!isset($eligibleUsers[$uid]))
+                continue;
 
             $workedMinutesByUserDate[$uid][$dateStr] =
                 ($workedMinutesByUserDate[$uid][$dateStr] ?? 0)
@@ -2039,10 +2040,10 @@ class ProjectMasterController extends Controller
 
             if (!empty($missingDates)) {
                 $notFilledUsers[] = [
-                    'user_id'         => $uid,
-                    'user_name'       => $user->name,
-                    'missing_dates'   => $missingDates,
-                    'missing_days'    => count($missingDates),
+                    'user_id' => $uid,
+                    'user_name' => $user->name,
+                    'missing_dates' => $missingDates,
+                    'missing_days' => count($missingDates),
                     'missing_minutes' => $missingMinutes,
                 ];
             }
@@ -2058,7 +2059,8 @@ class ProjectMasterController extends Controller
                 continue;
 
             $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate)) continue;
+            if ($date->isWeekend() || !$date->between($startDate, $endDate))
+                continue;
 
             $uid = (int) $sheet->user_id;
             if (!isset($eligibleUsers[$uid]))
@@ -2103,8 +2105,8 @@ class ProjectMasterController extends Controller
 
                 $userCategoryFlags[$uid] = [
                     'billable' => false,
-                    'inhouse'  => false,
-                    'no_work'  => false,
+                    'inhouse' => false,
+                    'no_work' => false,
                 ];
             }
 
@@ -2137,9 +2139,12 @@ class ProjectMasterController extends Controller
         $userCounts = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
 
         foreach ($userCategoryFlags as $flags) {
-            if ($flags['billable']) $userCounts['billable']++;
-            if ($flags['inhouse'])  $userCounts['inhouse']++;
-            if ($flags['no_work'])  $userCounts['no_work']++;
+            if ($flags['billable'])
+                $userCounts['billable']++;
+            if ($flags['inhouse'])
+                $userCounts['inhouse']++;
+            if ($flags['no_work'])
+                $userCounts['no_work']++;
         }
 
         $toTime = function ($m) {
@@ -2430,4 +2435,85 @@ class ProjectMasterController extends Controller
             ]
         ]);
     }
+
+    public function getProjectsMasterdetails()
+    {
+        $currentUser = auth()->user();
+
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+
+            $projects = ProjectMaster::select('id', 'project_name', 'project_tracking', 'project_status', 'project_tag_activity', 'created_at')
+                ->with([
+                    'relation:id,project_id,assignees',
+                    'client:clients_master.id,clients_master.client_name',
+                    'tagActivityRelated:id,name'
+                ])
+                ->get();
+
+        } else if ($currentUser->hasRole(12)) {
+
+            $projects = ProjectMaster::select(
+                'id',
+                'project_name',
+                'project_tracking',
+                'project_status',
+                'project_tag_activity',
+                'created_at'
+            )->with([
+                        'relation:id,project_id,assignees,sales_person_id',
+                        'client:clients_master.id,clients_master.client_name',
+                        'tagActivityRelated:id,name'
+                    ])
+                ->whereHas('relation', function ($q) use ($currentUser) {
+                    $q->where('sales_person_id', $currentUser->id);
+                })
+                ->get();
+        } else {
+
+            $projects = ProjectMaster::select('id', 'project_name', 'project_tracking', 'project_status', 'project_tag_activity', 'created_at')
+                ->with([
+                    'relation:id,project_id,assignees',
+                    'client:clients_master.id,clients_master.client_name',
+                    'tagActivityRelated:id,name'
+                ])
+                ->get()
+                ->filter(function (ProjectMaster $project) use ($currentUser) {
+
+                    if (!$project->relation) {
+                        return false;
+                    }
+
+                    $assignees = $project->relation->assignees ?? [];
+
+                    if (is_numeric($assignees)) {
+                        $assignees = [(int) $assignees];
+                    } elseif (is_string($assignees)) {
+                        $assignees = json_decode($assignees, true) ?? [];
+                    } elseif (!is_array($assignees)) {
+                        $assignees = [];
+                    }
+
+                    return in_array($currentUser->id, $assignees, true);
+                })
+                ->values();
+        }
+
+        $data = $projects->map(function (ProjectMaster $project) {
+            return [
+                'id' => $project->id,
+                'project_name' => $project->project_name,
+                'project_tracking' => $project->project_tracking,
+                'project_status' => $project->project_status,
+                'client_name' => optional($project->client)->client_name,
+                'project_tag_activity' => optional($project->tagActivityRelated)->name,
+                'created_at' => $project->created_at ? $project->created_at->format('d-m-y') : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ], 200);
+    }
+
 }
