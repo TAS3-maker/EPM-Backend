@@ -2450,6 +2450,24 @@ class ProjectMasterController extends Controller
                 ])
                 ->get();
 
+        } else if ($currentUser->hasRole(12)) {
+
+            $projects = ProjectMaster::select(
+                'id',
+                'project_name',
+                'project_tracking',
+                'project_status',
+                'project_tag_activity',
+                'created_at'
+            )->with([
+                        'relation:id,project_id,assignees,sales_person_id',
+                        'client:clients_master.id,clients_master.client_name',
+                        'tagActivityRelated:id,name'
+                    ])
+                ->whereHas('relation', function ($q) use ($currentUser) {
+                    $q->where('sales_person_id', $currentUser->id);
+                })
+                ->get();
         } else {
 
             $projects = ProjectMaster::select('id', 'project_name', 'project_tracking', 'project_status', 'project_tag_activity', 'created_at')
