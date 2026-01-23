@@ -594,7 +594,7 @@ class PerformaSheetController extends Controller
             $leaveForDate = null;
 
             $leaves = LeavePolicy::where('user_id', $authUser->id)
-                ->whereIn('status', ['Approved','Pending')
+                ->whereIn('status', ['Approved','Pending'])
                 ->get();
 
             foreach ($leaves as $leave) {
