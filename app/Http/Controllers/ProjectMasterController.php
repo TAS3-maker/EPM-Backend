@@ -30,6 +30,8 @@ use App\Models\LeavePolicy;
 use App\Models\Team;
 use Carbon\Carbon;
 
+use function Symfony\Component\String\s;
+
 class ProjectMasterController extends Controller
 {
     public function index()
@@ -1139,17 +1141,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1956,18 +1958,36 @@ class ProjectMasterController extends Controller
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
 
+        $allSheetsForUnfilled = PerformaSheet::with('user:id,name,team_id,is_active')
+            ->whereIn('user_id', $eligibleUsers->keys())
+            ->get()->filter(function ($sheet) use ($startDate, $endDate) {
+
+                $data = json_decode($sheet->data, true);
+                if (!is_array($data) || empty($data['date'])) {
+                    return false;
+                }
+
+                $date = Carbon::parse($data['date']);
+
+                if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
+                    return false;
+                }
+
+                return true;
+            });
         $workedMinutesByUserDate = [];
-        foreach ($allSheets as $sheet) {
+        foreach ($allSheetsForUnfilled as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            $uid = (int) $sheet->user_id;
-            $dateStr = Carbon::parse($data['date'])->toDateString();
-            $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate))
-                continue;
+            if (!is_array($data) || empty($data['date'])) continue;
 
-            if (!isset($eligibleUsers[$uid]))
-                continue;
+            $uid = (int) $sheet->user_id;
+            if (!isset($eligibleUsers[$uid])) continue;
+
+            $date = Carbon::parse($data['date']);
+            if ($date->isWeekend() || !$date->between($startDate, $endDate)) continue;
+
+            $dateStr = $date->toDateString();
 
             $workedMinutesByUserDate[$uid][$dateStr] =
                 ($workedMinutesByUserDate[$uid][$dateStr] ?? 0)
@@ -2010,7 +2030,7 @@ class ProjectMasterController extends Controller
                                 case 'multiple days leave':
                                     $fillableMinutes = 0;
                                     break 2;
-                                    
+
                                 case 'full leave':
                                     $fillableMinutes = 0;
                                     break 2;
@@ -2176,6 +2196,7 @@ class ProjectMasterController extends Controller
             'message' => 'All Reporting data',
             'data' => [
                 'summary' => array_map($toTime, $summary),
+                'user_counts' => $userCounts,
                 'users' => array_values(
                     array_map(function ($u) use ($toTime) {
                         $u['summary'] = array_map($toTime, $u['summary']);
@@ -2449,7 +2470,6 @@ class ProjectMasterController extends Controller
                     'tagActivityRelated:id,name'
                 ])
                 ->get();
-
         } else if ($currentUser->hasRole(12)) {
 
             $projects = ProjectMaster::select(
@@ -2460,10 +2480,10 @@ class ProjectMasterController extends Controller
                 'project_tag_activity',
                 'created_at'
             )->with([
-                        'relation:id,project_id,assignees,sales_person_id',
-                        'client:clients_master.id,clients_master.client_name',
-                        'tagActivityRelated:id,name'
-                    ])
+                'relation:id,project_id,assignees,sales_person_id',
+                'client:clients_master.id,clients_master.client_name',
+                'tagActivityRelated:id,name'
+            ])
                 ->whereHas('relation', function ($q) use ($currentUser) {
                     $q->where('sales_person_id', $currentUser->id);
                 })
@@ -2515,5 +2535,4 @@ class ProjectMasterController extends Controller
             'data' => $data,
         ], 200);
     }
-
 }
