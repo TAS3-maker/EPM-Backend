@@ -19,7 +19,8 @@ class LeavePolicy extends Model
         'reason', 
         'status',
         'hours',
-        'halfday_period' 
+        'halfday_period',
+        'is_wfh' 
     ];
 
     public function user()

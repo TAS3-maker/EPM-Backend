@@ -594,7 +594,7 @@ class PerformaSheetController extends Controller
             $leaveForDate = null;
 
             $leaves = LeavePolicy::where('user_id', $authUser->id)
-                ->whereIn('status', ['Approved','Pending'])
+                ->whereIn('status', ['Approved', 'Pending'])
                 ->get();
 
             foreach ($leaves as $leave) {
@@ -2068,7 +2068,7 @@ class PerformaSheetController extends Controller
             $baseQuery->whereIn('user_id', $teamMemberIds);
         }
 
-        $baseQuery->where('status', 'pending')
+        $baseQuery->whereIn('status', ['pending','backdated'])
             ->orderBy('id', 'DESC');
 
         $sheets = $baseQuery->get();
@@ -2501,6 +2501,135 @@ class PerformaSheetController extends Controller
     }
 
 
+    // public function getUserWeeklyPerformaSheets(Request $request)
+    // {
+    //     $user = auth()->user();
+    //     try {
+    //         $weeklyTotals = [];
+
+    //         $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+
+    //         $startOfWeek = $selectedDate->copy()->startOfWeek();
+    //         $endOfWeek = $selectedDate->copy()->endOfWeek();
+    //         $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
+
+    //         /** is passed date fillable for performa sheet */
+    //         $today = Carbon::today();
+    //         $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
+    //             ->whereIn('status', ['approved', 'pending', 'backdated'])
+    //             ->pluck('apply_date')
+    //             ->map(fn($d) => Carbon::parse($d)->toDateString())
+    //             ->toArray();
+
+    //         $sheets = PerformaSheet::with('user:id,name')
+    //             ->where('user_id', $user->id)->whereIn('status', ['approved', 'pending', 'backdated'])
+    //             ->get()
+    //             ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+    //                 $data = json_decode($sheet->data, true);
+    //                 if (!$data || !isset($data['date']))
+    //                     return false;
+
+    //                 $date = $data['date'];
+    //                 return $date >= $startOfWeek->toDateString() &&
+    //                     $date <= $endOfWeek->toDateString();
+    //             })
+    //             ->values();
+
+    //         // Initialize weekly totals
+    //         foreach ($period as $day) {
+    //             $carbonDay = Carbon::instance($day);
+    //             $dateKey = $carbonDay->toDateString();
+
+    //             /* is_fillable calculation per day*/
+    //             $isFillable = 1;
+    //             if (!in_array($dateKey, $approvedApplications)) {
+    //                 if ($carbonDay->lt($today)) {
+    //                     $workingDays = 0;
+    //                     $cursor = $carbonDay->copy();
+
+    //                     while ($cursor->lt($today)) {
+    //                         if (!$cursor->isWeekend()) {
+    //                             $workingDays++;
+    //                         }
+    //                         $cursor->addDay();
+    //                     }
+
+    //                     if ($workingDays > 2) {
+    //                         $isFillable = 0;
+    //                     }
+    //                 }
+    //             }
+
+
+    //             $weeklyTotals[$carbonDay->toDateString()] = [
+    //                 'dayname' => $carbonDay->format('D'),
+    //                 'totalHours' => '00:00',
+    //                 'totalBillableHours' => '00:00',
+    //                 'totalNonBillableHours' => '00:00',
+    //                 'is_fillable' => $isFillable
+    //             ];
+    //         }
+
+    //         $timeToMinutes = function ($time) {
+    //             [$hours, $minutes] = explode(':', $time);
+    //             return intval($hours) * 60 + intval($minutes);
+    //         };
+
+    //         $minutesToTime = function ($minutes) {
+    //             $h = floor($minutes / 60);
+    //             $m = $minutes % 60;
+    //             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+    //         };
+
+    //         $totalsInMinutes = [];
+    //         $billableInMinutes = [];
+    //         $nonBillableInMinutes = [];
+
+    //         foreach ($sheets as $sheet) {
+    //             $data = json_decode($sheet->data, true);
+    //             if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+    //                 continue;
+
+    //             $date = $data['date'];
+    //             $time = $data['time'];
+    //             $activityType = strtolower($data['activity_type']); // to handle case variations
+    //             $minutes = $timeToMinutes($time);
+
+    //             // Total
+    //             $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+
+    //             // Billable / Non-Billable
+    //             if ($activityType === 'billable') {
+    //                 $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+    //             } else {
+    //                 $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+    //             }
+    //         }
+
+    //         // Assign to weekly totals
+    //         foreach ($weeklyTotals as $date => &$totals) {
+    //             $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+    //             $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+    //             $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Weekly Performa Sheets fetched successfully',
+    //             'data' => $weeklyTotals,
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Internal Server Error',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
+
+
     public function getUserWeeklyPerformaSheets(Request $request)
     {
         $user = auth()->user();
@@ -2511,64 +2640,8 @@ class PerformaSheetController extends Controller
 
             $startOfWeek = $selectedDate->copy()->startOfWeek();
             $endOfWeek = $selectedDate->copy()->endOfWeek();
-            $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay(false));
 
-            /** is passed date fillable for performa sheet */
-            $today = Carbon::today();
-            $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'pending', 'backdated'])
-                ->pluck('apply_date')
-                ->map(fn($d) => Carbon::parse($d)->toDateString())
-                ->toArray();
-
-            $sheets = PerformaSheet::with('user:id,name')
-                ->where('user_id', $user->id)->whereIn('status', ['approved', 'pending', 'backdated'])
-                ->get()
-                ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
-                    $data = json_decode($sheet->data, true);
-                    if (!$data || !isset($data['date']))
-                        return false;
-
-                    $date = $data['date'];
-                    return $date >= $startOfWeek->toDateString() &&
-                        $date <= $endOfWeek->toDateString();
-                })
-                ->values();
-
-            // Initialize weekly totals
-            foreach ($period as $day) {
-                $carbonDay = Carbon::instance($day);
-                $dateKey = $carbonDay->toDateString();
-
-                /* is_fillable calculation per day*/
-                $isFillable = 1;
-                if (!in_array($dateKey, $approvedApplications)) {
-                    if ($carbonDay->lt($today)) {
-                        $workingDays = 0;
-                        $cursor = $carbonDay->copy();
-
-                        while ($cursor->lt($today)) {
-                            if (!$cursor->isWeekend()) {
-                                $workingDays++;
-                            }
-                            $cursor->addDay();
-                        }
-
-                        if ($workingDays > 2) {
-                            $isFillable = 0;
-                        }
-                    }
-                }
-
-
-                $weeklyTotals[$carbonDay->toDateString()] = [
-                    'dayname' => $carbonDay->format('D'),
-                    'totalHours' => '00:00',
-                    'totalBillableHours' => '00:00',
-                    'totalNonBillableHours' => '00:00',
-                    'is_fillable' => $isFillable
-                ];
-            }
+            $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay());
 
             $timeToMinutes = function ($time) {
                 [$hours, $minutes] = explode(':', $time);
@@ -2581,9 +2654,26 @@ class PerformaSheetController extends Controller
                 return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
             };
 
-            $totalsInMinutes = [];
-            $billableInMinutes = [];
-            $nonBillableInMinutes = [];
+            $normalDayMinutes = 510;
+
+            $wfhDayMinutes = 600;
+
+            $sheets = PerformaSheet::where('user_id', $user->id)
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->get()
+                ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
+                    $data = json_decode($sheet->data, true);
+                    if (!$data || !isset($data['date']))
+                        return false;
+
+                    return $data['date'] >= $startOfWeek->toDateString() &&
+                        $data['date'] <= $endOfWeek->toDateString();
+                })
+                ->values();
+
+            $workedMinutesByDate = [];
+            $billableMinutesByDate = [];
+            $nonBillableMinutesByDate = [];
 
             foreach ($sheets as $sheet) {
                 $data = json_decode($sheet->data, true);
@@ -2591,26 +2681,108 @@ class PerformaSheetController extends Controller
                     continue;
 
                 $date = $data['date'];
-                $time = $data['time'];
-                $activityType = strtolower($data['activity_type']); // to handle case variations
-                $minutes = $timeToMinutes($time);
+                $minutes = $timeToMinutes($data['time']);
+                $type = strtolower($data['activity_type']);
 
-                // Total
-                $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+                $workedMinutesByDate[$date] = ($workedMinutesByDate[$date] ?? 0) + $minutes;
 
-                // Billable / Non-Billable
-                if ($activityType === 'billable') {
-                    $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+                if ($type === 'billable') {
+                    $billableMinutesByDate[$date] = ($billableMinutesByDate[$date] ?? 0) + $minutes;
                 } else {
-                    $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+                    $nonBillableMinutesByDate[$date] = ($nonBillableMinutesByDate[$date] ?? 0) + $minutes;
                 }
             }
 
-            // Assign to weekly totals
+            $leaveMinutesByDate = [];
+            $wfhDates = [];
+
+            $leaves = LeavePolicy::where('user_id', $user->id)
+                ->whereIn('status', ['Approved','pending'])
+                ->where(function ($q) use ($startOfWeek, $endOfWeek) {
+                    $q->where('start_date', '<=', $endOfWeek->toDateString())
+                        ->where('end_date', '>=', $startOfWeek->toDateString());
+                })
+                ->get();
+
+            // return $leaves;
+
+            foreach ($leaves as $leave) {
+
+                $leavePeriod = CarbonPeriod::create(
+                    Carbon::parse($leave->start_date),
+                    Carbon::parse($leave->end_date)
+                );
+
+                foreach ($leavePeriod as $date) {
+
+                    if ($date->isWeekend() || !$date->between($startOfWeek, $endOfWeek)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+
+                    if ($leave->is_wfh == 1) {
+                        $wfhDates[$dateStr] = true;
+                        continue;
+                    }
+                    switch ($leave->leave_type) {
+
+                        case 'Full Leave':
+                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + 510;
+                            break;
+
+                        case 'Half Day':
+                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + 255;
+                            break;
+
+                        case 'Short Leave':
+                            if ($leave->hours && str_contains($leave->hours, 'to')) {
+                                [$start, $end] = explode('to', $leave->hours);
+                                $leaveMin = Carbon::parse(trim($start))
+                                    ->diffInMinutes(Carbon::parse(trim($end)));
+
+                                $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + $leaveMin;
+                            }
+                            break;
+                    }
+                }
+            }
+            foreach ($period as $day) {
+                $carbonDay = Carbon::instance($day);
+                $dateKey = $carbonDay->toDateString();
+
+                $weeklyTotals[$dateKey] = [
+                    'dayname' => $carbonDay->format('D'),
+                    'totalHours' => '00:00',
+                    'leave_hours' => '00:00',
+                    'available_hours' => '08:30',
+                    'totalBillableHours' => '00:00',
+                    'totalNonBillableHours' => '00:00',
+                    'is_wfh' => 0,
+                    'is_fillable' => 1
+                ];
+            }
             foreach ($weeklyTotals as $date => &$totals) {
-                $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
-                $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
-                $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+
+                $worked = $workedMinutesByDate[$date] ?? 0;
+                $billable = $billableMinutesByDate[$date] ?? 0;
+                $nonBillable = $nonBillableMinutesByDate[$date] ?? 0;
+                $leave = $leaveMinutesByDate[$date] ?? 0;
+
+                $isWfh = isset($wfhDates[$date]);
+
+                $dayTotal = $isWfh ? $wfhDayMinutes : $normalDayMinutes;
+
+                $available = $dayTotal - ($worked + $leave);
+                if ($available < 0)
+                    $available = 0;
+
+                $totals['totalHours'] = $minutesToTime($worked);
+                $totals['totalBillableHours'] = $minutesToTime($billable);
+                $totals['totalNonBillableHours'] = $minutesToTime($nonBillable);
+                $totals['leave_hours'] = $minutesToTime($leave);
+                $totals['available_hours'] = $minutesToTime($available);
+                $totals['is_wfh'] = $isWfh ? 1 : 0;
             }
 
             return response()->json([
@@ -2626,6 +2798,7 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
+
 
     public function getAllUsersWithUnfilledPerformaSheets(Request $request)
     {

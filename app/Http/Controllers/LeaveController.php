@@ -38,6 +38,7 @@ class LeaveController extends Controller
             'leave_type' => 'required|in:Full Leave,Short Leave,Half Day,Multiple Days Leave',
             'reason' => 'required',
             'status' => 'in:Pending,Approved,Rejected',
+            'is_wfh' => 'nullable|integer|in:0,1',
 
             'start_time' => 'required_if:leave_type,Short Leave|string',
             'end_time' => 'required_if:leave_type,Short Leave|string',
@@ -138,6 +139,7 @@ class LeaveController extends Controller
             'leave_type' => $request->leave_type,
             'reason' => $request->reason,
             'status' => $request->status ?? 'Pending',
+            'is_wfh' => $request->is_wfh ?? 0,
             'hours' => $hours,
             'halfday_period' => $halfdayPeriod,
             'start_time' => $request->start_time,
