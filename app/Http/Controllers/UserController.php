@@ -1198,4 +1198,36 @@ class UserController extends Controller
     }
 
 
+    public function assignUsersToTL(Request $request)
+    {
+        $request->validate([
+            'tl_id' => 'required|exists:users,id',
+            'user_ids' => 'required|array|min:1',
+            'user_ids.*' => 'exists:users,id',
+        ]);
+
+        $tl = User::where('id', $request->tl_id)
+            ->whereJsonContains('role_id', 6)
+            ->first();
+
+        if (!$tl) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Selected user is not a Team Lead',
+            ], 422);
+        }
+
+        User::whereIn('id', $request->user_ids)
+            ->where('is_active', 1)
+            ->update([
+                'tl_id' => $request->tl_id,
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Users successfully assigned to TL',
+        ]);
+    }
+
+
 }
