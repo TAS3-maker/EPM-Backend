@@ -2516,13 +2516,13 @@ class PerformaSheetController extends Controller
             /** is passed date fillable for performa sheet */
             $today = Carbon::today();
             $approvedApplications = ApplicationPerforma::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'pending'])
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
                 ->pluck('apply_date')
                 ->map(fn($d) => Carbon::parse($d)->toDateString())
                 ->toArray();
 
             $sheets = PerformaSheet::with('user:id,name')
-                ->where('user_id', $user->id)->whereIn('status', ['approved', 'pending'])
+                ->where('user_id', $user->id)->whereIn('status', ['approved', 'pending', 'backdated'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
