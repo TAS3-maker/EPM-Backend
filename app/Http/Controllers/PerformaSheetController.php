@@ -127,12 +127,16 @@ class PerformaSheetController extends Controller
                 $record['offline_hours'] = '00:00';
             }
 
-            if ($project && $project->project_tracking) {
-                $record['activity_type'] = 'Billable';
-                $record['project_type'] = 'Hourly';
-                $record['project_type_status'] = 'Online';
+             if ($project && $project->project_tracking) {
+                if (
+                    strtolower($record['activity_type']) !== 'in-house' &&
+                    strtolower($record['activity_type']) !== 'no work'
+                ) {
+                    $record['activity_type'] = 'Billable';
+                    $record['project_type'] = 'Hourly';
+                    $record['project_type_status'] = 'Online';
+                }
             }
-
             /* if (
                 !isset($record['activity_type']) ||
                 strtolower($record['activity_type']) === 'non billable' ||
