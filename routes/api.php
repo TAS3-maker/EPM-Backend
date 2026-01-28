@@ -244,5 +244,6 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-performa-of-user-not-in-team', [PerformaSheetController::class, 'getPerformaofUserNotInTeam']);
         Route::get('/get-projects-master-details', [ProjectMasterController::class, 'getProjectsMasterdetails']);
         Route::put('/assign-users-to-tL', [UserController::class, 'assignUsersToTL']);
+        Route::get('/get-team-user-by-role', [UserController::class, 'getTeamUsersByRole']);
     });
 });

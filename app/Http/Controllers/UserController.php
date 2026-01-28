@@ -630,8 +630,6 @@ class UserController extends Controller
         );
     }
 
-
-
     public function GetFullProileEmployee(Request $request, $id)
     {
         $user = User::find($id);
@@ -766,8 +764,6 @@ class UserController extends Controller
             'project_user' => $projectUserData,
         ]);
     }
-
-
 
     public function getUserCountByTeam()
     {
@@ -1197,7 +1193,6 @@ class UserController extends Controller
         ]);
     }
 
-
     public function assignUsersToTL(Request $request)
     {
         $request->validate([
@@ -1229,5 +1224,70 @@ class UserController extends Controller
         ]);
     }
 
+    public function getTeamUsersByRole(Request $request)
+    {
+        try {
+            $request->validate([
+                'team_id' => 'required|integer',
+                'role_id' => 'required|integer'
+            ]);
+
+            $teamId = (int) $request->team_id;
+            $roleId = (int) $request->role_id;
+
+            $allRoles = [1, 2, 3, 4, 5, 6, 7];
+
+            $allowedRoles = array_filter($allRoles, fn($r) => $r <= $roleId);
+
+            $query = User::where('is_active', 1)
+                ->where(function ($q) use ($allowedRoles) {
+                    foreach ($allowedRoles as $role) {
+                        $q->orWhereJsonContains('role_id', $role);
+                    }
+                });
+            if ($roleId == 7 || $roleId > 7) {
+
+                $query->where(function ($q) use ($teamId) {
+
+                    $q->where(function ($sub) use ($teamId) {
+                        $sub->whereJsonContains('role_id', 7)
+                            ->whereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                    })->orWhere(function ($sub) {
+                            $sub->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+                        });
+                });
+
+            } else {
+                $query->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+            }
+            $users = $query->select('id','name')->get();
+            if ($users->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No users found',
+                    'data' => []
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Users fetched successfully',
+                'data' => $users
+            ]);
+
+        } catch (ValidationException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Something went wrong',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
 }
