@@ -160,6 +160,7 @@ class UserController extends Controller
                 'role_id.*' => 'integer|exists:roles,id',
 
                 'tl_id' => 'nullable|exists:users,id',
+                'reporting_manager_id' => 'nullable|exists:users,id',
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'employee_id' => 'required|string|unique:users,employee_id',
             ], [
@@ -167,6 +168,7 @@ class UserController extends Controller
                 'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
                 'tl_id.required_if' => 'Team Leader is required for employees.',
                 'tl_id.exists' => 'Selected Team Leader does not exist.',
+                'reporting_manager_id.exists' => 'Selected Team Leader does not exist.',
                 'role_id.required' => 'At least one role is required',
             ]);
             // ================= TEAM LOGIC =================
@@ -214,6 +216,7 @@ class UserController extends Controller
                 'team_id' => $teamIds,
                 'role_id' => $roleIds,
                 'tl_id' => $validatedData['tl_id'] ?? null,
+                'reporting_manager_id' => $validatedData['reporting_manager_id'] ?? null,
                 'employee_id' => $employeeId,
                 'is_active' => 1,
             ]);
@@ -453,16 +456,17 @@ class UserController extends Controller
             $validatedData = $request->validate([
                 'name' => 'sometimes|string|max:255',
                 'email' => 'sometimes|email|unique:users,email,' . $id,
-                'phone_num' => 'nullable|string|min:10|max:15|unique:users,phone_num,' . $id,
-                'emergency_phone_num' => 'nullable|string|min:10|max:15|unique:users,emergency_phone_num,' . $id,
-                'address' => 'nullable|string',
-                'team_id' => 'nullable',
-                'role_id' => 'nullable',
-                'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+                'phone_num' => 'sometimes|nullable|string|min:10|max:15|unique:users,phone_num,' . $id,
+                'emergency_phone_num' => 'sometimes|nullable|string|min:10|max:15|unique:users,emergency_phone_num,' . $id,
+                'address' => 'sometimes|nullable|string',
+                'team_id' => 'sometimes|nullable',
+                'role_id' => 'sometimes|nullable',
+                'profile_pic' => 'sometimes|nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'password' => 'sometimes|min:6|confirmed',
-                'is_active' => 'nullable|in:0,1',
-                'inactive_date' => 'nullable|date|before_or_equal:today',
-                'tl_id' => 'nullable|exists:users,id',
+                'is_active' => 'sometimes|nullable|in:0,1',
+                'inactive_date' => 'sometimes|nullable|date|before_or_equal:today',
+                'tl_id' => 'sometimes|nullable|exists:users,id',
+                'reporting_manager_id' => 'sometimes|nullable|exists:users,id',
             ]);
         } catch (ValidationException $e) {
             return ApiResponse::error('Validation Error', $e->errors(), 422);
@@ -546,6 +550,7 @@ class UserController extends Controller
         $user->address = $validatedData['address'] ?? $user->address;
         $user->team_id = !empty($teamIds) ? $teamIds : $user->team_id;
         $user->tl_id = $validatedData['tl_id'] ?? $user->tl_id;
+        $user->reporting_manager_id = $validatedData['reporting_manager_id'] ?? $user->reporting_manager_id;
 
         if (!is_null($roleIds)) {
             $user->role_id = $roleIds;

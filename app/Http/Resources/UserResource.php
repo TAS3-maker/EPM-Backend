@@ -23,6 +23,7 @@ class UserResource extends JsonResource
             'phone_num' => $this->phone_num,
             'emergency_phone_num' => $this->emergency_phone_num,
             'tl_id' => $this->tl_id,
+            'reporting_manager_id' => $this->reporting_manager_id,
             'role_id' => $this->role_ids,
             'roles' => $this->roles->pluck('name'),
             'address' => $this->address,

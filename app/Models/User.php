@@ -30,6 +30,7 @@ class User extends Authenticatable implements JWTSubject
         'role_id',
         'employee_id',
         'inactive_date',
+        'reporting_manager_id',
         
     ];
 
@@ -132,6 +133,10 @@ class User extends Authenticatable implements JWTSubject
     public function tl()
     {
         return $this->belongsTo(User::class, 'tl_id');
+    }
+    public function reporting_manager()
+    {
+        return $this->belongsTo(User::class, 'reporting_manager_id');
     }
     public function permission()
     {

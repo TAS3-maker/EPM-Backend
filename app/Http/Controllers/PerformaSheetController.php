@@ -582,7 +582,7 @@ class PerformaSheetController extends Controller
         if (!empty($status)) {
             $baseQuery->where('status', $status);
         } else {
-            $baseQuery->whereIn('status', ['approved', 'rejected','pending', 'backdated']);
+            $baseQuery->whereIn('status', ['approved', 'rejected']);
         }
 
         $sheets = $baseQuery->get();
