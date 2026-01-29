@@ -4247,15 +4247,20 @@ class PerformaSheetController extends Controller
                         ? ProjectMaster::with('client')->find($dataArray['project_id'])
                         : null;
 
-                    $userSheets[] = [
-                        'id' => $sheet->id,
-                        'project_name' => $project->project_name ?? 'No Project Found',
-                        'client_name' => $project->client->client_name ?? 'No Client Found',
-                        'deadline' => $project->deadline ?? null,
-                        'status' => $sheet->status,
-                        'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
-                        'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
-                    ];
+                    $data = json_decode($sheet->data, true) ?? [];
+
+                    $userSheets[] = array_merge(
+                        [
+                            'id' => $sheet->id,
+                            'project_name' => $project->project_name ?? 'No Project Found',
+                            'client_name' => $project->client->client_name ?? 'No Client Found',
+                            'deadline' => $project->deadline ?? null,
+                            'status' => $sheet->status,
+                            'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                            'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                        ],
+                        $data
+                    );
                 }
             }
 
@@ -4270,8 +4275,8 @@ class PerformaSheetController extends Controller
             return [
                 'user_id' => $node['user_id'],
                 'user_name' => $node['user_name'],
-                'sheets' => $userSheets,  
-                'children' => $children 
+                'sheets' => $userSheets,
+                'children' => $children
             ];
         };
 
