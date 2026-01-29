@@ -246,6 +246,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/assign-users-to-tL', [UserController::class, 'assignUsersToTL']);
         Route::get('/get-team-user-by-role', [UserController::class, 'getTeamUsersByRole']);
         Route::get('/get-sheets-for-reporting-manager', [PerformaSheetController::class, 'getSheetsForReportingManager']);
+        Route::get('/get-pending-sheets-for-reporting-manager', [PerformaSheetController::class, 'getPendingSheetsForReportingManager']);
         Route::get('/get-leaves-for-reporting-manager', [LeaveController::class, 'getLeavesForReportingManager']);
     });
 });
