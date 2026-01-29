@@ -241,9 +241,10 @@ Route::middleware('auth:api')->group(function () {
         
         Route::get('/users-all-sheets-data-reporting', [ProjectMasterController::class, 'getUsersAllSheetsDataReporting']);
         Route::get('/get-all-data-master-reporting', [ProjectMasterController::class, 'getFilterOfAllDataMasterReporting']);
-        Route::get('/get-performa-of-user-not-in-team', [PerformaSheetController::class, 'getPerformaofUserNotInTeam']);
+        Route::get('/get-performa-of-assigned-projects', [PerformaSheetController::class, 'getPerformaofassignedProjects']);
         Route::get('/get-projects-master-details', [ProjectMasterController::class, 'getProjectsMasterdetails']);
         Route::put('/assign-users-to-tL', [UserController::class, 'assignUsersToTL']);
         Route::get('/get-team-user-by-role', [UserController::class, 'getTeamUsersByRole']);
+        Route::get('/get-sheets-for-reporting-manager', [PerformaSheetController::class, 'getSheetsForReportingManager']);
     });
 });

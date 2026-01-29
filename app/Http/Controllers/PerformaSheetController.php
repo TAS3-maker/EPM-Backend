@@ -4193,63 +4193,188 @@ class PerformaSheetController extends Controller
         }
     }
 
-    // public function getPerformaofUserNotInTeam(Request $request)
-    // {
-    //     $user = auth()->user();
-    //     $status = $request->status ?? null;
+    public function getSheetsForReportingManager(Request $request)
+    {
+        $status = $request->status ?? null;
+        $rm = $request->user();
+        $buildTree = function ($managerId) use (&$buildTree) {
 
-    //     if (!$user || !$user->hasRole(6)) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Only Team Lead can access this',
-    //         ], 403);
-    //     }
+            $users = User::where('reporting_manager_id', $managerId)
+                ->where('is_active', 1)
+                ->select('id', 'name')
+                ->get();
 
-    //     $projects = ProjectMaster::whereHas('relation', function ($q) use ($user) {
-    //         $q->whereJsonContains('assignees', $user->id);
-    //     })->with('relation')->get();
+            $tree = [];
 
-    //     if ($projects->isEmpty()) {
-    //         return response()->json([
-    //             'success' => true,
-    //             'data' => [],
-    //         ]);
-    //     }
+            foreach ($users as $user) {
+                $tree[] = [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'children' => $buildTree($user->id),
+                ];
+            }
 
-    //     $assigneeUserIds = [];
+            return $tree;
+        };
 
-    //     foreach ($projects as $project) {
-    //         $assignees = $project->relation->assignees;
-    //         if (is_array($assignees)) {
-    //             $assigneeUserIds = array_merge($assigneeUserIds, $assignees);
-    //         }
-    //     }
+        $flattenIds = function ($tree) use (&$flattenIds) {
 
-    //     $assigneeUserIds = array_unique($assigneeUserIds);
+            $ids = [];
 
-    //     $otherUsers = User::whereIn('id', $assigneeUserIds)
-    //         ->where('is_active', 1)
-    //         ->whereJsonContains('role_id', (7))
-    //         ->where(function ($q) use ($user) {
-    //             $q->orWhere('tl_id', '!=', $user->id);
-    //         })
-    //         ->pluck('id')
-    //         ->toArray();
+            foreach ($tree as $node) {
+                $ids[] = $node['user_id'];
 
-    //     $performaSheetsquery = PerformaSheet::whereIn('user_id', $otherUsers)
-    //         ->with('user:id,name');
+                if (!empty($node['children'])) {
+                    $ids = array_merge($ids, $flattenIds($node['children']));
+                }
+            }
 
-    //     if (!empty($status)) {
-    //         $performaSheetsquery->where('status', $status);
-    //     } else {
-    //         $performaSheetsquery->whereIn('status', ['approved', 'rejected']);
-    //     }
+            return $ids;
+        };
 
-    //     $performaSheets = $performaSheetsquery->get();
+        $attachSheets = function ($node, $sheets) use (&$attachSheets) {
 
-    //     return response()->json([
-    //         'success' => true,
-    //         'data' => $performaSheets,
-    //     ]);
-    // }
+            $userSheets = [];
+
+            if (isset($sheets[$node['user_id']])) {
+                foreach ($sheets[$node['user_id']] as $sheet) {
+
+                    $dataArray = json_decode($sheet->data, true);
+                    if (!is_array($dataArray))
+                        continue;
+
+                    $project = isset($dataArray['project_id'])
+                        ? ProjectMaster::with('client')->find($dataArray['project_id'])
+                        : null;
+
+                    $userSheets[] = [
+                        'id' => $sheet->id,
+                        'project_name' => $project->project_name ?? 'No Project Found',
+                        'client_name' => $project->client->client_name ?? 'No Client Found',
+                        'deadline' => $project->deadline ?? null,
+                        'status' => $sheet->status,
+                        'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                        'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                    ];
+                }
+            }
+
+            $children = [];
+
+            if (!empty($node['children'])) {
+                foreach ($node['children'] as $child) {
+                    $children[] = $attachSheets($child, $sheets);
+                }
+            }
+
+            return [
+                'user_id' => $node['user_id'],
+                'user_name' => $node['user_name'],
+                'sheets' => $userSheets,  
+                'children' => $children 
+            ];
+        };
+
+        $teamTree = $buildTree($rm->id);
+
+        $userIds = array_merge([$rm->id], $flattenIds($teamTree));
+
+        $sheetQuery = PerformaSheet::whereIn('user_id', $userIds);
+
+        if ($status) {
+            $sheetQuery->where('status', $status);
+        } else {
+            $sheetQuery->whereIn('status', ['approved', 'rejected']);
+        }
+
+        $sheets = $sheetQuery->get()->groupBy('user_id');
+
+        $finalData = $attachSheets([
+            'user_id' => $rm->id,
+            'user_name' => $rm->name,
+            'children' => $teamTree
+        ], $sheets);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'RM based hierarchical performa sheets fetched successfully',
+            'data' => $finalData
+        ]);
+    }
+
+    public function getPerformaofassignedProjects(Request $request)
+    {
+        $user = auth()->user();
+        $status = $request->status ?? null;
+
+        $projects = ProjectMaster::whereHas('relation', function ($q) use ($user) {
+            $q->whereJsonContains('assignees', $user->id);
+        })
+            ->with('relation')
+            ->get();
+
+        if ($projects->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [],
+            ]);
+        }
+
+        $response = [];
+
+        foreach ($projects as $project) {
+
+            $assignees = $project->relation->assignees ?? [];
+
+            if (!is_array($assignees) || empty($assignees)) {
+                continue;
+            }
+
+            $userIds = User::whereIn('id', $assignees)
+                ->where('is_active', 1)
+                ->whereJsonContains('role_id', 7)
+                ->pluck('id')
+                ->toArray();
+
+            if (empty($userIds)) {
+                continue;
+            }
+
+            $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
+                ->when($status, function ($q) use ($status) {
+                    $q->where('status', $status);
+                }, function ($q) {
+                    $q->whereIn('status', ['approved', 'rejected']);
+                })
+                ->with('user:id,name')
+                ->get();
+
+            $filteredSheets = $performaSheets->filter(function ($sheet) use ($project) {
+
+                $data = $sheet->data;
+
+                if (is_string($data)) {
+                    $data = json_decode($data, true);
+                }
+
+                if (is_string($data)) {
+                    $data = json_decode($data, true);
+                }
+
+                return isset($data['project_id']) && (int) $data['project_id'] === (int) $project->id;
+            })->values();
+
+            $response[] = [
+                'project_id' => $project->id,
+                'project_name' => $project->project_name,
+                'sheets' => $filteredSheets,
+            ];
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $response,
+        ]);
+    }
+
 }
