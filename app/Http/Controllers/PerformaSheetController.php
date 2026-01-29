@@ -4416,7 +4416,7 @@ class PerformaSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'RM based hierarchical performa sheets fetched successfully',
+            'message' => 'RM based performa sheets fetched successfully',
             'data' => $finalData
         ]);
     }
@@ -4515,7 +4515,7 @@ class PerformaSheetController extends Controller
         if ($status) {
             $sheetQuery->where('status', $status);
         } else {
-            $sheetQuery->whereIn('status', ['pending','backdated']);
+            $sheetQuery->whereIn('status', ['pending', 'backdated']);
         }
 
         $sheets = $sheetQuery->get()->groupBy('user_id');
@@ -4528,7 +4528,7 @@ class PerformaSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'RM based hierarchical performa sheets fetched successfully',
+            'message' => 'RM based performa sheets fetched successfully',
             'data' => $finalData
         ]);
     }
@@ -4606,6 +4606,167 @@ class PerformaSheetController extends Controller
             'success' => true,
             'data' => $response,
         ]);
+    }
+
+    public function getUnfilledPerformaSheetsForReportingManager(Request $request)
+    {
+        try {
+            $rm = auth()->user();
+            $rmId = $rm->id;
+
+            if ($request->has('date')) {
+                $start = $end = Carbon::parse($request->date)->toDateString();
+            } else {
+                $start = $request->start_date
+                    ? Carbon::parse($request->start_date)->toDateString()
+                    : Carbon::today()->toDateString();
+
+                $end = $request->end_date
+                    ? Carbon::parse($request->end_date)->toDateString()
+                    : $start;
+
+                if ($start > $end) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Start date cannot be after end date'
+                    ]);
+                }
+            }
+
+            $dates = [];
+            $current = Carbon::parse($start);
+
+            while ($current->toDateString() <= $end) {
+                if (!$current->isWeekend()) {
+                    $dates[] = $current->toDateString();
+                }
+                $current->addDay();
+            }
+
+            $buildTree = function ($managerId) use (&$buildTree) {
+
+                $users = User::where('reporting_manager_id', $managerId)
+                    ->where('is_active', 1)
+                    ->select('id', 'name', 'role_id')
+                    ->get();
+
+                $tree = [];
+
+                foreach ($users as $user) {
+                    $tree[] = [
+                        'user_id' => $user->id,
+                        'user_name' => $user->name,
+                        'role_id' => $user->role_id,
+                        'children' => $buildTree($user->id),
+                    ];
+                }
+
+                return $tree;
+            };
+
+            $flattenIds = function ($tree) use (&$flattenIds) {
+
+                $ids = [];
+
+                foreach ($tree as $node) {
+                    $ids[] = $node['user_id'];
+                    if (!empty($node['children'])) {
+                        $ids = array_merge($ids, $flattenIds($node['children']));
+                    }
+                }
+
+                return $ids;
+            };
+
+            $teamTree = $buildTree($rmId);
+            $userIds = $flattenIds($teamTree); 
+
+            $submissions = PerformaSheet::whereIn('user_id', $userIds)
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->get()
+                ->map(function ($sheet) {
+                    $data = json_decode($sheet->data, true);
+                    return isset($data['date'])
+                        ? ['user_id' => $sheet->user_id, 'date' => $data['date']]
+                        : null;
+                })
+                ->filter()
+                ->groupBy('user_id');
+
+            $leaves = LeavePolicy::whereIn('user_id', $userIds)
+                ->whereIn('leave_type', ['Full Leave', 'Multiple Days Leave'])
+                ->where('status', 'Approved')
+                ->get()
+                ->groupBy('user_id');
+
+            $attachMissing = function ($node) use (&$attachMissing, $dates, $submissions, $leaves, $rmId) {
+
+                $missingDates = [];
+
+                if (
+                    $node['user_id'] !== $rmId &&
+                    isset($node['role_id']) &&
+                    max((array) $node['role_id']) >= 7
+                ) {
+
+                    foreach ($dates as $date) {
+
+                        $hasSubmitted = isset($submissions[$node['user_id']]) &&
+                            $submissions[$node['user_id']]->contains('date', $date);
+
+                        if ($hasSubmitted)
+                            continue;
+
+                        $onLeave = false;
+                        if (isset($leaves[$node['user_id']])) {
+                            foreach ($leaves[$node['user_id']] as $leave) {
+                                if ($leave->start_date <= $date && $leave->end_date >= $date) {
+                                    $onLeave = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!$onLeave) {
+                            $missingDates[] = $date;
+                        }
+                    }
+                }
+
+                $children = [];
+                foreach ($node['children'] as $child) {
+                    $children[] = $attachMissing($child);
+                }
+
+                return [
+                    'user_id' => $node['user_id'],
+                    'user_name' => $node['user_name'],
+                    'missing_on' => $missingDates,
+                    'children' => $children
+                ];
+            };
+
+            $finalData = $attachMissing([
+                'user_id' => $rmId,
+                'user_name' => $rm->name,
+                'role_id' => $rm->role_id,
+                'children' => $teamTree
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'RM based unfilled performa sheets fetched successfully',
+                'data' => $finalData
+            ]);
+
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
 }

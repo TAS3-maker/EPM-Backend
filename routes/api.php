@@ -124,7 +124,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-all-draft-performa-sheets', [PerformaSheetController::class, 'getAllDraftPerformaSheets']);
         Route::get('/get-all-standup-performa-sheets-admin', [PerformaSheetController::class, 'getAllStandupPerformaSheets']);
         Route::get('/get-performa-sheet-daterange', [PerformaSheetController::class, 'getUserDaterangePerformaSheets']);
-        
+
         Route::post('/apply-performa', [PerformaSheetController::class, 'applyToFillPerformaSheets']);
         Route::post('/approve-application/{id}', [PerformaSheetController::class, 'approveApplicationPerformaSheets']);
         Route::post('/reject-application/{id}', [PerformaSheetController::class, 'rejectApplicationPerformaSheets']);
@@ -229,16 +229,16 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('/remove-project-managers', [ProjectMasterController::class, 'removeProjectManagersMaster']);
 
         Route::get('/user-projects-master', [ProjectMasterController::class, 'getUserProjects']);
-        Route::get('/get-project-by-clientid', [ProjectMasterController::class,'GetProjectMasterByClientId']);
-        Route::get('/get-project-full-detail-userid', [ProjectMasterController::class,'GetProjectFullDetailByUserId']);
-        Route::get('/get-project-task-performa-by-user', [ProjectMasterController::class,'GetProjectTaskPerformaByUser']);
-        Route::get('/get-full-details-of-project-by-id/{project_id}', [ProjectMasterController::class,'getFullDetailsOfProjectById']);
-        Route::get('/get-user-performa-data', [PerformaSheetController::class,'getUserPerformaData']);
-        Route::get('/get-users-offline-hours', [PerformaSheetController::class,'getUsersOfflineHours']);
-        Route::get('/get-user-performa-data-with-sheets', [PerformaSheetController::class,'getUserPerformaDataWithsheets']);
+        Route::get('/get-project-by-clientid', [ProjectMasterController::class, 'GetProjectMasterByClientId']);
+        Route::get('/get-project-full-detail-userid', [ProjectMasterController::class, 'GetProjectFullDetailByUserId']);
+        Route::get('/get-project-task-performa-by-user', [ProjectMasterController::class, 'GetProjectTaskPerformaByUser']);
+        Route::get('/get-full-details-of-project-by-id/{project_id}', [ProjectMasterController::class, 'getFullDetailsOfProjectById']);
+        Route::get('/get-user-performa-data', [PerformaSheetController::class, 'getUserPerformaData']);
+        Route::get('/get-users-offline-hours', [PerformaSheetController::class, 'getUsersOfflineHours']);
+        Route::get('/get-user-performa-data-with-sheets', [PerformaSheetController::class, 'getUserPerformaDataWithsheets']);
         Route::get('/team-wise-daily-working-hours-by-performa', [PerformaSheetController::class, 'TeamWiseDailyWorkingHoursByperforma']);
         Route::get('/get-projects-master-name-id', [ProjectMasterController::class, 'getProjectsMasterNameId']);
-        
+
         Route::get('/users-all-sheets-data-reporting', [ProjectMasterController::class, 'getUsersAllSheetsDataReporting']);
         Route::get('/get-all-data-master-reporting', [ProjectMasterController::class, 'getFilterOfAllDataMasterReporting']);
         Route::get('/get-performa-of-assigned-projects', [PerformaSheetController::class, 'getPerformaofassignedProjects']);
@@ -248,5 +248,6 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-sheets-for-reporting-manager', [PerformaSheetController::class, 'getSheetsForReportingManager']);
         Route::get('/get-pending-sheets-for-reporting-manager', [PerformaSheetController::class, 'getPendingSheetsForReportingManager']);
         Route::get('/get-leaves-for-reporting-manager', [LeaveController::class, 'getLeavesForReportingManager']);
+        Route::get('/get-unfilled-performa-sheets-for-reporting-manager', [PerformaSheetController::class, 'getUnfilledPerformaSheetsForReportingManager']);
     });
 });
