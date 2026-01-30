@@ -951,84 +951,148 @@ class LeaveController extends Controller
         );
     }
 
+    // public function getLeavesForReportingManager(Request $request)
+    // {
+    //     $status = $request->status ?? null;
+    //     $rm = $request->user();
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     $buildTree = function ($managerId) use (&$buildTree) {
+
+    //         $users = User::where('reporting_manager_id', $managerId)
+    //             ->where('is_active', 1)
+    //             ->select('id', 'name')
+    //             ->get();
+
+    //         $tree = [];
+
+    //         foreach ($users as $user) {
+    //             $tree[] = [
+    //                 'user_id' => $user->id,
+    //                 'user_name' => $user->name,
+    //                 'children' => $buildTree($user->id),
+    //             ];
+    //         }
+
+    //         return $tree;
+    //     };
+
+    //     $flattenIds = function ($tree) use (&$flattenIds) {
+
+    //         $ids = [];
+
+    //         foreach ($tree as $node) {
+    //             $ids[] = $node['user_id'];
+
+    //             if (!empty($node['children'])) {
+    //                 $ids = array_merge($ids, $flattenIds($node['children']));
+    //             }
+    //         }
+
+    //         return $ids;
+    //     };
+
+    //     $attachLeaves = function ($node, $leaves) use (&$attachLeaves) {
+
+    //         $userLeaves = [];
+
+    //         if (isset($leaves[$node['user_id']])) {
+    //             foreach ($leaves[$node['user_id']] as $leave) {
+    //                 $userLeaves[] = [
+    //                     'id' => $leave->id,
+    //                     'start_date' => $leave->start_date,
+    //                     'end_date' => $leave->end_date,
+    //                     'leave_type' => $leave->leave_type ?? null,
+    //                     'reason' => $leave->reason ?? null,
+    //                     'status' => $leave->status,
+    //                     'created_at' => optional($leave->created_at)->format('Y-m-d H:i:s'),
+    //                     'updated_at' => optional($leave->updated_at)->format('Y-m-d H:i:s'),
+    //                 ];
+    //             }
+    //         }
+
+    //         $children = [];
+
+    //         if (!empty($node['children'])) {
+    //             foreach ($node['children'] as $child) {
+    //                 $children[] = $attachLeaves($child, $leaves);
+    //             }
+    //         }
+
+    //         return [
+    //             'user_id' => $node['user_id'],
+    //             'user_name' => $node['user_name'],
+    //             'leaves' => $userLeaves,
+    //             'children' => $children
+    //         ];
+    //     };
+
+    //     $teamTree = $buildTree($rm->id);
+
+    //     $subordinateIds = $flattenIds($teamTree);
+
+    //     $leaveQuery = LeavePolicy::whereIn('user_id', $subordinateIds);
+
+    //     if ($status) {
+    //         $leaveQuery->where('status', $status);
+    //     }
+    //     if ($startDate && $endDate) {
+    //         $leaveQuery->where(function ($q) use ($startDate, $endDate) {
+    //             $q->where('start_date', '<=', $endDate)
+    //                 ->where('end_date', '>=', $startDate);
+    //         });
+    //     }
+
+    //     $leaves = $leaveQuery->get()->groupBy('user_id');
+
+    //     $finalData = $attachLeaves([
+    //         'user_id' => $rm->id,
+    //         'user_name' => $rm->name,
+    //         'children' => $teamTree
+    //     ], $leaves);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'RM based leave data fetched successfully',
+    //         'data' => $finalData
+    //     ]);
+    // }
+
+
     public function getLeavesForReportingManager(Request $request)
     {
         $status = $request->status ?? null;
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
         $rm = $request->user();
 
         $buildTree = function ($managerId) use (&$buildTree) {
-
-            $users = User::where('reporting_manager_id', $managerId)
+            return User::where('reporting_manager_id', $managerId)
                 ->where('is_active', 1)
-                ->select('id', 'name')
-                ->get();
-
-            $tree = [];
-
-            foreach ($users as $user) {
-                $tree[] = [
-                    'user_id' => $user->id,
-                    'user_name' => $user->name,
-                    'children' => $buildTree($user->id),
-                ];
-            }
-
-            return $tree;
+                ->select('id')
+                ->get()
+                ->map(function ($user) use ($buildTree) {
+                    return [
+                        'user_id' => $user->id,
+                        'children' => $buildTree($user->id),
+                    ];
+                })
+                ->toArray();
         };
 
         $flattenIds = function ($tree) use (&$flattenIds) {
-
             $ids = [];
-
             foreach ($tree as $node) {
                 $ids[] = $node['user_id'];
-
                 if (!empty($node['children'])) {
                     $ids = array_merge($ids, $flattenIds($node['children']));
                 }
             }
-
             return $ids;
         };
 
-        $attachLeaves = function ($node, $leaves) use (&$attachLeaves) {
-
-            $userLeaves = [];
-
-            if (isset($leaves[$node['user_id']])) {
-                foreach ($leaves[$node['user_id']] as $leave) {
-                    $userLeaves[] = [
-                        'id' => $leave->id,
-                        'start_date' => $leave->start_date,
-                        'end_date' => $leave->end_date,
-                        'leave_type' => $leave->leave_type ?? null,
-                        'reason' => $leave->reason ?? null,
-                        'status' => $leave->status,
-                        'created_at' => optional($leave->created_at)->format('Y-m-d H:i:s'),
-                        'updated_at' => optional($leave->updated_at)->format('Y-m-d H:i:s'),
-                    ];
-                }
-            }
-
-            $children = [];
-
-            if (!empty($node['children'])) {
-                foreach ($node['children'] as $child) {
-                    $children[] = $attachLeaves($child, $leaves);
-                }
-            }
-
-            return [
-                'user_id' => $node['user_id'],
-                'user_name' => $node['user_name'],
-                'leaves' => $userLeaves,
-                'children' => $children
-            ];
-        };
-
-        // Build hierarchy
         $teamTree = $buildTree($rm->id);
-
         $subordinateIds = $flattenIds($teamTree);
 
         $leaveQuery = LeavePolicy::whereIn('user_id', $subordinateIds);
@@ -1036,19 +1100,49 @@ class LeaveController extends Controller
         if ($status) {
             $leaveQuery->where('status', $status);
         }
+        // else{
+        //     $leaveQuery->whereIn('status', ['Approved']);
+        // }
 
-        $leaves = $leaveQuery->get()->groupBy('user_id');
+        if ($startDate && $endDate) {
+            $leaveQuery->where(function ($q) use ($startDate, $endDate) {
+                $q->where('start_date', '<=', $endDate)
+                    ->where('end_date', '>=', $startDate);
+            });
+        }
 
-        $finalData = $attachLeaves([
-            'user_id' => $rm->id,
-            'user_name' => $rm->name,
-            'children' => $teamTree
-        ], $leaves);
+        $leaves = $leaveQuery->get();
+
+        $users = User::whereIn('id', $subordinateIds)
+            ->select('id', 'name')
+            ->get()
+            ->keyBy('id');
+
+        $mergedLeaves = [];
+
+        foreach ($leaves as $leave) {
+            $mergedLeaves[] = [
+                'user_id' => $leave->user_id,
+                'user_name' => $users[$leave->user_id]->name ?? null,
+                'leave_id' => $leave->id,
+                'start_date' => $leave->start_date,
+                'end_date' => $leave->end_date,
+                'leave_type' => $leave->leave_type ?? null,
+                'reason' => $leave->reason ?? null,
+                'status' => $leave->status,
+                'created_at' => optional($leave->created_at)->format('Y-m-d H:i:s'),
+                'updated_at' => optional($leave->updated_at)->format('Y-m-d H:i:s'),
+            ];
+        }
 
         return response()->json([
             'success' => true,
             'message' => 'RM based leave data fetched successfully',
-            'data' => $finalData
+            'data' => [
+                'rm_id' => $rm->id,
+                'rm_name' => $rm->name,
+                'leaves' => $mergedLeaves
+            ]
         ]);
     }
 

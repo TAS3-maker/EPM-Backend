@@ -241,7 +241,6 @@ Route::middleware('auth:api')->group(function () {
 
         Route::get('/users-all-sheets-data-reporting', [ProjectMasterController::class, 'getUsersAllSheetsDataReporting']);
         Route::get('/get-all-data-master-reporting', [ProjectMasterController::class, 'getFilterOfAllDataMasterReporting']);
-        Route::get('/get-performa-of-assigned-projects', [PerformaSheetController::class, 'getPerformaofassignedProjects']);
         Route::get('/get-projects-master-details', [ProjectMasterController::class, 'getProjectsMasterdetails']);
         Route::put('/assign-users-to-tL', [UserController::class, 'assignUsersToTL']);
         Route::get('/get-team-user-by-role', [UserController::class, 'getTeamUsersByRole']);
@@ -249,5 +248,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-pending-sheets-for-reporting-manager', [PerformaSheetController::class, 'getPendingSheetsForReportingManager']);
         Route::get('/get-leaves-for-reporting-manager', [LeaveController::class, 'getLeavesForReportingManager']);
         Route::get('/get-unfilled-performa-sheets-for-reporting-manager', [PerformaSheetController::class, 'getUnfilledPerformaSheetsForReportingManager']);
+        Route::get('/get-assigned-projects-master-of-user', [PerformaSheetController::class, 'getAssignedProjectsMasterofUser']);
+        Route::get('/get-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPerformaSheetsByProjectMasterId']);
     });
 });
