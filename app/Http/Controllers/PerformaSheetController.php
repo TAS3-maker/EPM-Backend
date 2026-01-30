@@ -4199,6 +4199,113 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function getSheetsForReportingManager(Request $request)
+    // {
+    //     $status = $request->status ?? null;
+
+    //     $currentUser = $request->current_user_id
+    //         ? User::findOrFail($request->current_user_id)
+    //         : $request->user();
+
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     if ($request->current_user_id) {
+    //         $children = User::where('reporting_manager_id', $currentUser->id)->orWhere('id', $currentUser->id)
+    //             ->where('is_active', 1)
+    //             ->select('id', 'name')
+    //             ->get();
+    //     } else {
+    //         $children = User::where('reporting_manager_id', $currentUser->id)
+    //             ->where('is_active', 1)
+    //             ->select('id', 'name')
+    //             ->get();
+    //     }
+
+    //     $childIds = $children->pluck('id')->toArray();
+
+    //     $sheetQuery = PerformaSheet::whereIn('user_id', $childIds);
+
+    //     if ($status) {
+    //         $sheetQuery->where('status', $status);
+    //     } else {
+    //         $sheetQuery->whereIn('status', ['approved', 'rejected']);
+    //     }
+
+    //     $sheets = $sheetQuery->get()->groupBy('user_id');
+
+    //     $finalChildren = [];
+
+    //     foreach ($children as $child) {
+
+    //         $userSheets = [];
+
+    //         if (isset($sheets[$child->id])) {
+
+    //             $userSheets = $sheets[$child->id]
+    //                 ->filter(function ($sheet) use ($startDate, $endDate) {
+
+    //                     $data = json_decode($sheet->data, true);
+
+    //                     if (!is_array($data) || empty($data['date'])) {
+    //                         return false;
+    //                     }
+
+    //                     if ($startDate && $endDate) {
+    //                         return $data['date'] >= $startDate && $data['date'] <= $endDate;
+    //                     }
+
+    //                     return true;
+    //                 })
+    //                 ->sortByDesc(function ($sheet) {
+    //                     $data = json_decode($sheet->data, true);
+    //                     return $data['date'] ?? null;
+    //                 })
+    //                 ->map(function ($sheet) {
+
+    //                     $data = json_decode($sheet->data, true);
+
+    //                     $project = isset($data['project_id'])
+    //                         ? ProjectMaster::with('client')->find($data['project_id'])
+    //                         : null;
+
+    //                     return array_merge(
+    //                         [
+    //                             'id' => $sheet->id,
+    //                             'project_name' => $project->project_name ?? 'No Project Found',
+    //                             'client_name' => $project->client->client_name ?? 'No Client Found',
+    //                             'deadline' => $project->deadline ?? null,
+    //                             'status' => $sheet->status,
+    //                             'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+    //                             'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+    //                         ],
+    //                         $data
+    //                     );
+    //                 })
+    //                 ->values()
+    //                 ->toArray();
+    //         }
+
+    //         $finalChildren[] = [
+    //             'user_id' => $child->id,
+    //             'user_name' => $child->name,
+    //             'sheets' => $userSheets,
+    //             'children' => []
+    //         ];
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'performa sheets fetched successfully',
+    //         'data' => [
+    //             'user_id' => $currentUser->id,
+    //             'user_name' => $currentUser->name,
+    //             'children' => $finalChildren
+    //         ]
+    //     ]);
+    // }
+
+
     public function getSheetsForReportingManager(Request $request)
     {
         $status = $request->status ?? null;
@@ -4209,15 +4316,20 @@ class PerformaSheetController extends Controller
 
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
+        $includeSelf = $request->has('current_user_id');
 
         $children = User::where('reporting_manager_id', $currentUser->id)
             ->where('is_active', 1)
             ->select('id', 'name')
             ->get();
 
-        $childIds = $children->pluck('id')->toArray();
+        $userIdsForSheets = $children->pluck('id')->toArray();
 
-        $sheetQuery = PerformaSheet::whereIn('user_id', $childIds);
+        if ($includeSelf) {
+            $userIdsForSheets[] = $currentUser->id;
+        }
+
+        $sheetQuery = PerformaSheet::whereIn('user_id', $userIdsForSheets);
 
         if ($status) {
             $sheetQuery->where('status', $status);
@@ -4227,6 +4339,53 @@ class PerformaSheetController extends Controller
 
         $sheets = $sheetQuery->get()->groupBy('user_id');
 
+        $selfSheets = [];
+
+        if ($includeSelf && isset($sheets[$currentUser->id])) {
+            $selfSheets = $sheets[$currentUser->id]
+                ->filter(function ($sheet) use ($startDate, $endDate) {
+
+                    $data = json_decode($sheet->data, true);
+
+                    if (!is_array($data) || empty($data['date'])) {
+                        return false;
+                    }
+
+                    if ($startDate && $endDate) {
+                        return $data['date'] >= $startDate && $data['date'] <= $endDate;
+                    }
+
+                    return true;
+                })
+                ->sortByDesc(function ($sheet) {
+                    $data = json_decode($sheet->data, true);
+                    return $data['date'] ?? null;
+                })
+                ->map(function ($sheet) {
+
+                    $data = json_decode($sheet->data, true);
+
+                    $project = isset($data['project_id'])
+                        ? ProjectMaster::with('client')->find($data['project_id'])
+                        : null;
+
+                    return array_merge(
+                        [
+                            'id' => $sheet->id,
+                            'project_name' => $project->project_name ?? 'No Project Found',
+                            'client_name' => $project->client->client_name ?? 'No Client Found',
+                            'deadline' => $project->deadline ?? null,
+                            'status' => $sheet->status,
+                            'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                            'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                        ],
+                        $data
+                    );
+                })
+                ->values()
+                ->toArray();
+        }
+
         $finalChildren = [];
 
         foreach ($children as $child) {
@@ -4234,7 +4393,6 @@ class PerformaSheetController extends Controller
             $userSheets = [];
 
             if (isset($sheets[$child->id])) {
-
                 $userSheets = $sheets[$child->id]
                     ->filter(function ($sheet) use ($startDate, $endDate) {
 
@@ -4293,8 +4451,147 @@ class PerformaSheetController extends Controller
             'data' => [
                 'user_id' => $currentUser->id,
                 'user_name' => $currentUser->name,
+                'sheets' => $selfSheets,
                 'children' => $finalChildren
             ]
+        ]);
+    }
+
+    // public function getPendingSheetsForReportingManager(Request $request)
+    // {
+    //     $status = $request->status ?? null;
+
+    //     $currentUser = $request->current_user_id
+    //         ? User::findOrFail($request->current_user_id)
+    //         : $request->user();
+
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     $children = User::where('reporting_manager_id', $currentUser->id)
+    //         ->where('is_active', 1)
+    //         ->select('id', 'name')
+    //         ->get();
+
+    //     $childIds = $children->pluck('id')->toArray();
+
+    //     $sheetQuery = PerformaSheet::whereIn('user_id', $childIds);
+
+    //     if ($status) {
+    //         $sheetQuery->where('status', $status);
+    //     } else {
+    //         $sheetQuery->whereIn('status', ['pending', 'backdated']);
+    //     }
+
+    //     $sheets = $sheetQuery->get()->groupBy('user_id');
+
+    //     $finalChildren = [];
+
+    //     foreach ($children as $child) {
+
+    //         $userSheets = [];
+
+    //         if (isset($sheets[$child->id])) {
+
+    //             $userSheets = $sheets[$child->id]
+    //                 ->filter(function ($sheet) use ($startDate, $endDate) {
+
+    //                     $data = json_decode($sheet->data, true);
+
+    //                     if (!is_array($data) || empty($data['date'])) {
+    //                         return false;
+    //                     }
+
+    //                     if ($startDate && $endDate) {
+    //                         return $data['date'] >= $startDate && $data['date'] <= $endDate;
+    //                     }
+
+    //                     return true;
+    //                 })
+    //                 ->sortByDesc(function ($sheet) {
+    //                     $data = json_decode($sheet->data, true);
+    //                     return $data['date'] ?? null;
+    //                 })
+    //                 ->map(function ($sheet) {
+
+    //                     $data = json_decode($sheet->data, true);
+
+    //                     $project = isset($data['project_id'])
+    //                         ? ProjectMaster::with('client')->find($data['project_id'])
+    //                         : null;
+
+    //                     return array_merge(
+    //                         [
+    //                             'id' => $sheet->id,
+    //                             'project_name' => $project->project_name ?? 'No Project Found',
+    //                             'client_name' => $project->client->client_name ?? 'No Client Found',
+    //                             'deadline' => $project->deadline ?? null,
+    //                             'status' => $sheet->status,
+    //                             'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+    //                             'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+    //                         ],
+    //                         $data
+    //                     );
+    //                 })
+    //                 ->values()
+    //                 ->toArray();
+    //         }
+
+    //         $finalChildren[] = [
+    //             'user_id' => $child->id,
+    //             'user_name' => $child->name,
+    //             'sheets' => $userSheets,
+    //             'children' => []
+    //         ];
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'performa sheets fetched successfully',
+    //         'data' => [
+    //             'user_id' => $currentUser->id,
+    //             'user_name' => $currentUser->name,
+    //             'children' => $finalChildren
+    //         ]
+    //     ]);
+    // }
+
+
+    public function getRmHierarchy(Request $request)
+    {
+        $rm = $request->user();
+        $buildTree = function ($managerId) use (&$buildTree) {
+
+            $users = User::where('reporting_manager_id', $managerId)
+                ->where('is_active', 1)
+                ->select('id', 'name')
+                ->get();
+
+            $tree = [];
+
+            foreach ($users as $user) {
+                $tree[] = [
+                    'user_id' => $user->id,
+                    'user_name' => $user->name,
+                    'children' => $buildTree($user->id),
+                ];
+            }
+
+            return $tree;
+        };
+
+        $teamTree = $buildTree($rm->id);
+
+        $finalData = [
+            'user_id' => $rm->id,
+            'user_name' => $rm->name,
+            'children' => $teamTree,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'message' => 'RM based hierarchical users fetched successfully',
+            'data' => $finalData
         ]);
     }
 
@@ -4308,15 +4605,20 @@ class PerformaSheetController extends Controller
 
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
+        $includeSelf = $request->has('current_user_id');
 
         $children = User::where('reporting_manager_id', $currentUser->id)
             ->where('is_active', 1)
             ->select('id', 'name')
             ->get();
 
-        $childIds = $children->pluck('id')->toArray();
+        $userIdsForSheets = $children->pluck('id')->toArray();
 
-        $sheetQuery = PerformaSheet::whereIn('user_id', $childIds);
+        if ($includeSelf) {
+            $userIdsForSheets[] = $currentUser->id;
+        }
+
+        $sheetQuery = PerformaSheet::whereIn('user_id', $userIdsForSheets);
 
         if ($status) {
             $sheetQuery->where('status', $status);
@@ -4326,6 +4628,53 @@ class PerformaSheetController extends Controller
 
         $sheets = $sheetQuery->get()->groupBy('user_id');
 
+        $selfSheets = [];
+
+        if ($includeSelf && isset($sheets[$currentUser->id])) {
+            $selfSheets = $sheets[$currentUser->id]
+                ->filter(function ($sheet) use ($startDate, $endDate) {
+
+                    $data = json_decode($sheet->data, true);
+
+                    if (!is_array($data) || empty($data['date'])) {
+                        return false;
+                    }
+
+                    if ($startDate && $endDate) {
+                        return $data['date'] >= $startDate && $data['date'] <= $endDate;
+                    }
+
+                    return true;
+                })
+                ->sortByDesc(function ($sheet) {
+                    $data = json_decode($sheet->data, true);
+                    return $data['date'] ?? null;
+                })
+                ->map(function ($sheet) {
+
+                    $data = json_decode($sheet->data, true);
+
+                    $project = isset($data['project_id'])
+                        ? ProjectMaster::with('client')->find($data['project_id'])
+                        : null;
+
+                    return array_merge(
+                        [
+                            'id' => $sheet->id,
+                            'project_name' => $project->project_name ?? 'No Project Found',
+                            'client_name' => $project->client->client_name ?? 'No Client Found',
+                            'deadline' => $project->deadline ?? null,
+                            'status' => $sheet->status,
+                            'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                            'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                        ],
+                        $data
+                    );
+                })
+                ->values()
+                ->toArray();
+        }
+
         $finalChildren = [];
 
         foreach ($children as $child) {
@@ -4333,7 +4682,6 @@ class PerformaSheetController extends Controller
             $userSheets = [];
 
             if (isset($sheets[$child->id])) {
-
                 $userSheets = $sheets[$child->id]
                     ->filter(function ($sheet) use ($startDate, $endDate) {
 
@@ -4392,11 +4740,11 @@ class PerformaSheetController extends Controller
             'data' => [
                 'user_id' => $currentUser->id,
                 'user_name' => $currentUser->name,
+                'sheets' => $selfSheets,
                 'children' => $finalChildren
             ]
         ]);
     }
-
     public function getAssignedProjectsMasterofUser()
     {
         $user = auth()->user();
