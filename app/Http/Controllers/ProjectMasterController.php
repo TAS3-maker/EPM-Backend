@@ -1141,17 +1141,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                            return [
-                                'id' => $task->id,
-                                'project_id' => $task->project_id,
-                                'title' => $task->title,
-                                'description' => $task->description,
-                                'hours' => $task->hours,
-                                'deadline' => $task->deadline,
-                                'status' => $task->status,
-                                'start_date' => $task->start_date,
-                            ];
-                        });
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
 
                     return [
                         'id' => $project->id,
@@ -1848,7 +1848,7 @@ class ProjectMasterController extends Controller
 
         /*ELIGIBLE USERS*/
         $eligibleUsers = User::query()
-            ->select('id', 'name', 'team_id', 'role_id')
+            ->select('id', 'name', 'team_id', 'role_id','created_at')
             ->where('is_active', 1)
             ->where(function ($q) {
                 $q->whereJsonDoesntContain('team_id', 2);
@@ -1979,13 +1979,16 @@ class ProjectMasterController extends Controller
         foreach ($allSheetsForUnfilled as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date'])) continue;
+            if (!is_array($data) || empty($data['date']))
+                continue;
 
             $uid = (int) $sheet->user_id;
-            if (!isset($eligibleUsers[$uid])) continue;
+            if (!isset($eligibleUsers[$uid]))
+                continue;
 
             $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate)) continue;
+            if ($date->isWeekend() || !$date->between($startDate, $endDate))
+                continue;
 
             $dateStr = $date->toDateString();
 
@@ -2012,7 +2015,17 @@ class ProjectMasterController extends Controller
             $missingDates = [];
             $missingMinutes = 0;
 
+            $userCreatedDate = Carbon::parse($user->created_at)->startOfDay();
+            $effectiveStart = $startDate->copy();
+            if ($userCreatedDate->gt($effectiveStart)) {
+                $effectiveStart = $userCreatedDate;
+            }
+
             foreach ($expectedDates as $dateStr) {
+
+                if (Carbon::parse($dateStr)->lt($effectiveStart)) {
+                    continue;
+                }
 
                 $baseRequired = 510;
                 $fillableMinutes = 510;
@@ -2480,10 +2493,10 @@ class ProjectMasterController extends Controller
                 'project_tag_activity',
                 'created_at'
             )->with([
-                'relation:id,project_id,assignees,sales_person_id',
-                'client:clients_master.id,clients_master.client_name',
-                'tagActivityRelated:id,name'
-            ])
+                        'relation:id,project_id,assignees,sales_person_id',
+                        'client:clients_master.id,clients_master.client_name',
+                        'tagActivityRelated:id,name'
+                    ])
                 ->whereHas('relation', function ($q) use ($currentUser) {
                     $q->where('sales_person_id', $currentUser->id);
                 })

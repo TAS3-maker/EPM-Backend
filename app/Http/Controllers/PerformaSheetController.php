@@ -2575,8 +2575,14 @@ class PerformaSheetController extends Controller
                 }
 
                 $userMissing = [];
+                $userJoinDate = Carbon::parse($user->created_at)->toDateString();
 
                 foreach ($dates as $date) {
+                    $currentDate = Carbon::parse($date);
+
+                    if ($currentDate->lt($userJoinDate)) {
+                        continue;
+                    }
                     $hasSubmitted = isset($submissions[$user->id]) &&
                         $submissions[$user->id]->contains("date", $date);
 
@@ -4600,12 +4606,14 @@ class PerformaSheetController extends Controller
             $mergedData = [];
 
             $allUsers = User::whereIn('id', $userIds)
-                ->select('id', 'name', 'role_id')
+                ->select('id', 'name', 'role_id', 'created_at')
                 ->get();
 
             foreach ($allUsers as $user) {
 
                 $roles = (array) $user->role_id;
+                $userJoinDate = Carbon::parse($user->created_at)->toDateString();
+
 
                 if (
                     $user->id === $rmId ||
@@ -4618,6 +4626,11 @@ class PerformaSheetController extends Controller
                 $missingDates = [];
 
                 foreach ($dates as $date) {
+
+                    $currentDate = Carbon::parse($date);
+                    if ($currentDate->lt($userJoinDate)) {
+                        continue;
+                    }
 
                     $hasSubmitted = isset($submissions[$user->id]) &&
                         $submissions[$user->id]->contains('date', $date);
