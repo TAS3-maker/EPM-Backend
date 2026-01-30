@@ -4102,7 +4102,12 @@ class PerformaSheetController extends Controller
                         }
                     }
 
-                    $period = CarbonPeriod::create($startDate, $endDate);
+                    $userCreatedDate = Carbon::parse($user->created_at)->startOfDay();
+                    $effectiveStart = $startDate->copy();
+                    if ($userCreatedDate->gt($effectiveStart)) {
+                        $effectiveStart = $userCreatedDate;
+                    }
+                    $period = CarbonPeriod::create($effectiveStart, $endDate);
                     foreach ($period as $date) {
                         if ($date->isWeekend())
                             continue;
