@@ -4201,6 +4201,9 @@ class PerformaSheetController extends Controller
             ? User::findOrFail($request->current_user_id)
             : $request->user();
 
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
+
         $children = User::where('reporting_manager_id', $currentUser->id)
             ->where('is_active', 1)
             ->select('id', 'name')
@@ -4225,30 +4228,49 @@ class PerformaSheetController extends Controller
             $userSheets = [];
 
             if (isset($sheets[$child->id])) {
-                foreach ($sheets[$child->id] as $sheet) {
 
-                    $data = json_decode($sheet->data, true);
-                    if (!is_array($data)) {
-                        continue;
-                    }
+                $userSheets = $sheets[$child->id]
+                    ->filter(function ($sheet) use ($startDate, $endDate) {
 
-                    $project = isset($data['project_id'])
-                        ? ProjectMaster::with('client')->find($data['project_id'])
-                        : null;
+                        $data = json_decode($sheet->data, true);
 
-                    $userSheets[] = array_merge(
-                        [
-                            'id' => $sheet->id,
-                            'project_name' => $project->project_name ?? 'No Project Found',
-                            'client_name' => $project->client->client_name ?? 'No Client Found',
-                            'deadline' => $project->deadline ?? null,
-                            'status' => $sheet->status,
-                            'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
-                            'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
-                        ],
-                        $data
-                    );
-                }
+                        if (!is_array($data) || empty($data['date'])) {
+                            return false;
+                        }
+
+                        if ($startDate && $endDate) {
+                            return $data['date'] >= $startDate && $data['date'] <= $endDate;
+                        }
+
+                        return true;
+                    })
+                    ->sortByDesc(function ($sheet) {
+                        $data = json_decode($sheet->data, true);
+                        return $data['date'] ?? null;
+                    })
+                    ->map(function ($sheet) {
+
+                        $data = json_decode($sheet->data, true);
+
+                        $project = isset($data['project_id'])
+                            ? ProjectMaster::with('client')->find($data['project_id'])
+                            : null;
+
+                        return array_merge(
+                            [
+                                'id' => $sheet->id,
+                                'project_name' => $project->project_name ?? 'No Project Found',
+                                'client_name' => $project->client->client_name ?? 'No Client Found',
+                                'deadline' => $project->deadline ?? null,
+                                'status' => $sheet->status,
+                                'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                                'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                            ],
+                            $data
+                        );
+                    })
+                    ->values()
+                    ->toArray();
             }
 
             $finalChildren[] = [
@@ -4261,7 +4283,7 @@ class PerformaSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Direct children performa sheets fetched successfully',
+            'message' => 'performa sheets fetched successfully',
             'data' => [
                 'user_id' => $currentUser->id,
                 'user_name' => $currentUser->name,
@@ -4277,6 +4299,9 @@ class PerformaSheetController extends Controller
         $currentUser = $request->current_user_id
             ? User::findOrFail($request->current_user_id)
             : $request->user();
+
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
 
         $children = User::where('reporting_manager_id', $currentUser->id)
             ->where('is_active', 1)
@@ -4302,30 +4327,49 @@ class PerformaSheetController extends Controller
             $userSheets = [];
 
             if (isset($sheets[$child->id])) {
-                foreach ($sheets[$child->id] as $sheet) {
 
-                    $data = json_decode($sheet->data, true);
-                    if (!is_array($data)) {
-                        continue;
-                    }
+                $userSheets = $sheets[$child->id]
+                    ->filter(function ($sheet) use ($startDate, $endDate) {
 
-                    $project = isset($data['project_id'])
-                        ? ProjectMaster::with('client')->find($data['project_id'])
-                        : null;
+                        $data = json_decode($sheet->data, true);
 
-                    $userSheets[] = array_merge(
-                        [
-                            'id' => $sheet->id,
-                            'project_name' => $project->project_name ?? 'No Project Found',
-                            'client_name' => $project->client->client_name ?? 'No Client Found',
-                            'deadline' => $project->deadline ?? null,
-                            'status' => $sheet->status,
-                            'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
-                            'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
-                        ],
-                        $data
-                    );
-                }
+                        if (!is_array($data) || empty($data['date'])) {
+                            return false;
+                        }
+
+                        if ($startDate && $endDate) {
+                            return $data['date'] >= $startDate && $data['date'] <= $endDate;
+                        }
+
+                        return true;
+                    })
+                    ->sortByDesc(function ($sheet) {
+                        $data = json_decode($sheet->data, true);
+                        return $data['date'] ?? null;
+                    })
+                    ->map(function ($sheet) {
+
+                        $data = json_decode($sheet->data, true);
+
+                        $project = isset($data['project_id'])
+                            ? ProjectMaster::with('client')->find($data['project_id'])
+                            : null;
+
+                        return array_merge(
+                            [
+                                'id' => $sheet->id,
+                                'project_name' => $project->project_name ?? 'No Project Found',
+                                'client_name' => $project->client->client_name ?? 'No Client Found',
+                                'deadline' => $project->deadline ?? null,
+                                'status' => $sheet->status,
+                                'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+                                'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+                            ],
+                            $data
+                        );
+                    })
+                    ->values()
+                    ->toArray();
             }
 
             $finalChildren[] = [
@@ -4338,7 +4382,7 @@ class PerformaSheetController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Direct children performa sheets fetched successfully',
+            'message' => 'performa sheets fetched successfully',
             'data' => [
                 'user_id' => $currentUser->id,
                 'user_name' => $currentUser->name,
@@ -4346,96 +4390,6 @@ class PerformaSheetController extends Controller
             ]
         ]);
     }
-
-    // public function getPerformaofassignedProjects(Request $request)
-    // {
-    //     $user = auth()->user();
-    //     $status = $request->status ?? null;
-
-    //     $projects = ProjectMaster::whereHas('relation', function ($q) use ($user) {
-    //         $q->whereJsonContains('assignees', $user->id);
-    //     })
-    //         ->with('relation')
-    //         ->get();
-
-    //     if ($projects->isEmpty()) {
-    //         return response()->json([
-    //             'success' => true,
-    //             'data' => [],
-    //         ]);
-    //     }
-
-    //     $response = [];
-
-    //     foreach ($projects as $project) {
-
-    //         $assignees = $project->relation->assignees ?? [];
-
-    //         if (!is_array($assignees) || empty($assignees)) {
-    //             continue;
-    //         }
-
-    //         $userIds = User::whereIn('id', $assignees)
-    //             ->where('is_active', 1)
-    //             ->pluck('id')
-    //             ->toArray();
-
-    //         if (empty($userIds)) {
-    //             continue;
-    //         }
-
-    //         $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
-    //             ->when($status, function ($q) use ($status) {
-    //                 $q->where('status', $status);
-    //             }, function ($q) {
-    //                 $q->whereIn('status', ['approved', 'rejected']);
-    //             })
-    //             ->with('user:id,name')
-    //             ->get();
-
-    //         $filteredSheets = $performaSheets
-    //             ->filter(function ($sheet) use ($project) {
-
-    //                 $data = $sheet->data;
-
-    //                 if (is_string($data)) {
-    //                     $data = json_decode($data, true);
-    //                 }
-
-    //                 return isset($data['project_id']) &&
-    //                     (int) $data['project_id'] === (int) $project->id;
-    //             })
-    //             ->sortByDesc(function ($sheet) {
-
-    //                 $data = $sheet->data;
-
-    //                 if (is_string($data)) {
-    //                     $data = json_decode($data, true);
-    //                 }
-
-    //                 return $data['date'] ?? null;
-    //             })->map(function ($sheet) {
-    //                 if (is_string($sheet->data)) {
-    //                     $sheet->data = json_decode($sheet->data, true);
-    //                 }
-    //                 return $sheet;
-    //             })
-    //             ->values();
-
-
-    //         $response[] = [
-    //             'project_id' => $project->id,
-    //             'project_name' => $project->project_name,
-    //             'sheets' => $filteredSheets,
-    //         ];
-    //     }
-
-    //     return response()->json([
-    //         'success' => true,
-    //         'data' => $response,
-    //     ]);
-    // }
-
 
     public function getAssignedProjectsMasterofUser()
     {
