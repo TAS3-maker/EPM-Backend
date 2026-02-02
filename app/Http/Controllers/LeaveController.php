@@ -1067,42 +1067,58 @@ class LeaveController extends Controller
         $endDate = $request->end_date ?? null;
         $rm = $request->user();
 
-        $buildTree = function ($managerId) use (&$buildTree) {
-            return User::where('reporting_manager_id', $managerId)
-                ->where('is_active', 1)
-                ->select('id')
-                ->get()
-                ->map(function ($user) use ($buildTree) {
-                    return [
-                        'user_id' => $user->id,
-                        'children' => $buildTree($user->id),
-                    ];
+        $rmRoles = is_array($rm->role_id)
+            ? $rm->role_id
+            : [(int) $rm->role_id];
+
+        if (!empty(array_intersect($rmRoles, [1, 2, 3, 4]))) {
+
+            $subordinateIds = User::where('is_active', 1)
+                ->where('id', '!=', $rm->id)
+                ->where(function ($q) {
+                    foreach ([1, 2, 3, 4] as $role) {
+                        $q->whereJsonDoesntContain('role_id', $role);
+                    }
                 })
+                ->pluck('id')
                 ->toArray();
-        };
 
-        $flattenIds = function ($tree) use (&$flattenIds) {
-            $ids = [];
-            foreach ($tree as $node) {
-                $ids[] = $node['user_id'];
-                if (!empty($node['children'])) {
-                    $ids = array_merge($ids, $flattenIds($node['children']));
+        } else {
+
+            $buildTree = function ($managerId) use (&$buildTree) {
+                return User::where('reporting_manager_id', $managerId)
+                    ->where('is_active', 1)
+                    ->select('id')
+                    ->get()
+                    ->map(function ($user) use ($buildTree) {
+                        return [
+                            'user_id' => $user->id,
+                            'children' => $buildTree($user->id),
+                        ];
+                    })
+                    ->toArray();
+            };
+
+            $flattenIds = function ($tree) use (&$flattenIds) {
+                $ids = [];
+                foreach ($tree as $node) {
+                    $ids[] = $node['user_id'];
+                    if (!empty($node['children'])) {
+                        $ids = array_merge($ids, $flattenIds($node['children']));
+                    }
                 }
-            }
-            return $ids;
-        };
+                return $ids;
+            };
 
-        $teamTree = $buildTree($rm->id);
-        $subordinateIds = $flattenIds($teamTree);
+            $teamTree = $buildTree($rm->id);
+            $subordinateIds = $flattenIds($teamTree);
+        }
 
         $leaveQuery = LeavePolicy::whereIn('user_id', $subordinateIds);
 
         if ($status) {
             $leaveQuery->where('status', $status);
         }
-        // else{
-        //     $leaveQuery->whereIn('status', ['Approved']);
-        // }
 
         if ($startDate && $endDate) {
             $leaveQuery->where(function ($q) use ($startDate, $endDate) {

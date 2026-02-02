@@ -4326,7 +4326,11 @@ class PerformaSheetController extends Controller
         $childrenQuery = User::where('is_active', 1)
             ->select('id', 'name');
 
-        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+        $currentUserRoles = is_array($currentUser->role_id)
+            ? $currentUser->role_id
+            : [(int) $currentUser->role_id];
+
+        if (!empty(array_intersect($currentUserRoles, [1, 2, 3, 4]))) {
             $childrenQuery->where(function ($q) {
                 foreach ([1, 2, 3, 4] as $role) {
                     $q->whereJsonDoesntContain('role_id', $role);
@@ -4648,7 +4652,11 @@ class PerformaSheetController extends Controller
         $childrenQuery = User::where('is_active', 1)
             ->select('id', 'name');
 
-        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+        $currentUserRoles = is_array($currentUser->role_id)
+            ? $currentUser->role_id
+            : [(int) $currentUser->role_id];
+
+        if (!empty(array_intersect($currentUserRoles, [1, 2, 3, 4]))) {
             $childrenQuery->where(function ($q) {
                 foreach ([1, 2, 3, 4] as $role) {
                     $q->whereJsonDoesntContain('role_id', $role);
@@ -5125,8 +5133,7 @@ class PerformaSheetController extends Controller
                     ->pluck('id')
                     ->toArray();
 
-            }
-            else {
+            } else {
 
                 $buildTree = function ($managerId) use (&$buildTree) {
                     return User::where('reporting_manager_id', $managerId)
