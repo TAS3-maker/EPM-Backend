@@ -4804,11 +4804,16 @@ class PerformaSheetController extends Controller
     {
         $user = auth()->user();
 
-        $projects = ProjectMaster::whereHas('relation', function ($q) use ($user) {
-            $q->whereJsonContains('assignees', $user->id);
-        })
-            ->select('id', 'project_name')
-            ->get();
+        $projectsQuery = ProjectMaster::query();
+
+        if ($user->hasanyrole([1, 2, 3, 4])) {
+            $projectsQuery->select('id', 'project_name');
+        } else {
+            $projectsQuery->whereHas('relation', function ($q) use ($user) {
+                $q->whereJsonContains('assignees', $user->id);
+            })->select('id', 'project_name');
+        }
+        $projects = $projectsQuery->get();
 
         return response()->json([
             'success' => true,
