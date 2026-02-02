@@ -249,6 +249,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-leaves-for-reporting-manager', [LeaveController::class, 'getLeavesForReportingManager']);
         Route::get('/get-unfilled-performa-sheets-for-reporting-manager', [PerformaSheetController::class, 'getUnfilledPerformaSheetsForReportingManager']);
         Route::get('/get-assigned-projects-master-of-user', [PerformaSheetController::class, 'getAssignedProjectsMasterofUser']);
+        Route::get('/get-pending-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPendingPerformaSheetsByProjectMasterId']);
         Route::get('/get-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPerformaSheetsByProjectMasterId']);
         Route::get('/get-rm-hierarchy', [PerformaSheetController::class, 'getRmHierarchy']);
     });

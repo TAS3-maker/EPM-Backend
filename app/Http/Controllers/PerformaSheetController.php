@@ -4848,6 +4848,111 @@ class PerformaSheetController extends Controller
         ]);
     }
 
+    public function getPendingPerformaSheetsByProjectMasterId(Request $request)
+    {
+        $user = auth()->user();
+        $status = $request->status ?? null;
+        $projectId = $request->project_id;
+
+        if (empty($projectId)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Project id is required'
+            ], 403);
+        }
+
+        if ($request->filled('date')) {
+            $startDate = $endDate = Carbon::parse($request->date)->toDateString();
+        } elseif ($request->filled('start_date') && $request->filled('end_date')) {
+            $startDate = Carbon::parse($request->start_date)->toDateString();
+            $endDate = Carbon::parse($request->end_date)->toDateString();
+
+            if ($startDate > $endDate) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Start date cannot be after end date'
+                ], 422);
+            }
+        } else {
+            $startDate = Carbon::now()->startOfWeek()->toDateString();
+            $endDate = Carbon::now()->endOfWeek()->toDateString();
+        }
+
+        $project = ProjectMaster::with('relation')->findOrFail($projectId);
+
+        if (
+            empty($project->relation)
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized project access'
+            ], 403);
+        }
+
+        $assignees = $project->relation->assignees ?? [];
+
+        $userIds = User::whereIn('id', $assignees)
+            ->where('is_active', 1)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($userIds)) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
+        }
+
+        $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
+            ->when($status, function ($q) use ($status) {
+                $q->where('status', $status);
+            }, function ($q) {
+                $q->whereIn('status', ['pending', 'backdated']);
+            })
+            ->with('user:id,name')
+            ->get()
+            ->filter(function ($sheet) use ($projectId, $startDate, $endDate) {
+
+                $data = is_string($sheet->data)
+                    ? json_decode($sheet->data, true)
+                    : $sheet->data;
+
+                if (
+                    !isset($data['project_id'], $data['date']) ||
+                    (int) $data['project_id'] !== (int) $projectId
+                ) {
+                    return false;
+                }
+
+                return $data['date'] >= $startDate && $data['date'] <= $endDate;
+            })
+            ->sortByDesc(function ($sheet) {
+
+                $data = is_string($sheet->data)
+                    ? json_decode($sheet->data, true)
+                    : $sheet->data;
+
+                return $data['date'] ?? null;
+            })
+            ->map(function ($sheet) {
+                if (is_string($sheet->data)) {
+                    $sheet->data = json_decode($sheet->data, true);
+                }
+                return $sheet;
+            })
+            ->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'project_id' => $project->id,
+                'project_name' => $project->project_name,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'sheets' => $performaSheets
+            ]
+        ]);
+    }
     public function getPerformaSheetsByProjectMasterId(Request $request)
     {
         $user = auth()->user();
