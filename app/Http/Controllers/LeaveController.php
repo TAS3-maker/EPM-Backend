@@ -1060,23 +1060,145 @@ class LeaveController extends Controller
     // }
 
 
+    // public function getLeavesForReportingManager(Request $request)
+    // {
+    //     $status = $request->status ?? null;
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+    //     $rm = $request->user();
+
+    //     $rmRoles = is_array($rm->role_id)
+    //         ? $rm->role_id
+    //         : [(int) $rm->role_id];
+
+    //     if (!empty(array_intersect($rmRoles, [1, 2, 3, 4]))) {
+
+    //         $subordinateIds = User::where('is_active', 1)
+    //             ->where('id', '!=', $rm->id)
+    //             ->where(function ($q) {
+    //                 foreach ([1, 2, 3, 4] as $role) {
+    //                     $q->whereJsonDoesntContain('role_id', $role);
+    //                 }
+    //             })
+    //             ->pluck('id')
+    //             ->toArray();
+
+    //     } else {
+
+    //         $buildTree = function ($managerId) use (&$buildTree) {
+    //             return User::where('reporting_manager_id', $managerId)
+    //                 ->where('is_active', 1)
+    //                 ->select('id')
+    //                 ->get()
+    //                 ->map(function ($user) use ($buildTree) {
+    //                     return [
+    //                         'user_id' => $user->id,
+    //                         'children' => $buildTree($user->id),
+    //                     ];
+    //                 })
+    //                 ->toArray();
+    //         };
+
+    //         $flattenIds = function ($tree) use (&$flattenIds) {
+    //             $ids = [];
+    //             foreach ($tree as $node) {
+    //                 $ids[] = $node['user_id'];
+    //                 if (!empty($node['children'])) {
+    //                     $ids = array_merge($ids, $flattenIds($node['children']));
+    //                 }
+    //             }
+    //             return $ids;
+    //         };
+
+    //         $teamTree = $buildTree($rm->id);
+    //         $subordinateIds = $flattenIds($teamTree);
+    //     }
+
+    //     $leaveQuery = LeavePolicy::whereIn('user_id', $subordinateIds);
+
+    //     if ($status) {
+    //         $leaveQuery->where('status', $status);
+    //     }
+
+    //     if ($startDate && $endDate) {
+    //         $leaveQuery->where(function ($q) use ($startDate, $endDate) {
+    //             $q->where('start_date', '<=', $endDate)
+    //                 ->where('end_date', '>=', $startDate);
+    //         });
+    //     }
+
+    //     $leaves = $leaveQuery->get();
+
+    //     $users = User::whereIn('id', $subordinateIds)
+    //         ->select('id', 'name')
+    //         ->get()
+    //         ->keyBy('id');
+
+    //     $mergedLeaves = [];
+
+    //     foreach ($leaves as $leave) {
+    //         $mergedLeaves[] = [
+    //             'user_id' => $leave->user_id,
+    //             'user_name' => $users[$leave->user_id]->name ?? null,
+    //             'leave_id' => $leave->id,
+    //             'start_date' => $leave->start_date,
+    //             'end_date' => $leave->end_date,
+    //             'leave_type' => $leave->leave_type ?? null,
+    //             'reason' => $leave->reason ?? null,
+    //             'status' => $leave->status,
+    //             'created_at' => optional($leave->created_at)->format('Y-m-d H:i:s'),
+    //             'updated_at' => optional($leave->updated_at)->format('Y-m-d H:i:s'),
+    //         ];
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'RM based leave data fetched successfully',
+    //         'data' => [
+    //             'rm_id' => $rm->id,
+    //             'rm_name' => $rm->name,
+    //             'leaves' => $mergedLeaves
+    //         ]
+    //     ]);
+    // }
+
+
     public function getLeavesForReportingManager(Request $request)
     {
-        $status = $request->status ?? null;
-        $startDate = $request->start_date ?? null;
-        $endDate = $request->end_date ?? null;
+        $status = $request->status;
+        $startDate = $request->start_date;
+        $endDate = $request->end_date;
         $rm = $request->user();
 
         $rmRoles = is_array($rm->role_id)
-            ? $rm->role_id
+            ? array_map('intval', $rm->role_id)
             : [(int) $rm->role_id];
 
-        if (!empty(array_intersect($rmRoles, [1, 2, 3, 4]))) {
+        $subordinateIds = [];
+
+        $roleExclusionMap = [
+            1 => [1, 2],
+            2 => [1, 2],
+            3 => [1, 2, 3],
+            4 => [1, 2, 3, 4],
+        ];
+
+        $matchedRoles = array_intersect(array_keys($roleExclusionMap), $rmRoles);
+
+        if (!empty($matchedRoles)) {
+
+            $excludeRoles = [];
+
+            foreach ($matchedRoles as $role) {
+                $excludeRoles = array_merge($excludeRoles, $roleExclusionMap[$role]);
+            }
+
+            $excludeRoles = array_unique($excludeRoles);
 
             $subordinateIds = User::where('is_active', 1)
                 ->where('id', '!=', $rm->id)
-                ->where(function ($q) {
-                    foreach ([1, 2, 3, 4] as $role) {
+                ->where(function ($q) use ($excludeRoles) {
+                    foreach ($excludeRoles as $role) {
                         $q->whereJsonDoesntContain('role_id', $role);
                     }
                 })
@@ -1088,14 +1210,11 @@ class LeaveController extends Controller
             $buildTree = function ($managerId) use (&$buildTree) {
                 return User::where('reporting_manager_id', $managerId)
                     ->where('is_active', 1)
-                    ->select('id')
-                    ->get()
-                    ->map(function ($user) use ($buildTree) {
-                        return [
-                            'user_id' => $user->id,
-                            'children' => $buildTree($user->id),
-                        ];
-                    })
+                    ->pluck('id')
+                    ->map(fn($id) => [
+                        'user_id' => $id,
+                        'children' => $buildTree($id),
+                    ])
                     ->toArray();
             };
 
@@ -1112,6 +1231,18 @@ class LeaveController extends Controller
 
             $teamTree = $buildTree($rm->id);
             $subordinateIds = $flattenIds($teamTree);
+        }
+
+        if (empty($subordinateIds)) {
+            return response()->json([
+                'success' => true,
+                'message' => 'No leave records found',
+                'data' => [
+                    'rm_id' => $rm->id,
+                    'rm_name' => $rm->name,
+                    'leaves' => [],
+                ],
+            ]);
         }
 
         $leaveQuery = LeavePolicy::whereIn('user_id', $subordinateIds);
@@ -1134,22 +1265,20 @@ class LeaveController extends Controller
             ->get()
             ->keyBy('id');
 
-        $mergedLeaves = [];
-
-        foreach ($leaves as $leave) {
-            $mergedLeaves[] = [
+        $mergedLeaves = $leaves->map(function ($leave) use ($users) {
+            return [
                 'user_id' => $leave->user_id,
                 'user_name' => $users[$leave->user_id]->name ?? null,
                 'leave_id' => $leave->id,
                 'start_date' => $leave->start_date,
                 'end_date' => $leave->end_date,
-                'leave_type' => $leave->leave_type ?? null,
-                'reason' => $leave->reason ?? null,
+                'leave_type' => $leave->leave_type,
+                'reason' => $leave->reason,
                 'status' => $leave->status,
                 'created_at' => optional($leave->created_at)->format('Y-m-d H:i:s'),
                 'updated_at' => optional($leave->updated_at)->format('Y-m-d H:i:s'),
             ];
-        }
+        });
 
         return response()->json([
             'success' => true,
@@ -1157,8 +1286,8 @@ class LeaveController extends Controller
             'data' => [
                 'rm_id' => $rm->id,
                 'rm_name' => $rm->name,
-                'leaves' => $mergedLeaves
-            ]
+                'leaves' => $mergedLeaves,
+            ],
         ]);
     }
 
