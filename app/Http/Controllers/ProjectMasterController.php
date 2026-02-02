@@ -193,7 +193,7 @@ class ProjectMasterController extends Controller
             $project = ProjectMaster::create([
                 'project_name' => $request->project_name,
                 'project_tracking' => $request->project_tracking,
-                'project_status' => $request->project_status,
+                'project_status' => $request->project_status ?? 'To Do',
                 'project_description' => $request->project_description,
                 'project_budget' => $request->project_budget,
                 'project_hours' => $request->project_hours,
@@ -1848,7 +1848,7 @@ class ProjectMasterController extends Controller
 
         /*ELIGIBLE USERS*/
         $eligibleUsers = User::query()
-            ->select('id', 'name', 'team_id', 'role_id','created_at')
+            ->select('id', 'name', 'team_id', 'role_id', 'created_at')
             ->where('is_active', 1)
             ->where(function ($q) {
                 $q->whereJsonDoesntContain('team_id', 2);
