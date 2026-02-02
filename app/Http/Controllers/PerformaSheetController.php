@@ -1607,28 +1607,45 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-
     // public function getAllPendingPerformaSheets(Request $request)
     // {
     //     $user = $request->user();
-    //     $role_id = $user->role_id;
     //     $team_id = $user->team_id ?? [];
 
     //     $baseQuery = PerformaSheet::with('user:id,name');
 
-    //     if ($role_id == 7) {
+
+    //     if ($user->hasRole(7)) {
+
     //         $baseQuery->where('user_id', $user->id);
-    //     } else if ($role_id == 1 || $role_id == 2 || $role_id == 3 || $role_id == 4) {
-    //         //for admins, hr
-    //         $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)->pluck('id')
+    //     } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->pluck('id')
+    //             ->toArray();
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+    //     } elseif ($user->hasRole(6)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where('tl_id', $user->id)
+    //             ->whereNot('id', $user->id)
+    //             ->pluck('id')
     //             ->toArray();
     //         $baseQuery->whereIn('user_id', $teamMemberIds);
 
-    //     } else if (!empty($team_id)) {
-    //         $teamMemberIds = User::where('role_id', 7)->where("is_active", 1)
+    //     } elseif (!empty($team_id)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
     //             ->where(function ($q) use ($team_id) {
     //                 foreach ($team_id as $t) {
-    //                     $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+    //                     $q->orWhereRaw(
+    //                         'JSON_CONTAINS(team_id, ?)',
+    //                         [json_encode($t)]
+    //                     );
     //                 }
     //             })
     //             ->pluck('id')
@@ -1637,49 +1654,39 @@ class PerformaSheetController extends Controller
     //         $baseQuery->whereIn('user_id', $teamMemberIds);
     //     }
 
-    //     $baseQuery->where('status', 'pending');
-
-    //     $baseQuery->orderBy('id', 'DESC');
+    //     $baseQuery->whereIn('status', ['pending', 'backdated'])
+    //         ->orderBy('id', 'DESC');
 
     //     $sheets = $baseQuery->get();
 
     //     $structuredData = [];
 
     //     foreach ($sheets as $sheet) {
-    //         $dataArray = json_decode($sheet->data, true);
 
+    //         $dataArray = json_decode($sheet->data, true);
     //         if (!is_array($dataArray)) {
     //             continue;
     //         }
 
     //         $projectId = $dataArray['project_id'] ?? null;
-    //         $project = $projectId ? ProjectMaster::with('client')->find($projectId) : null;
+    //         $project = $projectId
+    //             ? ProjectMaster::with('client')->find($projectId)
+    //             : null;
 
-    //         $projectName = $project->project_name ?? 'No Project Found';
-    //         $clientName = $project->client->client_name ?? 'No Client Found';
-    //         $deadline = $project->deadline ?? 'No Deadline Set';
-
-    //         // Remove unwanted keys
     //         unset($dataArray['user_id'], $dataArray['user_name']);
 
-    //         // Inject meta values
-    //         $dataArray['project_name'] = $projectName;
-    //         $dataArray['client_name'] = $clientName;
-    //         $dataArray['deadline'] = $deadline;
+    //         $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
+    //         $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
+    //         $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
     //         $dataArray['status'] = $sheet->status;
     //         $dataArray['id'] = $sheet->id;
+    //         $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
+    //         $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
 
-    //         $dataArray['created_at'] = $sheet->created_at
-    //             ? \Carbon\Carbon::parse($sheet->created_at)->format('Y-m-d H:i:s') : '';
-
-    //         $dataArray['updated_at'] = $sheet->updated_at
-    //             ? \Carbon\Carbon::parse($sheet->updated_at)->format('Y-m-d H:i:s') : '';
-
-    //         // Group by user
     //         if (!isset($structuredData[$sheet->user_id])) {
     //             $structuredData[$sheet->user_id] = [
     //                 'user_id' => $sheet->user_id,
-    //                 'user_name' => $sheet->user ? $sheet->user->name : 'No User Found',
+    //                 'user_name' => $sheet->user->name ?? 'No User Found',
     //                 'sheets' => []
     //             ];
     //         }
@@ -1687,12 +1694,10 @@ class PerformaSheetController extends Controller
     //         $structuredData[$sheet->user_id]['sheets'][] = $dataArray;
     //     }
 
-    //     $structuredData = array_values($structuredData);
-
     //     return response()->json([
     //         'success' => true,
     //         'message' => 'All pending Performa Sheets fetched successfully',
-    //         'data' => $structuredData
+    //         'data' => array_values($structuredData)
     //     ]);
     // }
 
@@ -1702,12 +1707,18 @@ class PerformaSheetController extends Controller
         $user = $request->user();
         $team_id = $user->team_id ?? [];
 
-        $baseQuery = PerformaSheet::with('user:id,name');
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
 
+        $startDate = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
+        $endDate = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
+
+        $baseQuery = PerformaSheet::with('user:id,name');
 
         if ($user->hasRole(7)) {
 
             $baseQuery->where('user_id', $user->id);
+
         } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -1716,6 +1727,7 @@ class PerformaSheetController extends Controller
                 ->toArray();
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
+
         } elseif ($user->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -1724,6 +1736,7 @@ class PerformaSheetController extends Controller
                 ->whereNot('id', $user->id)
                 ->pluck('id')
                 ->toArray();
+
             $baseQuery->whereIn('user_id', $teamMemberIds);
 
         } elseif (!empty($team_id)) {
@@ -1754,8 +1767,22 @@ class PerformaSheetController extends Controller
         foreach ($sheets as $sheet) {
 
             $dataArray = json_decode($sheet->data, true);
+            if (is_string($dataArray)) {
+                $dataArray = json_decode($dataArray, true);
+            }
+
             if (!is_array($dataArray)) {
                 continue;
+            }
+
+            $sheetDate = isset($dataArray['date'])
+                ? Carbon::parse($dataArray['date'])->startOfDay()
+                : null;
+
+            if ($startDate && $endDate && $sheetDate) {
+                if ($sheetDate->lt($startDate) || $sheetDate->gt($endDate)) {
+                    continue;
+                }
             }
 
             $projectId = $dataArray['project_id'] ?? null;
