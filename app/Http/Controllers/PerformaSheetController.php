@@ -4323,10 +4323,20 @@ class PerformaSheetController extends Controller
         $endDate = $request->end_date ?? null;
         $includeSelf = $request->has('current_user_id');
 
-        $children = User::where('reporting_manager_id', $currentUser->id)
-            ->where('is_active', 1)
-            ->select('id', 'name')
-            ->get();
+        $childrenQuery = User::where('is_active', 1)
+            ->select('id', 'name');
+
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+            $childrenQuery->where(function ($q) {
+                foreach ([1, 2, 3, 4] as $role) {
+                    $q->whereJsonDoesntContain('role_id', $role);
+                }
+            });
+        } else {
+            $childrenQuery->where('reporting_manager_id', $currentUser->id);
+        }
+        $children = $childrenQuery->get();
+
 
         $userIdsForSheets = $children->pluck('id')->toArray();
 
@@ -4565,8 +4575,33 @@ class PerformaSheetController extends Controller
     public function getRmHierarchy(Request $request)
     {
         $rm = $request->user();
-        $buildTree = function ($managerId) use (&$buildTree) {
 
+        $buildTree = function ($managerId) use (&$buildTree, $rm) {
+
+            // ADMIN / SUPER ROLES
+            if ($rm->hasAnyRole([1, 2, 3, 4])) {
+
+                // Admin sees only first-level users (NO recursion)
+                $users = User::where('is_active', 1)
+                    ->where('id', '!=', $rm->id)
+                    ->where(function ($q) {
+                        foreach ([1, 2, 3, 4] as $role) {
+                            $q->whereJsonDoesntContain('role_id', $role);
+                        }
+                    })
+                    ->select('id', 'name')
+                    ->get();
+
+                return $users->map(function ($user) {
+                    return [
+                        'user_id' => $user->id,
+                        'user_name' => $user->name,
+                        'children' => [] // ❗ no recursion for admin
+                    ];
+                })->toArray();
+            }
+
+            // NORMAL RM LOGIC (recursive)
             $users = User::where('reporting_manager_id', $managerId)
                 ->where('is_active', 1)
                 ->select('id', 'name')
@@ -4587,16 +4622,14 @@ class PerformaSheetController extends Controller
 
         $teamTree = $buildTree($rm->id);
 
-        $finalData = [
-            'user_id' => $rm->id,
-            'user_name' => $rm->name,
-            'children' => $teamTree,
-        ];
-
         return response()->json([
             'success' => true,
             'message' => 'RM based hierarchical users fetched successfully',
-            'data' => $finalData
+            'data' => [
+                'user_id' => $rm->id,
+                'user_name' => $rm->name,
+                'children' => $teamTree,
+            ]
         ]);
     }
 
@@ -4612,10 +4645,19 @@ class PerformaSheetController extends Controller
         $endDate = $request->end_date ?? null;
         $includeSelf = $request->has('current_user_id');
 
-        $children = User::where('reporting_manager_id', $currentUser->id)
-            ->where('is_active', 1)
-            ->select('id', 'name')
-            ->get();
+        $childrenQuery = User::where('is_active', 1)
+            ->select('id', 'name');
+
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+            $childrenQuery->where(function ($q) {
+                foreach ([1, 2, 3, 4] as $role) {
+                    $q->whereJsonDoesntContain('role_id', $role);
+                }
+            });
+        } else {
+            $childrenQuery->where('reporting_manager_id', $currentUser->id);
+        }
+        $children = $childrenQuery->get();
 
         $userIdsForSheets = $children->pluck('id')->toArray();
 
@@ -4873,6 +4915,170 @@ class PerformaSheetController extends Controller
         ]);
     }
 
+    // public function getUnfilledPerformaSheetsForReportingManager(Request $request)
+    // {
+    //     try {
+    //         $rm = auth()->user();
+    //         $rmId = $rm->id;
+
+    //         if ($request->has('date')) {
+    //             $start = $end = Carbon::parse($request->date)->toDateString();
+    //         } else {
+    //             $start = $request->start_date
+    //                 ? Carbon::parse($request->start_date)->toDateString()
+    //                 : Carbon::today()->toDateString();
+
+    //             $end = $request->end_date
+    //                 ? Carbon::parse($request->end_date)->toDateString()
+    //                 : $start;
+
+    //             if ($start > $end) {
+    //                 return response()->json([
+    //                     'success' => false,
+    //                     'message' => 'Start date cannot be after end date'
+    //                 ]);
+    //             }
+    //         }
+
+    //         $dates = [];
+    //         $current = Carbon::parse($start);
+
+    //         while ($current->toDateString() <= $end) {
+    //             if (!$current->isWeekend()) {
+    //                 $dates[] = $current->toDateString();
+    //             }
+    //             $current->addDay();
+    //         }
+
+    //         $buildTree = function ($managerId) use (&$buildTree) {
+    //             return User::where('reporting_manager_id', $managerId)
+    //                 ->where('is_active', 1)
+    //                 ->select('id', 'name', 'role_id')
+    //                 ->get()
+    //                 ->map(function ($user) use ($buildTree) {
+    //                     return [
+    //                         'user_id' => $user->id,
+    //                         'user_name' => $user->name,
+    //                         'role_id' => $user->role_id,
+    //                         'children' => $buildTree($user->id),
+    //                     ];
+    //                 })
+    //                 ->toArray();
+    //         };
+
+    //         $flattenIds = function ($tree) use (&$flattenIds) {
+    //             $ids = [];
+    //             foreach ($tree as $node) {
+    //                 $ids[] = $node['user_id'];
+    //                 if (!empty($node['children'])) {
+    //                     $ids = array_merge($ids, $flattenIds($node['children']));
+    //                 }
+    //             }
+    //             return $ids;
+    //         };
+
+    //         $teamTree = $buildTree($rmId);
+    //         $userIds = $flattenIds($teamTree);
+
+    //         $submissions = PerformaSheet::whereIn('user_id', $userIds)
+    //             ->whereIn('status', ['approved', 'pending', 'backdated'])
+    //             ->get()
+    //             ->map(function ($sheet) {
+    //                 $data = json_decode($sheet->data, true);
+    //                 return isset($data['date'])
+    //                     ? ['user_id' => $sheet->user_id, 'date' => $data['date']]
+    //                     : null;
+    //             })
+    //             ->filter()
+    //             ->groupBy('user_id');
+
+    //         $leaves = LeavePolicy::whereIn('user_id', $userIds)
+    //             ->whereIn('leave_type', ['Full Leave', 'Multiple Days Leave'])
+    //             ->where('status', 'Approved')
+    //             ->get()
+    //             ->groupBy('user_id');
+
+    //         $mergedData = [];
+
+    //         $allUsers = User::whereIn('id', $userIds)
+    //             ->select('id', 'name', 'role_id', 'created_at')
+    //             ->get();
+
+    //         foreach ($allUsers as $user) {
+
+    //             $roles = (array) $user->role_id;
+    //             $userJoinDate = Carbon::parse($user->created_at)->toDateString();
+
+
+    //             if (
+    //                 $user->id === $rmId ||
+    //                 empty($roles) ||
+    //                 max($roles) < 7
+    //             ) {
+    //                 continue;
+    //             }
+
+    //             $missingDates = [];
+
+    //             foreach ($dates as $date) {
+
+    //                 $currentDate = Carbon::parse($date);
+    //                 if ($currentDate->lt($userJoinDate)) {
+    //                     continue;
+    //                 }
+
+    //                 $hasSubmitted = isset($submissions[$user->id]) &&
+    //                     $submissions[$user->id]->contains('date', $date);
+
+    //                 if ($hasSubmitted) {
+    //                     continue;
+    //                 }
+
+    //                 $onLeave = false;
+    //                 if (isset($leaves[$user->id])) {
+    //                     foreach ($leaves[$user->id] as $leave) {
+    //                         if ($leave->start_date <= $date && $leave->end_date >= $date) {
+    //                             $onLeave = true;
+    //                             break;
+    //                         }
+    //                     }
+    //                 }
+
+    //                 if (!$onLeave) {
+    //                     $missingDates[] = $date;
+    //                 }
+    //             }
+
+    //             if (!empty($missingDates)) {
+    //                 $mergedData[] = [
+    //                     'user_id' => $user->id,
+    //                     'user_name' => $user->name,
+    //                     'missing_on' => $missingDates
+    //                 ];
+    //             }
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'RM based unfilled performa sheets fetched successfully',
+    //             'data' => [
+    //                 'rm_id' => $rmId,
+    //                 'rm_name' => $rm->name,
+    //                 'users' => $mergedData
+    //             ]
+    //         ]);
+
+    //     } catch (\Exception $e) {
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Internal Server Error',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
     public function getUnfilledPerformaSheetsForReportingManager(Request $request)
     {
         try {
@@ -4900,7 +5106,6 @@ class PerformaSheetController extends Controller
 
             $dates = [];
             $current = Carbon::parse($start);
-
             while ($current->toDateString() <= $end) {
                 if (!$current->isWeekend()) {
                     $dates[] = $current->toDateString();
@@ -4908,35 +5113,37 @@ class PerformaSheetController extends Controller
                 $current->addDay();
             }
 
-            $buildTree = function ($managerId) use (&$buildTree) {
-                return User::where('reporting_manager_id', $managerId)
-                    ->where('is_active', 1)
-                    ->select('id', 'name', 'role_id')
-                    ->get()
-                    ->map(function ($user) use ($buildTree) {
-                        return [
-                            'user_id' => $user->id,
-                            'user_name' => $user->name,
-                            'role_id' => $user->role_id,
-                            'children' => $buildTree($user->id),
-                        ];
+            if ($rm->hasAnyRole([1, 2, 3, 4])) {
+
+                $userIds = User::where('is_active', 1)
+                    ->where('id', '!=', $rmId)
+                    ->where(function ($q) {
+                        foreach ([1, 2, 3, 4] as $role) {
+                            $q->whereJsonDoesntContain('role_id', $role);
+                        }
                     })
+                    ->pluck('id')
                     ->toArray();
-            };
 
-            $flattenIds = function ($tree) use (&$flattenIds) {
-                $ids = [];
-                foreach ($tree as $node) {
-                    $ids[] = $node['user_id'];
-                    if (!empty($node['children'])) {
-                        $ids = array_merge($ids, $flattenIds($node['children']));
-                    }
-                }
-                return $ids;
-            };
+            }
+            else {
 
-            $teamTree = $buildTree($rmId);
-            $userIds = $flattenIds($teamTree);
+                $buildTree = function ($managerId) use (&$buildTree) {
+                    return User::where('reporting_manager_id', $managerId)
+                        ->where('is_active', 1)
+                        ->select('id')
+                        ->get()
+                        ->flatMap(function ($user) use ($buildTree) {
+                            return array_merge(
+                                [$user->id],
+                                $buildTree($user->id)
+                            );
+                        })
+                        ->toArray();
+                };
+
+                $userIds = $buildTree($rmId);
+            }
 
             $submissions = PerformaSheet::whereIn('user_id', $userIds)
                 ->whereIn('status', ['approved', 'pending', 'backdated'])
@@ -4967,7 +5174,6 @@ class PerformaSheetController extends Controller
                 $roles = (array) $user->role_id;
                 $userJoinDate = Carbon::parse($user->created_at)->toDateString();
 
-
                 if (
                     $user->id === $rmId ||
                     empty($roles) ||
@@ -4980,8 +5186,7 @@ class PerformaSheetController extends Controller
 
                 foreach ($dates as $date) {
 
-                    $currentDate = Carbon::parse($date);
-                    if ($currentDate->lt($userJoinDate)) {
+                    if ($date < $userJoinDate) {
                         continue;
                     }
 
@@ -5027,7 +5232,6 @@ class PerformaSheetController extends Controller
             ]);
 
         } catch (\Exception $e) {
-
             return response()->json([
                 'success' => false,
                 'message' => 'Internal Server Error',
