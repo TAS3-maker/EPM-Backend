@@ -4881,8 +4881,7 @@ class PerformaSheetController extends Controller
         $project = ProjectMaster::with('relation')->findOrFail($projectId);
 
         if (
-            empty($project->relation) ||
-            !in_array($user->id, (array) $project->relation->assignees)
+            empty($project->relation)
         ) {
             return response()->json([
                 'success' => false,
