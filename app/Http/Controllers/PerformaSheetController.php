@@ -453,7 +453,6 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-
     private function timeToMinutesforsheetapprovel($time)
     {
         if (!$time)
@@ -469,7 +468,6 @@ class PerformaSheetController extends Controller
         return sprintf('%d:%02d', $hours, $mins);
     }
 
-
     private function shortLeaveMinutesforsheetapprovel($hours)
     {
         if (!$hours || !str_contains($hours, 'to')) {
@@ -483,9 +481,6 @@ class PerformaSheetController extends Controller
 
         return $startTime->diffInMinutes($endTime);
     }
-
-
-
 
     public function getUserPerformaSheets()
     {
@@ -534,12 +529,17 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-
     public function getAllPerformaSheets(Request $request)
     {
         $user = $request->user();
         $team_id = $user->team_id ?? [];
         $status = $request->status ?? null;
+
+        $startDate = $request->start_date ?? null;
+        $endDate = $request->end_date ?? null;
+
+        $startDate = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
+        $endDate = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
 
         $baseQuery = PerformaSheet::with('user:id,name');
         if ($user->hasRole(7)) {
@@ -594,7 +594,15 @@ class PerformaSheetController extends Controller
             if (!is_array($dataArray)) {
                 continue;
             }
+            $sheetDate = isset($dataArray['date'])
+                ? Carbon::parse($dataArray['date'])->startOfDay()
+                : null;
 
+            if ($startDate && $endDate && $sheetDate) {
+                if ($sheetDate->lt($startDate) || $sheetDate->gt($endDate)) {
+                    continue;
+                }
+            }
             $projectId = $dataArray['project_id'] ?? null;
             $project = $projectId
                 ? ProjectMaster::with('client')->find($projectId)
@@ -627,7 +635,6 @@ class PerformaSheetController extends Controller
             'data' => array_values($structuredData)
         ]);
     }
-
 
     public function getApprovalPerformaSheets(Request $request)
     {
@@ -755,7 +762,6 @@ class PerformaSheetController extends Controller
             'results' => $responses
         ]);
     }
-
 
     public function SinkPerformaAPI(Request $request)
     {
@@ -2502,7 +2508,6 @@ class PerformaSheetController extends Controller
         }
     }
 
-
     public function getAllUsersWithUnfilledPerformaSheets(Request $request)
     {
         try {
@@ -2664,7 +2669,6 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-
 
     public function getMissingUserPerformaSheets(Request $request)
     {
@@ -3143,8 +3147,6 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-
-
 
     public function getUserDaterangePerformaSheets(Request $request)
     {
