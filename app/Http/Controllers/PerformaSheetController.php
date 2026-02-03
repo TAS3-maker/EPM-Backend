@@ -366,15 +366,9 @@ class PerformaSheetController extends Controller
             }
 
             $data = json_decode($sheet->data, true);
-
-            $status = Carbon::parse($data['date'])->lt(Carbon::today()->subDays(2))
-                ? 'backdated'
-                : 'pending';
-
-
             $sheet->update([
                 'data' => json_encode($data),
-                'status' => $status,
+                'status' => 'pending',
             ]);
 
             $project = ProjectMaster::select('project_name')->find($data['project_id']);
