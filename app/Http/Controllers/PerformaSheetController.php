@@ -4869,14 +4869,7 @@ class PerformaSheetController extends Controller
     {
         $user = auth()->user();
         $status = $request->status ?? null;
-        $projectId = $request->project_id;
-
-        if (empty($projectId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project id is required'
-            ], 403);
-        }
+        $projectId = $request->project_id ?? null;
 
         if ($request->filled('date')) {
             $startDate = $endDate = Carbon::parse($request->date)->toDateString();
@@ -4895,30 +4888,54 @@ class PerformaSheetController extends Controller
             $endDate = Carbon::now()->endOfWeek()->toDateString();
         }
 
-        $project = ProjectMaster::with('relation')->findOrFail($projectId);
+        if ($projectId) {
 
-        if (
-            empty($project->relation)
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized project access'
-            ], 403);
+            $projects = ProjectMaster::with('relation')
+                ->where('id', $projectId)
+                ->get();
+
+        } else {
+
+            $projectsQuery = ProjectMaster::with('relation');
+
+            if ($user->hasAnyRole([1, 2, 3, 4])) {
+                $projectsQuery->select('id', 'project_name');
+            } else {
+                $projectsQuery->whereHas('relation', function ($q) use ($user) {
+                    $q->whereJsonContains('assignees', $user->id);
+                })->select('id', 'project_name');
+            }
+
+            $projects = $projectsQuery->get();
         }
 
-        $assignees = $project->relation->assignees ?? [];
+        if ($projects->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'project_id' => null,
+                    'project_name' => null,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'sheets' => []
+                ]
+            ]);
+        }
 
-        $userIds = User::whereIn('id', $assignees)
+        $assigneeIds = $projects
+            ->pluck('relation.assignees')
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $userIds = User::whereIn('id', $assigneeIds)
             ->where('is_active', 1)
             ->pluck('id')
             ->toArray();
 
-        if (empty($userIds)) {
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
-        }
+        $projectIds = $projects->pluck('id')->toArray();
 
         $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
             ->when($status, function ($q) use ($status) {
@@ -4928,7 +4945,7 @@ class PerformaSheetController extends Controller
             })
             ->with('user:id,name')
             ->get()
-            ->filter(function ($sheet) use ($projectId, $startDate, $endDate) {
+            ->filter(function ($sheet) use ($projectIds, $startDate, $endDate) {
 
                 $data = is_string($sheet->data)
                     ? json_decode($sheet->data, true)
@@ -4936,7 +4953,7 @@ class PerformaSheetController extends Controller
 
                 if (
                     !isset($data['project_id'], $data['date']) ||
-                    (int) $data['project_id'] !== (int) $projectId
+                    !in_array((int) $data['project_id'], $projectIds)
                 ) {
                     return false;
                 }
@@ -4944,7 +4961,6 @@ class PerformaSheetController extends Controller
                 return $data['date'] >= $startDate && $data['date'] <= $endDate;
             })
             ->sortByDesc(function ($sheet) {
-
                 $data = is_string($sheet->data)
                     ? json_decode($sheet->data, true)
                     : $sheet->data;
@@ -4962,26 +4978,20 @@ class PerformaSheetController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'project_id' => $project->id,
-                'project_name' => $project->project_name,
+                'project_id' => $projectId ? $projects->first()->id : null,
+                'project_name' => $projectId ? $projects->first()->project_name : null,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'sheets' => $performaSheets
             ]
         ]);
     }
+
     public function getPerformaSheetsByProjectMasterId(Request $request)
     {
         $user = auth()->user();
         $status = $request->status ?? null;
-        $projectId = $request->project_id;
-
-        if (empty($projectId)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Project id is required'
-            ], 403);
-        }
+        $projectId = $request->project_id ?? null;
 
         if ($request->filled('date')) {
             $startDate = $endDate = Carbon::parse($request->date)->toDateString();
@@ -5000,30 +5010,54 @@ class PerformaSheetController extends Controller
             $endDate = Carbon::now()->endOfWeek()->toDateString();
         }
 
-        $project = ProjectMaster::with('relation')->findOrFail($projectId);
+        if ($projectId) {
 
-        if (
-            empty($project->relation)
-        ) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized project access'
-            ], 403);
+            $projects = ProjectMaster::with('relation')
+                ->where('id', $projectId)
+                ->get();
+
+        } else {
+
+            $projectsQuery = ProjectMaster::with('relation');
+
+            if ($user->hasAnyRole([1, 2, 3, 4])) {
+                $projectsQuery->select('id', 'project_name');
+            } else {
+                $projectsQuery->whereHas('relation', function ($q) use ($user) {
+                    $q->whereJsonContains('assignees', $user->id);
+                })->select('id', 'project_name');
+            }
+
+            $projects = $projectsQuery->get();
         }
 
-        $assignees = $project->relation->assignees ?? [];
+        if ($projects->isEmpty()) {
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'project_id' => null,
+                    'project_name' => null,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'sheets' => []
+                ]
+            ]);
+        }
 
-        $userIds = User::whereIn('id', $assignees)
+        $assigneeIds = $projects
+            ->pluck('relation.assignees')
+            ->flatten()
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        $userIds = User::whereIn('id', $assigneeIds)
             ->where('is_active', 1)
             ->pluck('id')
             ->toArray();
 
-        if (empty($userIds)) {
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
-        }
+        $projectIds = $projects->pluck('id')->toArray();
 
         $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
             ->when($status, function ($q) use ($status) {
@@ -5033,7 +5067,7 @@ class PerformaSheetController extends Controller
             })
             ->with('user:id,name')
             ->get()
-            ->filter(function ($sheet) use ($projectId, $startDate, $endDate) {
+            ->filter(function ($sheet) use ($projectIds, $startDate, $endDate) {
 
                 $data = is_string($sheet->data)
                     ? json_decode($sheet->data, true)
@@ -5041,7 +5075,7 @@ class PerformaSheetController extends Controller
 
                 if (
                     !isset($data['project_id'], $data['date']) ||
-                    (int) $data['project_id'] !== (int) $projectId
+                    !in_array((int) $data['project_id'], $projectIds)
                 ) {
                     return false;
                 }
@@ -5049,7 +5083,6 @@ class PerformaSheetController extends Controller
                 return $data['date'] >= $startDate && $data['date'] <= $endDate;
             })
             ->sortByDesc(function ($sheet) {
-
                 $data = is_string($sheet->data)
                     ? json_decode($sheet->data, true)
                     : $sheet->data;
@@ -5067,8 +5100,8 @@ class PerformaSheetController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'project_id' => $project->id,
-                'project_name' => $project->project_name,
+                'project_id' => $projectId ? $projects->first()->id : null,
+                'project_name' => $projectId ? $projects->first()->project_name : null,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
                 'sheets' => $performaSheets

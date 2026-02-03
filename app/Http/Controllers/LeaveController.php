@@ -525,6 +525,87 @@ class LeaveController extends Controller
         ]);
     }
 
+    // public function getallLeavesbyUser()
+    // {
+    //     $currentUser = Auth::user();
+    //     $teamIds = $currentUser->team_id ?? [];
+
+    //     $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
+    //         ->latest();
+
+    //     if ($currentUser->hasRole(7)) {
+    //         $leavesQuery->where('user_id', $currentUser->id);
+    //     } elseif ($currentUser->hasRole(6)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where('tl_id', $currentUser->id)
+    //             ->whereNot('id', $currentUser->id)
+    //             ->pluck('id')
+    //             ->toArray();
+    //         $leavesQuery->whereIn('user_id', $teamMemberIds);
+
+    //     } elseif ($currentUser->hasRole(5)) {
+    //         $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
+    //             $q->where(function ($r) {
+    //                 $r->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(6)])
+    //                     ->orWhereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+    //             })
+    //                 ->where(function ($sub) use ($teamIds) {
+    //                     foreach ($teamIds as $teamId) {
+    //                         $sub->orWhereJsonContains('team_id', $teamId);
+    //                     }
+    //                 });
+    //         });
+    //     } elseif ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+    //         $leavesQuery->where('user_id', '!=', $currentUser->id);
+    //     } else {
+    //         $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
+    //             $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
+    //                 ->where(function ($sub) use ($teamIds) {
+    //                     foreach ($teamIds as $teamId) {
+    //                         $sub->orWhereJsonContains('team_id', $teamId);
+    //                     }
+    //                 });
+    //         });
+    //     }
+
+    //     $leaves = $leavesQuery->get();
+
+    //     if ($leaves->isEmpty()) {
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'No leaves found',
+    //             'data' => []
+    //         ]);
+    //     }
+
+    //     $leaveData = $leaves->map(function ($leave) {
+    //         return [
+    //             'id' => $leave->id,
+    //             'user_id' => $leave->user_id,
+    //             'user_name' => $leave->user->name ?? 'Deleted User',
+    //             'start_date' => $leave->start_date,
+    //             'end_date' => $leave->end_date,
+    //             'leave_type' => $leave->leave_type,
+    //             'reason' => $leave->reason,
+    //             'status' => $leave->status,
+    //             'hours' => $leave->hours,
+    //             'halfday_period' => $leave->halfday_period,
+    //             'documents' => $leave->documents,
+    //             'created_at' => $leave->created_at,
+    //             'updated_at' => $leave->updated_at,
+    //         ];
+    //     });
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'leaves data',
+    //         'data' => $leaveData
+    //     ]);
+    // }
+
+
     public function getallLeavesbyUser()
     {
         $currentUser = Auth::user();
@@ -532,9 +613,11 @@ class LeaveController extends Controller
 
         $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
             ->latest();
+        $reporting_user = user::where('reporting_manager_id', $currentUser->id)->pluck('id')
+            ->toArray();
 
         if ($currentUser->hasRole(7)) {
-            $leavesQuery->where('user_id', $currentUser->id);
+            $leavesQuery;
         } elseif ($currentUser->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -569,6 +652,9 @@ class LeaveController extends Controller
                     });
             });
         }
+            $leavesQuery->Orwhere(function ($q) use ($reporting_user) {
+                $q->whereIn('user_id', $reporting_user);
+            });
 
         $leaves = $leavesQuery->get();
 
