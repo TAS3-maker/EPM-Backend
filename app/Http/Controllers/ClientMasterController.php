@@ -93,13 +93,26 @@ class ClientMasterController extends Controller
 
             $validated = $request->validate(
                 [
-                    'client_name' => 'sometimes|required|string|max:191|unique:clients_master,client_name,' . $id,
-                    'client_email' => 'sometimes|nullable|email|max:191|unique:clients_master,client_email,' . $id,
+                    'client_name' => [
+                        'sometimes',
+                        'required',
+                        'string',
+                        'max:191',
+                        Rule::unique('clients_master', 'client_name')->ignore($id, 'id'),
+                    ],
+
+                    'client_email' => [
+                        'sometimes',
+                        'nullable',
+                        'email',
+                        'max:191',
+                        Rule::unique('clients_master', 'client_email')->ignore($id, 'id'),
+                    ],
                     'client_number' => [
                         'sometimes',
                         'nullable',
                         'regex:/^\+?[0-9][0-9\s\-]{9,14}$/',
-                        Rule::unique('clients_master', 'client_number')->ignore($id),
+                        Rule::unique('clients_master', 'client_number')->ignore($id, 'id'),
                     ],
 
                 ],
