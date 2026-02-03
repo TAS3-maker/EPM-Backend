@@ -2353,7 +2353,7 @@ class PerformaSheetController extends Controller
 
             $startOfWeek = $selectedDate->copy()->startOfWeek();
             $endOfWeek = $selectedDate->copy()->endOfWeek();
-
+            $today = Carbon::today();
             $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay());
 
             $timeToMinutes = function ($time) {
@@ -2464,6 +2464,23 @@ class PerformaSheetController extends Controller
                 $carbonDay = Carbon::instance($day);
                 $dateKey = $carbonDay->toDateString();
 
+                /* is_fillable calculation per day*/
+                $isFillable = 1;
+                if ($carbonDay->lt($today)) {
+                    $workingDays = 0;
+                    $cursor = $carbonDay->copy();
+
+                    while ($cursor->lt($today)) {
+                        if (!$cursor->isWeekend()) {
+                            $workingDays++;
+                        }
+                        $cursor->addDay();
+                    }
+
+                    if ($workingDays > 2) {
+                        $isFillable = 0;
+                    }
+                }
                 $weeklyTotals[$dateKey] = [
                     'dayname' => $carbonDay->format('D'),
                     'totalHours' => '00:00',
@@ -2472,7 +2489,7 @@ class PerformaSheetController extends Controller
                     'totalBillableHours' => '00:00',
                     'totalNonBillableHours' => '00:00',
                     'is_wfh' => 0,
-                    'is_fillable' => 1
+                    'is_fillable' => $isFillable
                 ];
             }
             foreach ($weeklyTotals as $date => &$totals) {
