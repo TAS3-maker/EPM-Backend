@@ -2564,8 +2564,18 @@ class PerformaSheetController extends Controller
             $query = User::whereJsonContains('role_id', 7)
                 ->where('is_active', 1)
                 ->whereJsonDoesntContain('team_id', $bd_team);
+            $reporting_user = user::where('reporting_manager_id', $authUser->id)->pluck('id')
+                ->toArray();
 
-            if ($authUser->hasRole(6)) {
+
+            if ($authUser->hasRole(5)) {
+                $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
+                $query->where(function ($q) use ($pmTeams) {
+                    foreach ($pmTeams as $teamId) {
+                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                    }
+                });
+            } elseif ($authUser->hasRole(6)) {
 
                 $teamMemberIds = User::whereJsonContains('role_id', 7)
                     ->where('is_active', 1)
@@ -2575,23 +2585,13 @@ class PerformaSheetController extends Controller
                     ->toArray();
                 $query->whereIn('id', $teamMemberIds);
 
+            } elseif ($authUser->hasRole(7)) {
+                $query->where("reporting_manager_id", $authUser->id);
             }
 
-            // PM
-            if ($authUser->hasRole(5)) {
-                $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
-                $query->where(function ($q) use ($pmTeams) {
-                    foreach ($pmTeams as $teamId) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
-                    }
-                });
-            }
-
-            // Normal user
-            if ($authUser->hasRole(7)) {
-                $query->where("id", $authUser->id);
-            }
-
+            $query->Orwhere(function ($q) use ($reporting_user) {
+                $q->whereIn('id', $reporting_user);
+            });
             $users = $query->get();
 
             $submissions = PerformaSheet::select("user_id", "data")->whereIn('status', ['approved', 'pending', 'backdated'])->get()
