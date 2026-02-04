@@ -2159,7 +2159,7 @@ class ProjectMasterController extends Controller
             $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
             $projectName = $project->project_name ?? null;
             $clientName = $project?->client?->client_name ?? null;
-
+            $data['id'] = $sheet->id;
             $data['project_name'] = $projectName;
             $data['status'] = $sheet->status;
             $data['client_name'] = $clientName;
