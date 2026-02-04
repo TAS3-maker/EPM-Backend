@@ -4936,6 +4936,9 @@ class PerformaSheetController extends Controller
             ->toArray();
 
         $projectIds = $projects->pluck('id')->toArray();
+        $projectMap = $projects
+            ->pluck('project_name', 'id')
+            ->toArray();
 
         $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
             ->when($status, function ($q) use ($status) {
@@ -4967,10 +4970,19 @@ class PerformaSheetController extends Controller
 
                 return $data['date'] ?? null;
             })
-            ->map(function ($sheet) {
-                if (is_string($sheet->data)) {
-                    $sheet->data = json_decode($sheet->data, true);
-                }
+            ->map(function ($sheet) use ($projectMap) {
+
+                $data = is_string($sheet->data)
+                    ? json_decode($sheet->data, true)
+                    : $sheet->data;
+
+                $projectId = $data['project_id'] ?? null;
+
+                $sheet->data = $data;
+                $sheet->project_name = $projectId && isset($projectMap[$projectId])
+                    ? $projectMap[$projectId]
+                    : null;
+
                 return $sheet;
             })
             ->values();
@@ -5058,7 +5070,9 @@ class PerformaSheetController extends Controller
             ->toArray();
 
         $projectIds = $projects->pluck('id')->toArray();
-
+        $projectMap = $projects
+            ->pluck('project_name', 'id')
+            ->toArray();
         $performaSheets = PerformaSheet::whereIn('user_id', $userIds)
             ->when($status, function ($q) use ($status) {
                 $q->where('status', $status);
@@ -5089,10 +5103,19 @@ class PerformaSheetController extends Controller
 
                 return $data['date'] ?? null;
             })
-            ->map(function ($sheet) {
-                if (is_string($sheet->data)) {
-                    $sheet->data = json_decode($sheet->data, true);
-                }
+            ->map(function ($sheet) use ($projectMap) {
+
+                $data = is_string($sheet->data)
+                    ? json_decode($sheet->data, true)
+                    : $sheet->data;
+
+                $projectId = $data['project_id'] ?? null;
+
+                $sheet->data = $data;
+                $sheet->project_name = $projectId && isset($projectMap[$projectId])
+                    ? $projectMap[$projectId]
+                    : null;
+
                 return $sheet;
             })
             ->values();
