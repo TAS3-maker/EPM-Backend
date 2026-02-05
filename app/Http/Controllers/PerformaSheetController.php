@@ -606,7 +606,7 @@ class PerformaSheetController extends Controller
         } else {
             $baseQuery->whereIn('status', ['approved', 'rejected']);
         }
-
+        $baseQuery->whereNot('user_id', $user->id);
         $sheets = $baseQuery->get();
         $structuredData = [];
 
@@ -1787,6 +1787,7 @@ class PerformaSheetController extends Controller
 
         $baseQuery->whereIn('status', ['pending', 'backdated'])
             ->orderBy('id', 'DESC');
+        $baseQuery->whereNot('user_id', $user->id);
 
         $sheets = $baseQuery->get();
 
