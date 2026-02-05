@@ -537,8 +537,8 @@ class PerformaSheetController extends Controller
         $endDate = $request->end_date ?? null;
 
         if (!$startDate && !$endDate) {
-            $startDate = Carbon::now()->startOfMonth();
-            $endDate = Carbon::now()->endOfMonth();
+            $startDate = Carbon::now()->startOfWeek();   
+            $endDate = Carbon::now()->endOfWeek();     
         } elseif ($startDate && !$endDate) {
             $startDate = Carbon::parse($startDate)->startOfDay();
             $endDate = Carbon::now()->endOfDay();
