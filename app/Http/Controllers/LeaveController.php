@@ -139,7 +139,7 @@ class LeaveController extends Controller
             'leave_type' => $request->leave_type,
             'reason' => $request->reason,
             'status' => $request->status ?? 'Pending',
-            'is_wfh' => $request->is_wfh ?? 0,
+            'is_wfh' => (string) ($request->is_wfh ?? '0'),
             'hours' => $hours,
             'halfday_period' => $halfdayPeriod,
             'start_time' => $request->start_time,
