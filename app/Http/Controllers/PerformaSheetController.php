@@ -539,7 +539,22 @@ class PerformaSheetController extends Controller
         $startDate = $startDate ? Carbon::parse($startDate)->startOfDay() : null;
         $endDate = $endDate ? Carbon::parse($endDate)->endOfDay() : null;
 
-        $baseQuery = PerformaSheet::with('user:id,name');
+        // $baseQuery = PerformaSheet::with('user:id,name');
+        $baseQuery = PerformaSheet::with('user:id,name')
+            ->orderByRaw("
+        STR_TO_DATE(
+            JSON_UNQUOTE(
+                JSON_EXTRACT(
+                    JSON_UNQUOTE(data),
+                    '$.date'
+                )
+            ),
+            '%Y-%m-%d'
+        ) DESC
+    ");
+
+        $sheets = $baseQuery->get();
+
         if ($user->hasRole(7)) {
             $baseQuery->where('user_id', $user->id);
         } elseif ($user->hasRole(6)) {
