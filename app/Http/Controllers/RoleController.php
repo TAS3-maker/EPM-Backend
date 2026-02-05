@@ -77,6 +77,7 @@ class RoleController extends Controller
             "offline_hours" => "0",
             "standup_sheet" => "0",
             "sheet_reporting" => "0",
+            "master_reporting" => "0",
         ];
 
         $role = Role::create([
@@ -171,6 +172,7 @@ class RoleController extends Controller
                 'offline_hours',
                 'standup_sheet',
                 'sheet_reporting',
+                'master_reporting',
             ];
             foreach ($users as $user) {
                 $permission = Permission::where('user_id', $user->id)->first();

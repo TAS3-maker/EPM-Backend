@@ -50,6 +50,7 @@ class PermissionResource extends JsonResource
             'offline_hours'=> $this->offline_hours,
             'standup_sheet'=> $this->standup_sheet,
             'sheet_reporting'=> $this->sheet_reporting,
+            'master_reporting'=> $this->master_reporting,
         ];
     }
 }
