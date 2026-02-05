@@ -537,8 +537,8 @@ class PerformaSheetController extends Controller
         $endDate = $request->end_date ?? null;
 
         if (!$startDate && !$endDate) {
-            $startDate = Carbon::now()->startOfWeek();   
-            $endDate = Carbon::now()->endOfWeek();     
+            $startDate = Carbon::now()->startOfWeek();
+            $endDate = Carbon::now()->endOfWeek();
         } elseif ($startDate && !$endDate) {
             $startDate = Carbon::parse($startDate)->startOfDay();
             $endDate = Carbon::now()->endOfDay();
@@ -4895,6 +4895,8 @@ class PerformaSheetController extends Controller
         $status = $request->status ?? null;
         $projectId = $request->project_id ?? null;
 
+        $startDate = null;
+        $endDate = null;
         if ($request->filled('date')) {
             $startDate = $endDate = Carbon::parse($request->date)->toDateString();
         } elseif ($request->filled('start_date') && $request->filled('end_date')) {
@@ -4907,9 +4909,6 @@ class PerformaSheetController extends Controller
                     'message' => 'Start date cannot be after end date'
                 ], 422);
             }
-        } else {
-            $startDate = Carbon::now()->startOfWeek()->toDateString();
-            $endDate = Carbon::now()->endOfWeek()->toDateString();
         }
 
         if ($projectId) {
@@ -4983,6 +4982,9 @@ class PerformaSheetController extends Controller
                     !in_array((int) $data['project_id'], $projectIds)
                 ) {
                     return false;
+                }
+                if (is_null($startDate) || is_null($endDate)) {
+                    return true;
                 }
 
                 return $data['date'] >= $startDate && $data['date'] <= $endDate;
