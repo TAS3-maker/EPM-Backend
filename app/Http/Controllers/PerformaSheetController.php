@@ -1948,7 +1948,7 @@ class PerformaSheetController extends Controller
                 $q->whereJsonContains('role_id', 7);
             });
 
-        } elseif ($user->hasRole(6)) {
+        /* } elseif ($user->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
                 ->where('is_active', 1)
@@ -1965,9 +1965,9 @@ class PerformaSheetController extends Controller
                         $sub->orWhereJsonContains('team_id', $teamId);
                     }
                 });
-            });
+            }); */
 
-        } elseif (in_array(7, $roleIds)) {
+        } elseif (in_array(7, $roleIds) || in_array(6, $roleIds) || in_array(5, $roleIds)) {
 
             $baseQuery->where('user_id', $user->id);
 
