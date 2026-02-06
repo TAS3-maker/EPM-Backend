@@ -4390,6 +4390,18 @@ class PerformaSheetController extends Controller
 
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
+
+        if (!$startDate && !$endDate) {
+            $startDate = Carbon::now()->startOfWeek();
+            $endDate = Carbon::now()->endOfWeek();
+        } elseif ($startDate && !$endDate) {
+            $startDate = Carbon::parse($startDate)->startOfDay();
+            $endDate = Carbon::now()->endOfDay();
+        } else {
+            $startDate = Carbon::parse($startDate)->startOfDay();
+            $endDate = Carbon::parse($endDate)->endOfDay();
+        }
+        
         $includeSelf = $request->has('current_user_id');
 
         $childrenQuery = User::where('is_active', 1)
