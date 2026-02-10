@@ -1320,6 +1320,7 @@ class PerformaSheetController extends Controller
             'ids' => 'required',
             'status' => 'required|string|in:approved,rejected'
         ]);
+        $currentUserId = auth()->id();
 
         $ids = is_array($request->ids) ? $request->ids : [$request->ids];
         $performaSheets = PerformaSheet::whereIn('id', $ids)->get();
@@ -1359,6 +1360,7 @@ class PerformaSheetController extends Controller
                     }
                 }
                 $performa->status = 'rejected';
+                $performa->approve_rejected_by = $currentUserId;
                 $performa->save();
 
                 $results[] = [
@@ -1376,6 +1378,7 @@ class PerformaSheetController extends Controller
                 // $originalData['activity_type'] = 'inhouse';
                 $performa->status = 'approved';
                 $performa->data = json_encode($originalData);
+                $performa->approve_rejected_by = $currentUserId;
                 $performa->save();
 
                 $results[] = [
@@ -1403,6 +1406,7 @@ class PerformaSheetController extends Controller
                 if (strtolower($originalData['activity_type']) === 'non billable') {
                     $performa->data = json_encode($originalData);
                     $performa->status = 'approved';
+                    $performa->approve_rejected_by = $currentUserId;
                     $performa->save();
 
                     $project->total_working_hours += (float) $submittedHours;
@@ -1436,6 +1440,7 @@ class PerformaSheetController extends Controller
                         $billableData['message'] = 'Billable - within remaining hours';
                         $performa->data = json_encode($billableData);
                         $performa->status = 'approved';
+                        $performa->approve_rejected_by = $currentUserId;
                         $performa->save();
                         $project->remaining_hours = $total;
                         $results[] = [
@@ -1467,6 +1472,7 @@ class PerformaSheetController extends Controller
                         $originalData['message'] = 'Billable - remaining hours finished, updated as billable';
                         $performa->data = json_encode($originalData);
                         $performa->status = 'approved';
+                        $performa->approve_rejected_by = $currentUserId;
                         $performa->save();
 
                         $results[] = [
@@ -1502,6 +1508,7 @@ class PerformaSheetController extends Controller
                 : 'Billable - approved';
             $performa->status = 'approved';
             $performa->data = json_encode($originalData);
+            $performa->approve_rejected_by = $currentUserId;
             $performa->save();
             $results[] = [
                 'performa_id' => $performa->id,
@@ -1527,6 +1534,7 @@ class PerformaSheetController extends Controller
             'ids' => 'required',
             'status' => 'required|in:approved,rejected'
         ]);
+        $currentUserId = auth()->id();
 
         $ids = is_array($request->ids) ? $request->ids : [$request->ids];
         $performaSheets = PerformaSheet::whereIn('id', $ids)->get();
@@ -1537,7 +1545,7 @@ class PerformaSheetController extends Controller
 
         $results = [];
 
-        DB::transaction(function () use ($performaSheets, $request, &$results) {
+        DB::transaction(function () use ($performaSheets, $request, &$results, $currentUserId) {
 
             foreach ($performaSheets as $performa) {
 
@@ -1565,6 +1573,7 @@ class PerformaSheetController extends Controller
                     }
 
                     $performa->status = 'rejected';
+                    $performa->approve_rejected_by = $currentUserId;
                     $performa->save();
 
                     $results[] = [
@@ -1588,6 +1597,7 @@ class PerformaSheetController extends Controller
 
                 if (in_array(strtolower($originalData['activity_type']), ['inhouse', 'in-house'])) {
                     $performa->status = 'approved';
+                    $performa->approve_rejected_by = $currentUserId;
                     $performa->save();
 
                     $results[] = [
@@ -1609,6 +1619,7 @@ class PerformaSheetController extends Controller
                 }
 
                 $performa->status = 'approved';
+                $performa->approve_rejected_by = $currentUserId;
                 $performa->save();
 
                 if (!$project->project_tracking) {
