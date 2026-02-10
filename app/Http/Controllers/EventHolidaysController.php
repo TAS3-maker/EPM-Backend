@@ -42,13 +42,31 @@ class EventHolidaysController extends Controller
         return new EventHolidayResource($holiday);
     }
 
-    public function show(EventHoliday $eventHoliday)
+    public function show($id)
     {
+        $eventHoliday = EventHoliday::find($id);
+
+        if (!$eventHoliday) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Holiday is not present in table'
+            ], 404);
+        }
+
         return new EventHolidayResource($eventHoliday);
     }
 
-    public function update(Request $request, EventHoliday $eventHoliday)
+    public function update(Request $request, $id)
     {
+        $eventHoliday = EventHoliday::find($id);
+
+        if (!$eventHoliday) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Holiday not found'
+            ], 404);
+        }
+
         try {
             $validated = $request->validate([
                 'start_date' => 'required|date',
@@ -72,8 +90,16 @@ class EventHolidaysController extends Controller
         return new EventHolidayResource($eventHoliday);
     }
 
-    public function destroy(EventHoliday $eventHoliday)
+    public function destroy($id)
     {
+        $eventHoliday = EventHoliday::find($id);
+
+        if (!$eventHoliday) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Holiday is not present in table'
+            ], 404);
+        }
         $eventHoliday->delete();
 
         return response()->json([
