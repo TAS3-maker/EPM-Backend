@@ -1141,17 +1141,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1779,51 +1779,33 @@ class ProjectMasterController extends Controller
 
     public function getUsersAllSheetsDataReporting(Request $request)
     {
-        $departmentIds = collect(explode(',', $request->department_id ?? ''))
-            ->map(fn($v) => trim($v))
+        /* -------------------- INPUT NORMALIZATION -------------------- */
+
+        $parseIds = fn($v) => collect(explode(',', $v ?? ''))
+            ->map('trim')
             ->filter(fn($v) => is_numeric($v))
             ->map(fn($v) => (int) $v)
             ->values();
 
-        $teamIds = collect(explode(',', $request->team_id ?? ''))
-            ->map(fn($v) => trim($v))
-            ->filter(fn($v) => is_numeric($v))
-            ->map(fn($v) => (int) $v)
-            ->values();
-        $userIds = collect(explode(',', $request->user_id ?? ''))
-            ->map(fn($v) => trim($v))
-            ->filter(fn($v) => is_numeric($v))
-            ->map(fn($v) => (int) $v)
-            ->values();
-
-        $clientIds = collect(explode(',', $request->client_id ?? ''))
-            ->map(fn($v) => trim($v))
-            ->filter(fn($v) => is_numeric($v))
-            ->map(fn($v) => (int) $v)
-            ->values();
-
-        $projectIds = collect(explode(',', $request->project_id ?? ''))
-            ->map(fn($v) => trim($v))
-            ->filter(fn($v) => is_numeric($v))
-            ->map(fn($v) => (int) $v)
-            ->values();
-
-        $activityTags = collect(explode(',', $request->activity_tag ?? ''))
-            ->map(fn($v) => trim($v))
-            ->filter(fn($v) => is_numeric($v))
-            ->map(fn($v) => (int) $v)
-            ->values();
+        $departmentIds = $parseIds($request->department_id);
+        $teamIds       = $parseIds($request->team_id);
+        $userIds       = $parseIds($request->user_id);
+        $clientIds     = $parseIds($request->client_id);
+        $projectIds    = $parseIds($request->project_id);
+        $activityTags  = $parseIds($request->activity_tag);
 
         $activityIdToType = [
-            5 => 'billable',
-            8 => 'in-house',
+            5  => 'billable',
+            8  => 'inhouse',
             18 => 'no work',
         ];
+
         $allowedActivityTypes = $activityTags
             ->map(fn($id) => $activityIdToType[$id] ?? null)
             ->filter()
             ->values()
             ->toArray();
+
         $status = $request->status
             ? collect(explode(',', $request->status))->map('trim')->toArray()
             : null;
@@ -1836,9 +1818,11 @@ class ProjectMasterController extends Controller
             ? Carbon::parse($request->end_date)->endOfDay()
             : Carbon::yesterday()->endOfDay();
 
-        // Expected working dates
+        /* EXPECTED WORKING DATES */
+
         $expectedDates = [];
         $cursor = $startDate->copy();
+
         while ($cursor->lte($endDate)) {
             if (!$cursor->isWeekend()) {
                 $expectedDates[] = $cursor->toDateString();
@@ -1846,7 +1830,6 @@ class ProjectMasterController extends Controller
             $cursor->addDay();
         }
 
-        /*ELIGIBLE USERS*/
         $eligibleUsers = User::query()
             ->select('id', 'name', 'team_id', 'role_id', 'created_at')
             ->where('is_active', 1)
@@ -1890,11 +1873,11 @@ class ProjectMasterController extends Controller
             })
             ->get()
             ->keyBy('id');
+
         $eligibleUserIds = $eligibleUsers->keys();
+
         $filteredProjectIds = ProjectMaster::query()
-            ->when($projectIds->isNotEmpty(), function ($q) use ($projectIds) {
-                $q->whereIn('id', $projectIds);
-            })
+            ->when($projectIds->isNotEmpty(), fn($q) => $q->whereIn('id', $projectIds))
             ->when(
                 $activityTags->isNotEmpty(),
                 fn($q) =>
@@ -1902,12 +1885,10 @@ class ProjectMasterController extends Controller
             )
             ->whereHas('relation', function ($q) use ($clientIds, $eligibleUserIds) {
 
-                // Client filter
                 if ($clientIds->isNotEmpty()) {
                     $q->whereIn('client_id', $clientIds);
                 }
 
-                // Assignee filter (OR JSON logic)
                 if ($eligibleUserIds->isNotEmpty()) {
                     $q->where(function ($sub) use ($eligibleUserIds) {
                         foreach ($eligibleUserIds as $uid) {
@@ -1916,89 +1897,57 @@ class ProjectMasterController extends Controller
                     });
                 }
             })
-
             ->pluck('id')
             ->toArray();
-        $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
 
-        $teamNamesMap = Team::whereIn('id', $allTeamIds)
+        $teamIdsAll = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
+
+        $teamNamesMap = Team::whereIn('id', $teamIdsAll)
             ->pluck('name', 'id')
             ->toArray();
 
-        $allSheets = PerformaSheet::with('user:id,name,team_id,is_active')
-            ->when($status, fn($q) => $q->whereIn('status', $status))
-            ->when(
-                $userIds->isNotEmpty(),
-                fn($q) =>
-                $q->whereIn('user_id', $userIds)
-            )
-            ->get()
-            ->filter(function ($sheet) use ($filteredProjectIds, $startDate, $endDate) {
-
-                $data = json_decode($sheet->data, true);
-                if (!is_array($data) || empty($data['date'])) {
-                    return false;
-                }
-
-                $date = Carbon::parse($data['date']);
-
-                if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
-                    return false;
-                }
-
-                if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
-                    return false;
-                }
-
-                return true;
-            });
-
+        /* TIME HELPERS */
 
         $timeToMinutes = fn($t) => ($t && str_contains($t, ':'))
             ? ((int) explode(':', $t)[0] * 60 + (int) explode(':', $t)[1])
             : 0;
 
-        $allSheetsForUnfilled = PerformaSheet::with('user:id,name,team_id,is_active')
-            ->whereIn('user_id', $eligibleUsers->keys())
-            ->get()->filter(function ($sheet) use ($startDate, $endDate) {
+        $toTime = fn($m) => sprintf('%02d:%02d', intdiv((int)$m, 60), (int)$m % 60);
+
+        /* FETCH ALL SHEETS */
+
+        $allSheets = PerformaSheet::with('user:id,name,team_id,is_active')
+            ->when($status, fn($q) => $q->whereIn('status', $status))
+            ->get()
+            ->filter(function ($sheet) use ($filteredProjectIds, $startDate, $endDate) {
 
                 $data = json_decode($sheet->data, true);
-                if (!is_array($data) || empty($data['date'])) {
-                    return false;
-                }
+                if (!is_array($data) || empty($data['date'])) return false;
 
                 $date = Carbon::parse($data['date']);
 
-                if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
-                    return false;
-                }
-
-                return true;
+                return !$date->isWeekend()
+                    && $date->between($startDate, $endDate)
+                    && in_array((int)($data['project_id'] ?? 0), $filteredProjectIds, true);
             });
+
         $workedMinutesByUserDate = [];
-        foreach ($allSheetsForUnfilled as $sheet) {
+
+        foreach ($allSheets as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date']))
-                continue;
+            if (!is_array($data) || empty($data['date'])) continue;
 
             $uid = (int) $sheet->user_id;
-            if (!isset($eligibleUsers[$uid]))
-                continue;
-
-            $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate))
-                continue;
-
-            $dateStr = $date->toDateString();
+            $dateStr = Carbon::parse($data['date'])->toDateString();
 
             $workedMinutesByUserDate[$uid][$dateStr] =
                 ($workedMinutesByUserDate[$uid][$dateStr] ?? 0)
                 + $timeToMinutes($data['time'] ?? null);
         }
 
-        /*LEAVES*/
-        $leaves = LeavePolicy::whereIn('user_id', $eligibleUsers->keys())
+        /* LEAVES */
+        $leaves = LeavePolicy::whereIn('user_id', $eligibleUserIds)
             ->where('status', 'Approved')
             ->where(function ($q) use ($startDate, $endDate) {
                 $q->where('start_date', '<=', $endDate)
@@ -2007,6 +1956,14 @@ class ProjectMasterController extends Controller
             ->get()
             ->groupBy('user_id');
 
+        $summary = [
+            'billable' => 0,
+            'inhouse'  => 0,
+            'no_work'  => 0,
+            'expected' => 0,
+        ];
+
+        $usersData = [];
         $notFilledUsers = [];
 
         foreach ($eligibleUsers as $user) {
@@ -2014,62 +1971,48 @@ class ProjectMasterController extends Controller
             $uid = (int) $user->id;
             $missingDates = [];
             $missingMinutes = 0;
+            $userExpectedMinutes = 0;
 
-            $userCreatedDate = Carbon::parse($user->created_at)->startOfDay();
-            $effectiveStart = $startDate->copy();
-            if ($userCreatedDate->gt($effectiveStart)) {
-                $effectiveStart = $userCreatedDate;
-            }
+            $createdAt = Carbon::parse($user->created_at)->startOfDay();
 
             foreach ($expectedDates as $dateStr) {
 
-                if (Carbon::parse($dateStr)->lt($effectiveStart)) {
-                    continue;
-                }
+                if (Carbon::parse($dateStr)->lt($createdAt)) continue;
 
-                $baseRequired = 510;
-                $fillableMinutes = 510;
+                $fillable = 510;
                 $worked = $workedMinutesByUserDate[$uid][$dateStr] ?? 0;
 
-                // Determine leave for this date
                 if (!empty($leaves[$uid])) {
-
                     foreach ($leaves[$uid] as $leave) {
-
                         if ($leave->start_date <= $dateStr && $leave->end_date >= $dateStr) {
 
                             switch (strtolower($leave->leave_type)) {
-
-                                case 'multiple days leave':
-                                    $fillableMinutes = 0;
-                                    break 2;
-
                                 case 'full leave':
-                                    $fillableMinutes = 0;
+                                case 'multiple days leave':
+                                    $fillable = 0;
                                     break 2;
-
                                 case 'half day':
-                                    $fillableMinutes = min($fillableMinutes, 255);
+                                    $fillable = 255;
                                     break;
                                 case 'short leave':
-                                    $fillableMinutes = min($fillableMinutes, 390);
+                                    $fillable = 390;
                                     break;
                             }
                         }
                     }
                 }
 
-                // Skip full leave day completely
-                if ($fillableMinutes === 0) {
-                    continue;
-                }
+                if ($fillable === 0) continue;
 
-                // Final comparison (THIS is the key fix)
-                if ($worked < $fillableMinutes) {
+                $userExpectedMinutes += $fillable;
+
+                if ($worked < $fillable) {
                     $missingDates[] = $dateStr;
-                    $missingMinutes += ($fillableMinutes - $worked);
+                    $missingMinutes += ($fillable - $worked);
                 }
             }
+
+            $summary['expected'] += $userExpectedMinutes;
 
             if (!empty($missingDates)) {
                 $notFilledUsers[] = [
@@ -2082,124 +2025,37 @@ class ProjectMasterController extends Controller
             }
         }
 
-        $summary = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
-        $usersData = [];
-        $userCategoryFlags = [];
         foreach ($allSheets as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date']))
-                continue;
-
-            $date = Carbon::parse($data['date']);
-            if ($date->isWeekend() || !$date->between($startDate, $endDate))
-                continue;
+            if (!is_array($data) || empty($data['date'])) continue;
 
             $uid = (int) $sheet->user_id;
-            if (!isset($eligibleUsers[$uid]))
-                continue;
+            if (!isset($eligibleUsers[$uid])) continue;
 
             $type = strtolower($data['activity_type'] ?? '');
-            $minutes = $timeToMinutes($data['time'] ?? null);
-
-            if (
-                !empty($allowedActivityTypes) &&
-                !in_array($type, $allowedActivityTypes, true)
-            ) {
-                continue;
-            }
-
-            // Apply filters ONLY here
-            /*  if ($project_id && ($data['project_id'] ?? null) != $project_id)
-                continue;
-            if ($activity_tag && strtolower($data['activity_type'] ?? '') !== strtolower($activity_tag))
-                continue; 
+            if ($allowedActivityTypes && !in_array($type, $allowedActivityTypes, true)) continue;
 
             $minutes = $timeToMinutes($data['time'] ?? null);
-            $type = strtolower($data['activity_type'] ?? '');
-            */
-            $userTeamIds = $eligibleUsers[$uid]->team_id ?? [];
-            $userTeamNames = [];
-            if (is_array($userTeamIds)) {
-                foreach ($userTeamIds as $tid) {
-                    if (isset($teamNamesMap[$tid])) {
-                        $userTeamNames[] = $teamNamesMap[$tid];
-                    }
-                }
-            }
+
+            $summary[$type === 'billable' ? 'billable' : ($type === 'inhouse' || $type === 'in-house' ? 'inhouse' : 'no_work')] += $minutes;
+
             if (!isset($usersData[$uid])) {
                 $usersData[$uid] = [
                     'user_id' => $uid,
                     'user_name' => $eligibleUsers[$uid]->name,
-                    'team_names' => $userTeamNames,
                     'summary' => ['billable' => 0, 'inhouse' => 0, 'no_work' => 0],
                     'sheets' => []
                 ];
-
-                $userCategoryFlags[$uid] = [
-                    'billable' => false,
-                    'inhouse' => false,
-                    'no_work' => false,
-                ];
             }
 
-            if ($type === 'billable') {
-                $summary['billable'] += $minutes;
-                $usersData[$uid]['summary']['billable'] += $minutes;
-                $userCategoryFlags[$uid]['billable'] = true;
-            } elseif (in_array($type, ['inhouse', 'in-house'])) {
-                $summary['inhouse'] += $minutes;
-                $usersData[$uid]['summary']['inhouse'] += $minutes;
-                $userCategoryFlags[$uid]['inhouse'] = true;
-            } elseif (in_array($type, ['no work', 'no-work'])) {
-                $summary['no_work'] += $minutes;
-                $usersData[$uid]['summary']['no_work'] += $minutes;
-                $userCategoryFlags[$uid]['no_work'] = true;
-            }
-            $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
-            $projectName = $project->project_name ?? null;
-            $clientName = $project?->client?->client_name ?? null;
-            $data['id'] = $sheet->id;
-            $data['project_name'] = $projectName;
-            $data['status'] = $sheet->status;
-            $data['client_name'] = $clientName;
-            $data['created_at'] = $sheet->created_at;
-            $data['updated_at'] = $sheet->updated_at;
+            $usersData[$uid]['summary'][$type === 'billable' ? 'billable' : ($type === 'inhouse' || $type === 'in-house' ? 'inhouse' : 'no_work')] += $minutes;
 
             $usersData[$uid]['sheets'][] = $data;
         }
 
-        $userCounts = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
-
-        foreach ($userCategoryFlags as $flags) {
-            if ($flags['billable'])
-                $userCounts['billable']++;
-            if ($flags['inhouse'])
-                $userCounts['inhouse']++;
-            if ($flags['no_work'])
-                $userCounts['no_work']++;
-        }
-
-        $toTime = function ($m) {
-            if (is_string($m)) {
-                // Already formatted like HH:MM
-                if (str_contains($m, ':')) {
-                    return $m;
-                }
-
-                // Numeric string
-                $m = (int) $m;
-            }
-
-            if (!is_int($m)) {
-                $m = 0;
-            }
-
-            return sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
-        };
-
-
         $summary = array_map($toTime, $summary);
+
         foreach ($usersData as &$u) {
             $u['summary'] = array_map($toTime, $u['summary']);
         }
@@ -2208,21 +2064,16 @@ class ProjectMasterController extends Controller
             'success' => true,
             'message' => 'All Reporting data',
             'data' => [
-                'summary' => array_map($toTime, $summary),
-                'user_counts' => $userCounts,
-                'users' => array_values(
-                    array_map(function ($u) use ($toTime) {
-                        $u['summary'] = array_map($toTime, $u['summary']);
-                        return $u;
-                    }, $usersData)
-                ),
+                'summary' => $summary,
+                'users' => array_values($usersData),
                 'not_filled' => [
                     'count' => count($notFilledUsers),
-                    'users' => $notFilledUsers
-                ]
-            ]
+                    'users' => $notFilledUsers,
+                ],
+            ],
         ]);
     }
+
 
     public function getFilterOfAllDataMasterReporting(Request $request)
     {
@@ -2493,10 +2344,10 @@ class ProjectMasterController extends Controller
                 'project_tag_activity',
                 'created_at'
             )->with([
-                        'relation:id,project_id,assignees,sales_person_id',
-                        'client:clients_master.id,clients_master.client_name',
-                        'tagActivityRelated:id,name'
-                    ])
+                'relation:id,project_id,assignees,sales_person_id',
+                'client:clients_master.id,clients_master.client_name',
+                'tagActivityRelated:id,name'
+            ])
                 ->whereHas('relation', function ($q) use ($currentUser) {
                     $q->where('sales_person_id', $currentUser->id);
                 })
