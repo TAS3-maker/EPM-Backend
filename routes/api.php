@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\DepartmentController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ClientMasterController;
 use App\Http\Controllers\CommunicationTypeController;
+use App\Http\Controllers\EventHolidaysController;
 use App\Http\Controllers\ProjectAccountController;
 use App\Http\Controllers\ProjectMasterController;
 use App\Http\Controllers\ProjectRelationController;
@@ -252,5 +253,10 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-pending-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPendingPerformaSheetsByProjectMasterId']);
         Route::get('/get-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPerformaSheetsByProjectMasterId']);
         Route::get('/get-rm-hierarchy', [PerformaSheetController::class, 'getRmHierarchy']);
+        Route::get('/event-holidays', [EventHolidaysController::class, 'index']);
+        Route::post('/event-holidays', [EventHolidaysController::class, 'store']);
+        Route::get('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'show']);
+        Route::put('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'update']);
+        Route::delete('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'destroy']);
     });
 });
