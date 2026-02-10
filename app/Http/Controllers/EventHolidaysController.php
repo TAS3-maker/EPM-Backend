@@ -23,29 +23,18 @@ class EventHolidaysController extends Controller
         try {
             $validated = $request->validate([
                 'start_date' => 'required|date',
-                'end_date'   => 'required|date|after_or_equal:start_date',
-                'type'       => 'required|in:Full Holiday,Short Holiday,Half Holiday,Multiple Holiday',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'type' => 'required|in:Full Holiday,Short Holiday,Half Holiday,Multiple Holiday',
                 'description' => 'required|string',
                 'start_time' => 'required_if:type,Short Holiday|string|nullable',
-                'end_time'   => 'required_if:type,Short Holiday|string|nullable',
-                'halfday_period' => [
-                    'nullable',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($request->type === 'Half Holiday') {
-                            if (!$value) {
-                                $fail('The halfday_period field is required when type is Half Holiday.');
-                            } elseif (!in_array(strtolower($value), ['morning', 'afternoon'])) {
-                                $fail('Halfday period must be either morning or afternoon.');
-                            }
-                        }
-                    }
-                ],
+                'end_time' => 'required_if:type,Short Holiday|string|nullable',
+                'halfday_period' => 'required_if:type,Half Holiday|nullable|in:morning,afternoon',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',
-                'errors'  => $e->errors(),
-                'input'   => $request->all(),
+                'errors' => $e->errors(),
+                'input' => $request->all(),
             ], 422);
         }
         $holiday = EventHoliday::create($validated);
@@ -63,29 +52,18 @@ class EventHolidaysController extends Controller
         try {
             $validated = $request->validate([
                 'start_date' => 'required|date',
-                'end_date'   => 'required|date|after_or_equal:start_date',
-                'type'       => 'required|in:Full Holiday,Short Holiday,Half Holiday,Multiple Holiday',
+                'end_date' => 'required|date|after_or_equal:start_date',
+                'type' => 'required|in:Full Holiday,Short Holiday,Half Holiday,Multiple Holiday',
                 'description' => 'required|string',
                 'start_time' => 'required_if:type,Short Holiday|string|nullable',
-                'end_time'   => 'required_if:type,Short Holiday|string|nullable',
-                'halfday_period' => [
-                    'nullable',
-                    function ($attribute, $value, $fail) use ($request) {
-                        if ($request->type === 'Half Holiday') {
-                            if (!$value) {
-                                $fail('The halfday_period field is required when type is Half Holiday.');
-                            } elseif (!in_array(strtolower($value), ['morning', 'afternoon'])) {
-                                $fail('Halfday period must be either morning or afternoon.');
-                            }
-                        }
-                    }
-                ],
+                'end_time' => 'required_if:type,Short Holiday|string|nullable',
+                'halfday_period' => 'required_if:type,Half Holiday|nullable|in:morning,afternoon',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'message' => 'Validation failed',
-                'errors'  => $e->errors(),
-                'input'   => $request->all(),
+                'errors' => $e->errors(),
+                'input' => $request->all(),
             ], 422);
         }
 
