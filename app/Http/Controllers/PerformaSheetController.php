@@ -1948,24 +1948,24 @@ class PerformaSheetController extends Controller
                 $q->whereJsonContains('role_id', 7);
             });
 
-        /* } elseif ($user->hasRole(6)) {
+            /* } elseif ($user->hasRole(6)) {
 
-            $teamMemberIds = User::whereJsonContains('role_id', 7)
-                ->where('is_active', 1)
-                ->where('tl_id', $user->id)
-                ->whereNot('id', $user->id)
-                ->pluck('id')
-                ->toArray();
-            $baseQuery->whereIn('user_id', $teamMemberIds);
+                $teamMemberIds = User::whereJsonContains('role_id', 7)
+                    ->where('is_active', 1)
+                    ->where('tl_id', $user->id)
+                    ->whereNot('id', $user->id)
+                    ->pluck('id')
+                    ->toArray();
+                $baseQuery->whereIn('user_id', $teamMemberIds);
 
-        } elseif (in_array(5, $roleIds) && !empty($teamIds)) {
-            $baseQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->where(function ($sub) use ($teamIds) {
-                    foreach ($teamIds as $teamId) {
-                        $sub->orWhereJsonContains('team_id', $teamId);
-                    }
-                });
-            }); */
+            } elseif (in_array(5, $roleIds) && !empty($teamIds)) {
+                $baseQuery->whereHas('user', function ($q) use ($teamIds) {
+                    $q->where(function ($sub) use ($teamIds) {
+                        foreach ($teamIds as $teamId) {
+                            $sub->orWhereJsonContains('team_id', $teamId);
+                        }
+                    });
+                }); */
 
         } elseif (in_array(7, $roleIds) || in_array(6, $roleIds) || in_array(5, $roleIds)) {
 
@@ -2592,8 +2592,9 @@ class PerformaSheetController extends Controller
             $reporting_user = user::where('reporting_manager_id', $authUser->id)->pluck('id')
                 ->toArray();
 
-
-            if ($authUser->hasRole(5)) {
+            if ($authUser->hasanyRole([1, 2, 3, 4])) {
+                $query;
+            } elseif ($authUser->hasRole(5)) {
                 $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
                 $query->where(function ($q) use ($pmTeams) {
                     foreach ($pmTeams as $teamId) {
@@ -3086,7 +3087,9 @@ class PerformaSheetController extends Controller
             }
 
             for ($date = $startDate->copy(); $date->lte($endDate); $date->addDay()) {
-
+                if ($date->isSaturday() || $date->isSunday()) {
+                    continue;
+                }
                 foreach ($teams as $team) {
 
                     $users = User::whereJsonContains('team_id', $team->id)
@@ -4401,7 +4404,7 @@ class PerformaSheetController extends Controller
             $startDate = Carbon::parse($startDate)->startOfDay();
             $endDate = Carbon::parse($endDate)->endOfDay();
         }
-        
+
         $includeSelf = $request->has('current_user_id');
 
         $childrenQuery = User::where('is_active', 1)
