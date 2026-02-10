@@ -2592,8 +2592,9 @@ class PerformaSheetController extends Controller
             $reporting_user = user::where('reporting_manager_id', $authUser->id)->pluck('id')
                 ->toArray();
 
-
-            if ($authUser->hasRole(5)) {
+            if ($authUser->hasanyRole([1, 2, 3, 4])) {
+                $query;
+            } elseif ($authUser->hasRole(5)) {
                 $pmTeams = is_array($authUser->team_id) ? $authUser->team_id : [];
                 $query->where(function ($q) use ($pmTeams) {
                     foreach ($pmTeams as $teamId) {
