@@ -2402,7 +2402,7 @@ class PerformaSheetController extends Controller
             $wfhDayMinutes = 600;
 
             $sheets = PerformaSheet::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'pending', 'backdated', 'standup'])
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
@@ -2524,11 +2524,6 @@ class PerformaSheetController extends Controller
             }
             foreach ($weeklyTotals as $date => &$totals) {
 
-                $carbonDate = Carbon::parse($date);
-                if ($carbonDate->isWeekend()) {
-                    $totals['available_hours'] = '00:00';
-                    continue;
-                }
                 $worked = $workedMinutesByDate[$date] ?? 0;
                 $billable = $billableMinutesByDate[$date] ?? 0;
                 $nonBillable = $nonBillableMinutesByDate[$date] ?? 0;
@@ -2538,9 +2533,9 @@ class PerformaSheetController extends Controller
 
                 $dayTotal = $isWfh ? $wfhDayMinutes : $normalDayMinutes;
 
-                $totalConsumed = min($worked + $leave, $dayTotal);
-
-                $available = $dayTotal - $totalConsumed;
+                $available = $dayTotal - ($worked + $leave);
+                if ($available < 0)
+                    $available = 0;
 
                 $totals['totalHours'] = $minutesToTime($worked);
                 $totals['totalBillableHours'] = $minutesToTime($billable);
@@ -3896,7 +3891,6 @@ class PerformaSheetController extends Controller
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
-                        case 'Multiple Days Leave':
                             $totalLeaveMinutes += 510;
                             break;
 
