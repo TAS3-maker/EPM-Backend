@@ -1892,7 +1892,7 @@ class ProjectMasterController extends Controller
             ->keyBy('id');
         $eligibleUserIds = $eligibleUsers->keys();
         /**only for assigned projects */
-        /* $filteredProjectIds = ProjectMaster::query()
+        $filteredProjectIds = ProjectMaster::query()
             ->when($projectIds->isNotEmpty(), function ($q) use ($projectIds) {
                 $q->whereIn('id', $projectIds);
             })
@@ -1918,7 +1918,7 @@ class ProjectMasterController extends Controller
                 }
             })
             ->pluck('id')
-            ->toArray(); */
+            ->toArray();
         $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
 
         $teamNamesMap = Team::whereIn('id', $allTeamIds)
@@ -1933,7 +1933,7 @@ class ProjectMasterController extends Controller
                 $q->whereIn('user_id', $userIds)
             )
             ->get()
-            ->filter(function ($sheet) use ($startDate, $endDate) {
+            ->filter(function ($sheet) use ($filteredProjectIds, $startDate, $endDate) {
 
                 $data = json_decode($sheet->data, true);
                 if (!is_array($data) || empty($data['date'])) {
@@ -1947,9 +1947,9 @@ class ProjectMasterController extends Controller
                 }
 
                 /**only assigned projects */
-                // if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
-                //     return false;
-                // }
+                if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
+                    return false;
+                }
 
                 return true;
             });
@@ -2034,7 +2034,7 @@ class ProjectMasterController extends Controller
                     continue;
                 }
 
-                $baseRequired = 510;
+                $userExpectedMinutes += 510;
                 $fillableMinutes = 510;
                 $worked = $workedMinutesByUserDate[$uid][$dateStr] ?? 0;
 
@@ -2070,8 +2070,7 @@ class ProjectMasterController extends Controller
                 if ($fillableMinutes === 0) {
                     continue;
                 }
-                $userExpectedMinutes += $fillableMinutes;
-                // Final comparison (THIS is the key fix)
+                //$userExpectedMinutes += $fillableMinutes;
                 if ($worked < $fillableMinutes) {
                     $missingDates[] = $dateStr;
                     $missingMinutes += ($fillableMinutes - $worked);
