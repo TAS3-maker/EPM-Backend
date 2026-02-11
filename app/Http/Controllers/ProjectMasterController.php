@@ -2034,7 +2034,7 @@ class ProjectMasterController extends Controller
                     continue;
                 }
 
-                $baseRequired = 510;
+                $userExpectedMinutes += 510;
                 $fillableMinutes = 510;
                 $worked = $workedMinutesByUserDate[$uid][$dateStr] ?? 0;
 
@@ -2070,8 +2070,7 @@ class ProjectMasterController extends Controller
                 if ($fillableMinutes === 0) {
                     continue;
                 }
-                $userExpectedMinutes += $fillableMinutes;
-                // Final comparison (THIS is the key fix)
+                //$userExpectedMinutes += $fillableMinutes;
                 if ($worked < $fillableMinutes) {
                     $missingDates[] = $dateStr;
                     $missingMinutes += ($fillableMinutes - $worked);
