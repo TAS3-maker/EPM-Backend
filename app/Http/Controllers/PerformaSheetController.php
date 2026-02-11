@@ -3891,6 +3891,7 @@ class PerformaSheetController extends Controller
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
+                        case 'Multiple Days Leave': 
                             $totalLeaveMinutes += 510;
                             break;
 
