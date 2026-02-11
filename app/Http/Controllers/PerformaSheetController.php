@@ -2402,7 +2402,7 @@ class PerformaSheetController extends Controller
             $wfhDayMinutes = 600;
 
             $sheets = PerformaSheet::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->whereIn('status', ['approved', 'pending', 'backdated', 'standup'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
