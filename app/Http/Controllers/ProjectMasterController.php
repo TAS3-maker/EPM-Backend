@@ -1891,7 +1891,8 @@ class ProjectMasterController extends Controller
             ->get()
             ->keyBy('id');
         $eligibleUserIds = $eligibleUsers->keys();
-        $filteredProjectIds = ProjectMaster::query()
+        /**only for assigned projects */
+        /* $filteredProjectIds = ProjectMaster::query()
             ->when($projectIds->isNotEmpty(), function ($q) use ($projectIds) {
                 $q->whereIn('id', $projectIds);
             })
@@ -1917,7 +1918,7 @@ class ProjectMasterController extends Controller
                 }
             })
             ->pluck('id')
-            ->toArray();
+            ->toArray(); */
         $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
 
         $teamNamesMap = Team::whereIn('id', $allTeamIds)
@@ -1932,7 +1933,7 @@ class ProjectMasterController extends Controller
                 $q->whereIn('user_id', $userIds)
             )
             ->get()
-            ->filter(function ($sheet) use ($filteredProjectIds, $startDate, $endDate) {
+            ->filter(function ($sheet) use ($startDate, $endDate) {
 
                 $data = json_decode($sheet->data, true);
                 if (!is_array($data) || empty($data['date'])) {
@@ -2007,7 +2008,13 @@ class ProjectMasterController extends Controller
             ->groupBy('user_id');
 
         $notFilledUsers = [];
-        $summary = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0, 'expected' => 0,];
+        $summary = [
+            'billable' => 0,
+            'inhouse' => 0,
+            'no_work' => 0,
+            'expected' => 0,
+            'pending' => 0,
+        ];
 
         foreach ($eligibleUsers as $user) {
 
@@ -2100,6 +2107,7 @@ class ProjectMasterController extends Controller
 
             $type = strtolower($data['activity_type'] ?? '');
             $minutes = $timeToMinutes($data['time'] ?? null);
+            $status  = strtolower($sheet->status ?? '');
 
             if (
                 !empty($allowedActivityTypes) &&
@@ -2126,6 +2134,32 @@ class ProjectMasterController extends Controller
                     }
                 }
             }
+            if ($status === 'pending' || $status === 'backdated') {
+                $summary['pending'] += $minutes;
+
+                if (!isset($usersData[$uid])) {
+                    $usersData[$uid] = [
+                        'user_id' => $uid,
+                        'user_name' => $eligibleUsers[$uid]->name,
+                        'team_names' => $userTeamNames,
+                        'summary' => [
+                            'billable' => 0,
+                            'inhouse'  => 0,
+                            'no_work'  => 0,
+                            'pending'  => 0,
+                        ],
+                        'sheets' => []
+                    ];
+                }
+
+                // $usersData[$uid]['summary']['pending'] += $minutes;
+                $usersData[$uid]['sheets'][] = $data;
+
+                continue; //dO NOT let pending affect billable/inhouse/no-work
+            }
+            if ($status !== 'approved') {
+                continue;
+            }
             if (!isset($usersData[$uid])) {
                 $usersData[$uid] = [
                     'user_id' => $uid,
@@ -2142,18 +2176,20 @@ class ProjectMasterController extends Controller
                 ];
             }
 
-            if ($type === 'billable') {
-                $summary['billable'] += $minutes;
-                $usersData[$uid]['summary']['billable'] += $minutes;
-                $userCategoryFlags[$uid]['billable'] = true;
-            } elseif (in_array($type, ['inhouse', 'in-house'])) {
-                $summary['inhouse'] += $minutes;
-                $usersData[$uid]['summary']['inhouse'] += $minutes;
-                $userCategoryFlags[$uid]['inhouse'] = true;
-            } elseif (in_array($type, ['no work', 'no-work'])) {
-                $summary['no_work'] += $minutes;
-                $usersData[$uid]['summary']['no_work'] += $minutes;
-                $userCategoryFlags[$uid]['no_work'] = true;
+            if ($status === 'approved') {
+                if ($type === 'billable') {
+                    $summary['billable'] += $minutes;
+                    $usersData[$uid]['summary']['billable'] += $minutes;
+                    $userCategoryFlags[$uid]['billable'] = true;
+                } elseif (in_array($type, ['inhouse', 'in-house'])) {
+                    $summary['inhouse'] += $minutes;
+                    $usersData[$uid]['summary']['inhouse'] += $minutes;
+                    $userCategoryFlags[$uid]['inhouse'] = true;
+                } elseif (in_array($type, ['no work', 'no-work'])) {
+                    $summary['no_work'] += $minutes;
+                    $usersData[$uid]['summary']['no_work'] += $minutes;
+                    $userCategoryFlags[$uid]['no_work'] = true;
+                }
             }
             $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
             $projectName = $project->project_name ?? null;
