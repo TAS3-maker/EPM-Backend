@@ -247,9 +247,9 @@ class LeaveController extends Controller
             ->unique('id')
             ->values();
         foreach ($mailUsers as $user) {
-            // Mail::to($user->email)->queue(
-            //     new LeaveAppliedMail($leave, $leaveUser)
-            // );
+            Mail::to($user->email)->queue(
+                new LeaveAppliedMail($leave, $leaveUser)
+            );
         }
 
 
@@ -512,9 +512,9 @@ class LeaveController extends Controller
 
 
         if ($user && $user->email) {
-            // Mail::to($user->email)->queue(
-            //     new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
-            // );
+            Mail::to($user->email)->queue(
+                new LeaveStatusUpdateMail($user, $leave, $managerName, $managerRole)
+            );
 
         }
 
