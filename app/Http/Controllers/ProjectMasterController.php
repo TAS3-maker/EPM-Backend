@@ -2134,6 +2134,17 @@ class ProjectMasterController extends Controller
                     }
                 }
             }
+            $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
+            $projectName = $project->project_name ?? null;
+            $clientName = $project?->client?->client_name ?? null;
+            $approve_rejected_by_name = User::find($sheet->approve_rejected_by)?->name;
+            $data['id'] = $sheet->id;
+            $data['project_name'] = $projectName;
+            $data['status'] = $sheet->status;
+            $data['approve_rejected_by_name'] = $approve_rejected_by_name;
+            $data['client_name'] = $clientName;
+            $data['created_at'] = $sheet->created_at;
+            $data['updated_at'] = $sheet->updated_at;
             if ($status === 'pending' || $status === 'backdated') {
                 $summary['pending'] += $minutes;
 
@@ -2191,18 +2202,6 @@ class ProjectMasterController extends Controller
                     $userCategoryFlags[$uid]['no_work'] = true;
                 }
             }
-            $project = ProjectMaster::with('client')->find($data['project_id'] ?? null);
-            $projectName = $project->project_name ?? null;
-            $clientName = $project?->client?->client_name ?? null;
-            $approve_rejected_by_name = User::find($sheet->approve_rejected_by)?->name;
-            $data['id'] = $sheet->id;
-            $data['project_name'] = $projectName;
-            $data['status'] = $sheet->status;
-            $data['approve_rejected_by_name'] = $approve_rejected_by_name;
-            $data['client_name'] = $clientName;
-            $data['created_at'] = $sheet->created_at;
-            $data['updated_at'] = $sheet->updated_at;
-
             $usersData[$uid]['sheets'][] = $data;
         }
 
