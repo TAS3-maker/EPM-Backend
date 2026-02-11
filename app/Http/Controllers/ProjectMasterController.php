@@ -1141,17 +1141,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1916,7 +1916,6 @@ class ProjectMasterController extends Controller
                     });
                 }
             })
-
             ->pluck('id')
             ->toArray();
         $allTeamIds = $eligibleUsers->pluck('team_id')->flatten()->unique()->toArray();
@@ -1946,9 +1945,10 @@ class ProjectMasterController extends Controller
                     return false;
                 }
 
-                if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
-                    return false;
-                }
+                /**only assigned projects */
+                // if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
+                //     return false;
+                // }
 
                 return true;
             });
@@ -1991,7 +1991,6 @@ class ProjectMasterController extends Controller
                 continue;
 
             $dateStr = $date->toDateString();
-
             $workedMinutesByUserDate[$uid][$dateStr] =
                 ($workedMinutesByUserDate[$uid][$dateStr] ?? 0)
                 + $timeToMinutes($data['time'] ?? null);
@@ -2008,13 +2007,14 @@ class ProjectMasterController extends Controller
             ->groupBy('user_id');
 
         $notFilledUsers = [];
+        $summary = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0, 'expected' => 0,];
 
         foreach ($eligibleUsers as $user) {
 
             $uid = (int) $user->id;
             $missingDates = [];
             $missingMinutes = 0;
-
+            $userExpectedMinutes = 0;
             $userCreatedDate = Carbon::parse($user->created_at)->startOfDay();
             $effectiveStart = $startDate->copy();
             if ($userCreatedDate->gt($effectiveStart)) {
@@ -2063,14 +2063,14 @@ class ProjectMasterController extends Controller
                 if ($fillableMinutes === 0) {
                     continue;
                 }
-
+                $userExpectedMinutes += $fillableMinutes;
                 // Final comparison (THIS is the key fix)
                 if ($worked < $fillableMinutes) {
                     $missingDates[] = $dateStr;
                     $missingMinutes += ($fillableMinutes - $worked);
                 }
             }
-
+            $summary['expected'] += $userExpectedMinutes;
             if (!empty($missingDates)) {
                 $notFilledUsers[] = [
                     'user_id' => $uid,
@@ -2082,7 +2082,6 @@ class ProjectMasterController extends Controller
             }
         }
 
-        $summary = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
         $usersData = [];
         $userCategoryFlags = [];
         foreach ($allSheets as $sheet) {
@@ -2210,7 +2209,7 @@ class ProjectMasterController extends Controller
             'success' => true,
             'message' => 'All Reporting data',
             'data' => [
-                'summary' => array_map($toTime, $summary),
+                'summary' => $summary,
                 'user_counts' => $userCounts,
                 'users' => array_values(
                     array_map(function ($u) use ($toTime) {
@@ -2495,10 +2494,10 @@ class ProjectMasterController extends Controller
                 'project_tag_activity',
                 'created_at'
             )->with([
-                        'relation:id,project_id,assignees,sales_person_id',
-                        'client:clients_master.id,clients_master.client_name',
-                        'tagActivityRelated:id,name'
-                    ])
+                'relation:id,project_id,assignees,sales_person_id',
+                'client:clients_master.id,clients_master.client_name',
+                'tagActivityRelated:id,name'
+            ])
                 ->whereHas('relation', function ($q) use ($currentUser) {
                     $q->where('sales_person_id', $currentUser->id);
                 })
