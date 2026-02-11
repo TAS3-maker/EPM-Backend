@@ -2145,6 +2145,12 @@ class ProjectMasterController extends Controller
             $data['client_name'] = $clientName;
             $data['created_at'] = $sheet->created_at;
             $data['updated_at'] = $sheet->updated_at;
+
+            $emptyFlags = [
+                'billable' => false,
+                'inhouse'  => false,
+                'no_work'  => false,
+            ];
             if ($status === 'pending' || $status === 'backdated') {
                 $summary['pending'] += $minutes;
 
@@ -2180,11 +2186,7 @@ class ProjectMasterController extends Controller
                     'sheets' => []
                 ];
 
-                $userCategoryFlags[$uid] = [
-                    'billable' => false,
-                    'inhouse' => false,
-                    'no_work' => false,
-                ];
+                $userCategoryFlags[$uid] = $emptyFlags;
             }
 
             if ($status === 'approved') {
@@ -2208,12 +2210,9 @@ class ProjectMasterController extends Controller
         $userCounts = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
 
         foreach ($userCategoryFlags as $flags) {
-            if ($flags['billable'])
-                $userCounts['billable']++;
-            if ($flags['inhouse'])
-                $userCounts['inhouse']++;
-            if ($flags['no_work'])
-                $userCounts['no_work']++;
+            if (!empty($flags['billable'])) $userCounts['billable']++;
+            if (!empty($flags['inhouse']))  $userCounts['inhouse']++;
+            if (!empty($flags['no_work']))  $userCounts['no_work']++;
         }
 
         $toTime = function ($m) {
