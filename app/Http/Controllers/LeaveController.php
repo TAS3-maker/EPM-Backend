@@ -898,7 +898,7 @@ class LeaveController extends Controller
     {
         $current_user = auth()->user();
 
-        if (!$current_user->hasAnyRole([1, 2, 3])) {
+            if (!$current_user->roles()->whereIn('id', [1, 2, 3, 4])->exists()) {
             return ApiResponse::error(
                 'You are not authorized to access this data.',
                 [],
