@@ -194,11 +194,19 @@ class GraphController extends Controller
             ->select('id', 'data', 'status', 'user_id')
             ->where('status', 'approved');
 
-        // Team Lead / Manager → roles 5, 6
-        if ($user->hasAnyRole([5, 6])) {
+        if ($user->hasAnyRole([1, 2, 3, 4])) {
 
             $userIds = User::where('is_active', true)
-                ->whereJsonContains('role_id', 7) // employees only
+                ->whereJsonContains('role_id', 7)
+                ->pluck('id')
+                ->toArray();
+
+            $dataQuery->whereIn('user_id', $userIds);
+
+        } elseif ($user->hasAnyRole([5, 6])) {
+
+            $userIds = User::where('is_active', true)
+                ->whereJsonContains('role_id', 7)
                 ->where(function ($q) use ($user) {
                     foreach ($user->team_id ?? [] as $teamId) {
                         $q->orWhereJsonContains('team_id', $teamId);
@@ -209,26 +217,11 @@ class GraphController extends Controller
 
             $dataQuery->whereIn('user_id', $userIds);
 
-        }
-        // Admin / Super roles → roles 1–4
-        elseif ($user->hasAnyRole([1, 2, 3, 4])) {
-
-            $userIds = User::where('is_active', true)
-                ->whereJsonContains('role_id', 7) // employees
-                ->pluck('id')
-                ->toArray();
-
-            $dataQuery->whereIn('user_id', $userIds);
-
-        }
-        // Employee → role 7
-        elseif ($user->hasRole(7)) {
+        } elseif ($user->hasRole(7)) {
 
             $dataQuery->where('user_id', $user->id);
 
-        }
-        // Other roles / fallback
-        else {
+        } else {
             $dataQuery->where('user_id', $user->id);
         }
 
