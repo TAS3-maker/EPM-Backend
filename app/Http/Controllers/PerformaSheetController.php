@@ -3059,7 +3059,9 @@ class PerformaSheetController extends Controller
             $current_user = auth()->user();
             $currentTeamIds = $current_user->team_id;
 
-            if ($current_user->hasAnyRole([5, 6])) {
+            if ($current_user->hasAnyRole([1, 2, 3, 4])) {
+                $teams = Team::latest()->get();
+            } elseif ($current_user->hasAnyRole([5, 6])) {
                 $teams = Team::whereIn('id', $currentTeamIds)->latest()->get();
             } elseif ($current_user->hasRole(7)) {
                 return response()->json([
@@ -4008,7 +4010,7 @@ class PerformaSheetController extends Controller
 
             if ($authUser->hasAnyRole([1, 2, 3, 4])) {
                 $teams = Team::all()->whereNotIn('name', ['Business Development']);
-            }elseif ($authUser->hasAnyRole([5, 6])) {
+            } elseif ($authUser->hasAnyRole([5, 6])) {
                 $teamIds = is_array($authUser->team_id) ? $authUser->team_id : json_decode($authUser->team_id, true);
                 $teams = Team::whereIn('id', $teamIds)->get();
             } elseif ($authUser->hasRole(7)) {
