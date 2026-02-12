@@ -31,7 +31,7 @@ class User extends Authenticatable implements JWTSubject
         'employee_id',
         'inactive_date',
         'reporting_manager_id',
-        
+
     ];
 
     /**
@@ -150,6 +150,19 @@ class User extends Authenticatable implements JWTSubject
     public function hasAnyRole(array $roles): bool
     {
         return !empty(array_intersect($roles, $this->role_id ?? []));
+    }
+
+    public function hasAnyRoleIn(array $roles): bool
+    {
+        if (empty($this->role_id)) {
+            return false;
+        }
+
+        $userRoles = is_array($this->role_id)
+            ? $this->role_id
+            : explode(',', $this->role_id);
+
+        return count(array_intersect($userRoles, $roles)) > 0;
     }
 
     public function getRoleIdsAttribute(): array
