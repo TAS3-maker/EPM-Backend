@@ -3059,7 +3059,9 @@ class PerformaSheetController extends Controller
             $current_user = auth()->user();
             $currentTeamIds = $current_user->team_id;
 
-            if ($current_user->hasAnyRole([5, 6])) {
+            if ($current_user->hasAnyRole([1, 2, 3, 4])) {
+                $teams = Team::latest()->get();
+            } elseif ($current_user->hasAnyRole([5, 6])) {
                 $teams = Team::whereIn('id', $currentTeamIds)->latest()->get();
             } elseif ($current_user->hasRole(7)) {
                 return response()->json([
