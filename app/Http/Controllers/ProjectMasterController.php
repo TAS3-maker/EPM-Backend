@@ -1909,13 +1909,13 @@ class ProjectMasterController extends Controller
                 }
 
                 // Assignee filter (OR JSON logic)
-                if ($eligibleUserIds->isNotEmpty()) {
-                    $q->where(function ($sub) use ($eligibleUserIds) {
-                        foreach ($eligibleUserIds as $uid) {
-                            $sub->orWhereJsonContains('assignees', $uid);
-                        }
-                    });
-                }
+                // if ($eligibleUserIds->isNotEmpty()) {
+                //     $q->where(function ($sub) use ($eligibleUserIds) {
+                //         foreach ($eligibleUserIds as $uid) {
+                //             $sub->orWhereJsonContains('assignees', $uid);
+                //         }
+                //     });
+                // }
             })
             ->pluck('id')
             ->toArray();
