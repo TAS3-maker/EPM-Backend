@@ -564,8 +564,14 @@ class PerformaSheetController extends Controller
 
         $sheets = $baseQuery->get();
 
-        if ($user->hasRole(7)) {
-            $baseQuery->where('user_id', $user->id);
+         if ($user->hasAnyRole([1, 2, 3, 4])) {
+
+            $teamMemberIds = User::whereJsonContains('role_id', 7)
+                ->where('is_active', 1)
+                ->pluck('id')
+                ->toArray();
+
+            $baseQuery->whereIn('user_id', $teamMemberIds);
         } elseif ($user->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -576,14 +582,8 @@ class PerformaSheetController extends Controller
                 ->toArray();
             $baseQuery->whereIn('user_id', $teamMemberIds);
 
-        } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
-
-            $teamMemberIds = User::whereJsonContains('role_id', 7)
-                ->where('is_active', 1)
-                ->pluck('id')
-                ->toArray();
-
-            $baseQuery->whereIn('user_id', $teamMemberIds);
+        } elseif ($user->hasRole(7)) {
+            $baseQuery->where('user_id', $user->id);
         } elseif (!empty($team_id)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
