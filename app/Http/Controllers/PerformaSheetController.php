@@ -2454,7 +2454,9 @@ class PerformaSheetController extends Controller
                 $date = $data['date'];
                 $minutes = $timeToMinutes($data['time']);
                 $type = strtolower($data['activity_type']);
-
+                if (isset($data['work_type']) && strtolower($data['work_type']) === 'wfh') {
+                    $wfhDatesFromSheets[$date] = true;
+                }
                 $workedMinutesByDate[$date] = ($workedMinutesByDate[$date] ?? 0) + $minutes;
 
                 if ($type === 'billable') {
@@ -2557,7 +2559,7 @@ class PerformaSheetController extends Controller
                 $nonBillable = $nonBillableMinutesByDate[$date] ?? 0;
                 $leave = $leaveMinutesByDate[$date] ?? 0;
 
-                $isWfh = isset($wfhDates[$date]);
+                $isWfh = isset($wfhDates[$date]) || isset($wfhDatesFromSheets[$date]);
 
                 $dayTotal = $isWfh ? $wfhDayMinutes : $normalDayMinutes;
 
