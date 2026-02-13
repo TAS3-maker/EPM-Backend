@@ -1121,38 +1121,46 @@ class PerformaSheetController extends Controller
         $user = auth()->user();
 
         try {
-            $validatedData = $request->validate([
-                'id' => 'required|exists:performa_sheets,id',
-                'data' => 'required|array',
-                'data.project_id' => [
-                    'required',
-                    Rule::exists('project_relations', 'project_id')->where(function ($query) use ($user) {
-                        $query->whereRaw(
-                            'JSON_CONTAINS(assignees, ?, "$")',
-                            [json_encode((int) $user->id)]
-                        );
-                    })
-                ],
-                'data.date' => 'required|date_format:Y-m-d',
-                'data.time' => 'required|date_format:H:i',
-                'data.work_type' => 'required|string|max:255',
-                'data.*.narration' => [
-                    'nullable',
-                    'string',
-                    function ($attribute, $value, $fail) {
-                        $length = strlen(preg_replace('/\s+/', '', $value));
-                        if ($length < 50) {
-                            $fail('The narration must be at least 50 characters long (excluding spaces).');
-                        }
-                    },
-                ],
-                'data.is_tracking' => 'required|in:yes,no',
-                'data.tracking_mode' => 'nullable|in:all,partial',
-                'data.tracked_hours' => 'nullable',
-                // 'data.offline_hours' => 'nullable',
-                'data.is_fillable' => 'nullable|boolean',
-                // 'data.status' => 'nullable',
-            ]);
+            try {
+                $validatedData = $request->validate([
+                    'id' => 'required|exists:performa_sheets,id',
+                    'data' => 'required|array',
+                    'data.project_id' => [
+                        'required',
+                        Rule::exists('project_relations', 'project_id')->where(function ($query) use ($user) {
+                            $query->whereRaw(
+                                'JSON_CONTAINS(assignees, ?, "$")',
+                                [json_encode((int) $user->id)]
+                            );
+                        })
+                    ],
+                    'data.date' => 'required|date_format:Y-m-d',
+                    'data.time' => 'required|date_format:H:i',
+                    'data.work_type' => 'required|string|max:255',
+                    'data.*.narration' => [
+                        'nullable',
+                        'string',
+                        function ($attribute, $value, $fail) {
+                            $length = strlen(preg_replace('/\s+/', '', $value));
+                            if ($length < 50) {
+                                $fail('The narration must be at least 50 characters long (excluding spaces).');
+                            }
+                        },
+                    ],
+                    'data.is_tracking' => 'required|in:yes,no',
+                    'data.tracking_mode' => 'nullable|in:all,partial',
+                    'data.tracked_hours' => 'nullable',
+                    // 'data.offline_hours' => 'nullable',
+                    'data.is_fillable' => 'nullable|boolean',
+                    // 'data.status' => 'nullable',
+                ]);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed!',
+                    'errors' => $e->errors()
+                ], 422);
+            }
 
             $projectId = $validatedData['data']['project_id'];
             $project = ProjectMaster::find($projectId);
@@ -2422,7 +2430,7 @@ class PerformaSheetController extends Controller
             $wfhDayMinutes = 600;
 
             $sheets = PerformaSheet::where('user_id', $user->id)
-                ->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->whereIn('status', ['approved', 'pending', 'backdated', 'standup'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
