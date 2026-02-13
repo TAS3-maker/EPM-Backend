@@ -1136,7 +1136,16 @@ class PerformaSheetController extends Controller
                 'data.date' => 'required|date_format:Y-m-d',
                 'data.time' => 'required|date_format:H:i',
                 'data.work_type' => 'required|string|max:255',
-                'data.narration' => 'nullable|string',
+                'data.*.narration' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        $length = strlen(preg_replace('/\s+/', '', $value));
+                        if ($length < 50) {
+                            $fail('The narration must be at least 50 characters long (excluding spaces).');
+                        }
+                    },
+                ],
                 'data.is_tracking' => 'required|in:yes,no',
                 'data.tracking_mode' => 'nullable|in:all,partial',
                 'data.tracked_hours' => 'nullable',
