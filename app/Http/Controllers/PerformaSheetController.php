@@ -49,7 +49,16 @@ class PerformaSheetController extends Controller
                 'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
                 'data.*.task_id' => 'nullable|integer',
                 'data.*.work_type' => 'required|string|max:255',
-                'data.*.narration' => 'nullable|string',
+                'data.*.narration' => [
+                    'nullable',
+                    'string',
+                    function ($attribute, $value, $fail) {
+                        $length = strlen(preg_replace('/\s+/', '', $value));
+                        if ($length < 50) {
+                            $fail('The narration must be at least 50 characters long (excluding spaces).');
+                        }
+                    },
+                ],
                 'data.*.is_tracking' => 'required|in:yes,no',
                 'data.*.tracking_mode' => 'nullable|in:all,partial',
                 'data.*.tracked_hours' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
@@ -66,6 +75,8 @@ class PerformaSheetController extends Controller
         }
 
         foreach ($validatedData['data'] as $record) {
+            $record['narration'];
+
             $project = ProjectMaster::with('tagActivityRelated:id,name')->find($record['project_id']);
             $projectName = $project ? $project->project_name : "Unknown Project";
 
