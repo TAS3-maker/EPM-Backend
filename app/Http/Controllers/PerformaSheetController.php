@@ -1135,7 +1135,7 @@ class PerformaSheetController extends Controller
                     'data.date' => 'required|date_format:Y-m-d',
                     'data.time' => 'required|date_format:H:i',
                     'data.work_type' => 'required|string|max:255',
-                    'data.*.narration' => [
+                    'data.narration' => [
                         'nullable',
                         'string',
                         function ($attribute, $value, $fail) {
