@@ -34,50 +34,28 @@ use function Symfony\Component\String\s;
 
 class ProjectMasterController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $currentUser = auth()->user();
-
+        $perPage = $request->get('per_page', 20);
+        $query = ProjectMaster::with(['relation']);
         if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+            // $projects = ProjectMaster::with(['relation'])->get();
 
-            $projects = ProjectMaster::with(['relation'])
-                ->get();
         } else if (in_array(2, $currentUser->team_id)) {
-            $projects = ProjectMaster::with(['relation'])
-                ->whereHas('relation', function ($q) use ($currentUser) {
-                    $q->where('sales_person_id', $currentUser->id);
-                })
-                ->get();
+            $query->whereHas('relation', function ($q) use ($currentUser) {
+                $q->where('sales_person_id', $currentUser->id);
+            });
         } else {
-            $projects = ProjectMaster::with(['relation'])
-                ->get()
-                ->filter(function (ProjectMaster $project) use ($currentUser) {
 
-                    if (!$project->relation) {
-                        return false;
-                    }
-
-                    $assignees = $project->relation->assignees ?? [];
-
-                    if (is_array($assignees)) {
-                    } elseif (is_numeric($assignees)) {
-                        $assignees = [(int) $assignees];
-                    } elseif (is_string($assignees)) {
-                        $decoded = json_decode($assignees, true);
-                        $assignees = is_array($decoded) ? $decoded : [];
-                    } else {
-                        $assignees = [];
-                    }
-
-                    return in_array($currentUser->id, $assignees, true);
-                })
-                ->values();
+            $query->whereHas('relation', function ($q) use ($currentUser) {
+                $q->whereJsonContains('assignees', $currentUser->id);
+            });
         }
-
-        $data = $projects->map(function (ProjectMaster $project) {
+        $projects = $query->paginate($perPage);
+        $data = $projects->getCollection()->map(function (ProjectMaster $project) {
 
             $relation = $project->relation;
-
             $attachments = ProjectActivityAndComment::where('project_id', $project->id)
                 ->where('type', 'attachment')
                 ->pluck('attachments');
@@ -91,9 +69,11 @@ class ProjectMasterController extends Controller
             ];
         });
 
+        $projects->setCollection($data);
+
         return response()->json([
             'success' => true,
-            'data' => $data,
+            'data' => $projects,
         ], 200);
     }
 
