@@ -2484,68 +2484,36 @@ class ProjectMasterController extends Controller
         ]);
     }
 
-    public function getProjectsMasterdetails()
+    public function getProjectsMasterdetails(Request $request)
     {
         $currentUser = auth()->user();
-
+        $perPage = $request->get('per_page', 20);
+        $query = ProjectMaster::select(
+            'id',
+            'project_name',
+            'project_tracking',
+            'project_status',
+            'project_tag_activity',
+            'created_at'
+        )->with([
+            'relation:id,project_id,assignees,sales_person_id',
+            'client:clients_master.id,clients_master.client_name',
+            'tagActivityRelated:id,name'
+        ]);
         if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
-
-            $projects = ProjectMaster::select('id', 'project_name', 'project_tracking', 'project_status', 'project_tag_activity', 'created_at')
-                ->with([
-                    'relation:id,project_id,assignees',
-                    'client:clients_master.id,clients_master.client_name',
-                    'tagActivityRelated:id,name'
-                ])
-                ->get();
+            // full access
         } else if ($currentUser->hasRole(12)) {
-
-            $projects = ProjectMaster::select(
-                'id',
-                'project_name',
-                'project_tracking',
-                'project_status',
-                'project_tag_activity',
-                'created_at'
-            )->with([
-                'relation:id,project_id,assignees,sales_person_id',
-                'client:clients_master.id,clients_master.client_name',
-                'tagActivityRelated:id,name'
-            ])
-                ->whereHas('relation', function ($q) use ($currentUser) {
-                    $q->where('sales_person_id', $currentUser->id);
-                })
-                ->get();
+            $query->whereHas('relation', function ($q) use ($currentUser) {
+                $q->where('sales_person_id', $currentUser->id);
+            });
         } else {
-
-            $projects = ProjectMaster::select('id', 'project_name', 'project_tracking', 'project_status', 'project_tag_activity', 'created_at')
-                ->with([
-                    'relation:id,project_id,assignees',
-                    'client:clients_master.id,clients_master.client_name',
-                    'tagActivityRelated:id,name'
-                ])
-                ->get()
-                ->filter(function (ProjectMaster $project) use ($currentUser) {
-
-                    if (!$project->relation) {
-                        return false;
-                    }
-
-                    $assignees = $project->relation->assignees ?? [];
-
-                    if (is_numeric($assignees)) {
-                        $assignees = [(int) $assignees];
-                    } elseif (is_string($assignees)) {
-                        $assignees = json_decode($assignees, true) ?? [];
-                    } elseif (!is_array($assignees)) {
-                        $assignees = [];
-                    }
-
-                    return in_array($currentUser->id, $assignees, true);
-                })
-                ->values();
+            $query->whereHas('relation', function ($q) use ($currentUser) {
+                $q->whereJsonContains('assignees', $currentUser->id);
+            });
         }
 
-        $data = $projects->map(function (ProjectMaster $project) {
+        $projects = $query->paginate($perPage);
+        $formatted = $projects->getCollection()->map(function (ProjectMaster $project) {
             return [
                 'id' => $project->id,
                 'project_name' => $project->project_name,
@@ -2553,13 +2521,17 @@ class ProjectMasterController extends Controller
                 'project_status' => $project->project_status,
                 'client_name' => optional($project->client)->client_name,
                 'project_tag_activity' => optional($project->tagActivityRelated)->name,
-                'created_at' => $project->created_at ? $project->created_at->format('d-m-y') : null,
+                'created_at' => $project->created_at
+                    ? $project->created_at->format('d-m-y')
+                    : null,
             ];
         });
 
+        $projects->setCollection($formatted);
+
         return response()->json([
             'success' => true,
-            'data' => $data,
+            'data' => $projects,
         ], 200);
     }
 }
