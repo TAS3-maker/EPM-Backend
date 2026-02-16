@@ -1245,27 +1245,28 @@ class UserController extends Controller
 
             $allowedRoles = array_filter($allRoles, fn($r) => $r <= $roleId);
 
-            $query = User::where('is_active', 1)
-                ->where(function ($q) use ($allowedRoles) {
-                    foreach ($allowedRoles as $role) {
-                        $q->orWhereJsonContains('role_id', $role);
-                    }
-                });
-            if ($roleId == 7 || $roleId > 7) {
+            $query = User::where('is_active', 1);
+             //commented for getting all the users as reporting managers
+            //     ->where(function ($q) use ($allowedRoles) {
+            //         foreach ($allowedRoles as $role) {
+            //             $q->orWhereJsonContains('role_id', $role);
+            //         }
+            //     });
+            // // if ($roleId == 7 || $roleId > 7) {
 
-                $query->where(function ($q) use ($teamId) {
+                // $query->where(function ($q) use ($teamId) {
 
-                    $q->where(function ($sub) use ($teamId) {
-                        $sub->whereJsonContains('role_id', 7)
-                            ->whereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
-                    })->orWhere(function ($sub) {
-                            $sub->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
-                        });
-                });
+                //     $q->where(function ($sub) use ($teamId) {
+                //         $sub->whereJsonContains('role_id', 7)
+                //             ->whereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+                //     })->orWhere(function ($sub) {
+                //             $sub->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+                //         });
+                // });
 
-            } else {
-                $query->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
-            }
+            // } else {
+            //     $query->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+            // }
             $users = $query->select('id','name')->get();
             if ($users->isEmpty()) {
                 return response()->json([
