@@ -2488,6 +2488,8 @@ class ProjectMasterController extends Controller
     {
         $currentUser = auth()->user();
         $perPage = $request->get('per_page', 20);
+        $search = trim($request->get('search'));
+        $searchBy = $request->get('search_by');
         $query = ProjectMaster::select(
             'id',
             'project_name',
@@ -2512,6 +2514,32 @@ class ProjectMasterController extends Controller
             });
         }
 
+        // search query 
+        if (!empty($search) && !empty($searchBy)) {
+
+            switch ($searchBy) {
+
+                case 'project_name':
+                    $query->where('project_name', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'project_status':
+                    $query->where('project_status', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'client_name':
+                    $query->whereHas('client', function ($q) use ($search) {
+                        $q->where('client_name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+
+                case 'tag_activity':
+                    $query->whereHas('tagActivityRelated', function ($q) use ($search) {
+                        $q->where('name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+            }
+        }
         $projects = $query->paginate($perPage);
         $formatted = $projects->getCollection()->map(function (ProjectMaster $project) {
             return [
