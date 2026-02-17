@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Team;
 use App\Models\User;
 use App\Http\Resources\TeamResource;
+use App\Http\Resources\UserResource;
 use App\Http\Helpers\ApiResponse;
 
 class TeamController extends Controller
@@ -39,7 +40,7 @@ class TeamController extends Controller
                     ->whereNot('id', $tl->id)
                     ->get();
 
-                $tl->employees = $employees;
+                $tl->employees = UserResource::collection($employees);
 
                 return $tl;
             });
@@ -64,7 +65,7 @@ class TeamController extends Controller
         }
         $tls = User::whereJsonContains('team_id', $team->id)
             ->where('is_active', 1)
-            ->whereJsonContains('role_id', 6)    
+            ->whereJsonContains('role_id', 6)
             ->select('id', 'name')
             ->get();
 
