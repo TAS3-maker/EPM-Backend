@@ -23,6 +23,7 @@ use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ClientMasterController;
 use App\Http\Controllers\CommunicationTypeController;
 use App\Http\Controllers\EventHolidaysController;
+use App\Http\Controllers\LeaveCreditController;
 use App\Http\Controllers\ProjectAccountController;
 use App\Http\Controllers\ProjectMasterController;
 use App\Http\Controllers\ProjectRelationController;
@@ -187,7 +188,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('/updateaccessoryassign/{id}', [AccessoryController::class, 'updateaccessoryassign']);
         Route::delete('/deleteaccessoryassign/{id}', [AccessoryController::class, 'deleteaccessoryassign']);
         //Route::get('/tagsactivity', [TagsActivityController::class, 'index']);
-// Route::get('/countaccessory', [AccessoryController::class, 'countaccessory']);
+        // Route::get('/countaccessory', [AccessoryController::class, 'countaccessory']);
         Route::get('/get-permissions', [PermissionController::class, 'getPermissions']);
         Route::get('/get-permissions-allusers', [PermissionController::class, 'getPermissionsAllUsers']);
         Route::post('/update-permissions', [PermissionController::class, 'store']);
@@ -253,10 +254,17 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/get-pending-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPendingPerformaSheetsByProjectMasterId']);
         Route::get('/get-performa-sheets-by-project-master-id', [PerformaSheetController::class, 'getPerformaSheetsByProjectMasterId']);
         Route::get('/get-rm-hierarchy', [PerformaSheetController::class, 'getRmHierarchy']);
+        //Holiday events APIs
         Route::get('/event-holidays', [EventHolidaysController::class, 'index']);
         Route::post('/event-holidays', [EventHolidaysController::class, 'store']);
         Route::get('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'show']);
         Route::put('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'update']);
         Route::delete('/event-holidays/{eventHoliday}', [EventHolidaysController::class, 'destroy']);
+        //Leave Credit APIs
+        Route::get('/leave-credits', [LeaveCreditController::class, 'index']);
+        Route::post('/leave-credits', [LeaveCreditController::class, 'store']);
+        Route::get('/leave-credits/{id}', [LeaveCreditController::class, 'show']);
+        Route::put('/leave-credits/{id}', [LeaveCreditController::class, 'update']);
+        Route::delete('/leave-credits/{id}', [LeaveCreditController::class, 'destroy']);
     });
 });
