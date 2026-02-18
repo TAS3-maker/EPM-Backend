@@ -1240,7 +1240,7 @@ class PerformaSheetController extends Controller
                     'data.tracking_mode' => 'nullable|in:all,partial',
                     'data.tracked_hours' => 'nullable',
                     // 'data.offline_hours' => 'nullable',
-                    'data.is_fillable' => 'required|boolean',
+                    'data.is_fillable' => 'nullable|boolean',
                     // 'data.status' => 'nullable',
                 ]);
             } catch (\Illuminate\Validation\ValidationException $e) {
