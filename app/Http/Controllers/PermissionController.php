@@ -42,12 +42,16 @@ class PermissionController extends Controller
             ], 500);
         }
     }
-    public function getPermissionsAllUsers()
+    public function getPermissionsAllUsers(Request $request)
     {
         try {
             $authUser = auth()->user();
-            // if ($authUser->role_id == 1) {
-            if ($authUser->hasAnyRole([1,2])) {
+
+            if ($authUser->hasAnyRole([1, 2])) {
+
+                $perPage = $request->get('per_page', 20);
+                $search = trim($request->get('search'));
+                $searchBy = $request->get('search_by');
 
                 $predefined_permission = [
                     "dashboard" => "0",
@@ -58,25 +62,16 @@ class PermissionController extends Controller
                     "team" => "0",
                     "clients" => "0",
                     "projects" => "0",
-                    // "assigned_projects_inside_projects_assigned" => "0",
-                    // "unassigned_projects_inside_projects_assigned" => "0",
                     "performance_sheets" => "0",
                     "pending_sheets_inside_performance_sheets" => "0",
                     "manage_sheets_inside_performance_sheets" => "0",
                     "unfilled_sheets_inside_performance_sheets" => "0",
-                    // "manage_leaves" => "0",
                     "activity_tags" => "0",
                     "leaves" => "0",
                     "teams" => "0",
                     "leave_management" => "0",
-                    // "project_management" => "0",
-                    // "assigned_projects_inside_project_management" => "0",
-                    // "unassigned_projects_inside_project_management" => "0",
                     "performance_sheet" => "0",
                     "performance_history" => "0",
-                    // "projects_assigned" => "0",
-                    // "project_master" => "0",
-                    // "client_master" => "0",
                     "project_source" => "0",
                     "communication_type" => "0",
                     "account_master" => "0",
@@ -90,15 +85,27 @@ class PermissionController extends Controller
                     "master_reporting" => "0",
                 ];
 
-                // $users = User::with('permission')
-                //     ->where('id', '!=', 1)
-                //     ->get();
-                $users = User::with('permission')
+                $query = User::with('permission')
                     ->where('id', '!=', 1)
-                    ->where('is_active', 1)
-                    ->get();
+                    ->where('is_active', 1);
 
-                $final_data = $users->map(function ($user) use ($predefined_permission) {
+                if (!empty($search) && !empty($searchBy)) {
+
+                    switch ($searchBy) {
+
+                        case 'name':
+                            $query->where('name', 'LIKE', "%{$search}%");
+                            break;
+
+                        case 'email':
+                            $query->where('email', 'LIKE', "%{$search}%");
+                            break;
+                    }
+                }
+
+                $users = $query->paginate($perPage);
+
+                $formatted = $users->getCollection()->map(function ($user) use ($predefined_permission) {
 
                     $permissions = $user->permission
                         ? collect($user->permission->toArray())->except([
@@ -124,11 +131,12 @@ class PermissionController extends Controller
                         "permissions" => $permissions
                     ];
                 });
+                $users->setCollection($formatted);
 
                 return response()->json([
                     "success" => true,
                     "message" => "Fetched all users permissions",
-                    "permissions_of_users" => $final_data,
+                    "permissions_of_users" => $users,
                 ]);
             }
             return response()->json([

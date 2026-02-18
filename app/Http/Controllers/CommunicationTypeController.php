@@ -8,9 +8,40 @@ use Illuminate\Http\Request;
 
 class CommunicationTypeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return CommunicationTypeResource::collection(CommunicationType::all());
+        $perPage = $request->get('per_page', 20);
+        $search = trim($request->get('search'));
+        $searchBy = $request->get('search_by');
+
+        $query = CommunicationType::select(
+            'id',
+            'medium',
+            'medium_details',
+            'created_at',
+            'updated_at'
+        );
+
+        if (!empty($search) && !empty($searchBy)) {
+
+            switch ($searchBy) {
+
+                case 'medium':
+                    $query->where('medium', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'medium_details':
+                    $query->where('medium_details', 'LIKE', "%{$search}%");
+                    break;
+            }
+        }
+
+        $communicationTypes = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $communicationTypes,
+        ], 200);
     }
 
     public function store(Request $request)

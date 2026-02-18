@@ -308,8 +308,53 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $users = User::orderBy('id', 'desc')->get();
-        return ApiResponse::success('Users fetched successfully', UserResource::collection($users));
+        $perPage = $request->get('per_page', 20);
+        $search = $request->get('search');
+        $searchBy = $request->get('search_by');
+
+        if (!is_null($search)) {
+            $search = is_array($search) ? implode(',', $search) : trim($search);
+        }
+
+        $query = User::orderBy('id', 'desc');
+
+        if (!empty($search) && !empty($searchBy)) {
+
+            switch ($searchBy) {
+
+                case 'employee_id':
+                    $query->where('employee_id', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'name':
+                    $query->where('name', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'email':
+                    $query->where('email', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'phone_num':
+                    $query->where('phone_num', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'team':
+                    $query->whereExists(function ($sub) use ($search) {
+                        $sub->select(DB::raw(1))
+                            ->from('teams')
+                            ->whereRaw('JSON_CONTAINS(users.team_id, CAST(teams.id AS JSON))')
+                            ->where('teams.name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+            }
+        }
+
+        $users = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => UserResource::collection($users)->response()->getData(true),
+        ], 200);
     }
 
     public function projectManger()
@@ -1254,20 +1299,20 @@ class UserController extends Controller
             //     });
             // // if ($roleId == 7 || $roleId > 7) {
 
-                // $query->where(function ($q) use ($teamId) {
+            // $query->where(function ($q) use ($teamId) {
 
-                //     $q->where(function ($sub) use ($teamId) {
-                //         $sub->whereJsonContains('role_id', 7)
-                //             ->whereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
-                //     })->orWhere(function ($sub) {
-                //             $sub->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
-                //         });
-                // });
+            //     $q->where(function ($sub) use ($teamId) {
+            //         $sub->whereJsonContains('role_id', 7)
+            //             ->whereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($teamId)]);
+            //     })->orWhere(function ($sub) {
+            //             $sub->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+            //         });
+            // });
 
             // } else {
             //     $query->whereRaw('NOT JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
             // }
-            $users = $query->select('id','name')->get();
+            $users = $query->select('id', 'name')->get();
             if ($users->isEmpty()) {
                 return response()->json([
                     'success' => false,

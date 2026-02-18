@@ -606,68 +606,106 @@ class LeaveController extends Controller
     // }
 
 
-    public function getallLeavesbyUser()
+    public function getallLeavesbyUser(Request $request)
     {
         $currentUser = Auth::user();
         $teamIds = $currentUser->team_id ?? [];
 
+        $perPage = $request->get('per_page', 20);
+        $search = trim($request->get('search'));
+        $searchBy = $request->get('search_by');
+
         $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
             ->latest();
-        $leavesQuery->whereNot('user_id', $currentUser->id);
-        $reporting_user = user::where('reporting_manager_id', $currentUser->id)->pluck('id')
+
+        $reporting_user = User::where('reporting_manager_id', $currentUser->id)
+            ->pluck('id')
             ->toArray();
 
-        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
-            $leavesQuery->where('user_id', '!=', $currentUser->id);
-        } elseif ($currentUser->hasRole(5)) {
-            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->where(function ($r) {
-                    $r->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(6)])
-                        ->orWhereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
-                })
-                    ->where(function ($sub) use ($teamIds) {
-                        foreach ($teamIds as $teamId) {
-                            $sub->orWhereJsonContains('team_id', $teamId);
-                        }
-                    });
-            });
-        } elseif ($currentUser->hasRole(6)) {
+        $leavesQuery->where(function ($mainQuery) use ($currentUser, $teamIds, $reporting_user) {
 
-            $teamMemberIds = User::whereJsonContains('role_id', 7)
-                ->where('is_active', 1)
-                ->where('tl_id', $currentUser->id)
-                ->whereNot('id', $currentUser->id)
-                ->pluck('id')
-                ->toArray();
-            $leavesQuery->whereIn('user_id', $teamMemberIds);
+            if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
 
-        } elseif ($currentUser->hasRole(7)) {
-            $leavesQuery->where('user_id', $currentUser->id);
-        } else {
-            $leavesQuery->whereHas('user', function ($q) use ($teamIds) {
-                $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
-                    ->where(function ($sub) use ($teamIds) {
-                        foreach ($teamIds as $teamId) {
-                            $sub->orWhereJsonContains('team_id', $teamId);
-                        }
-                    });
-            });
-        }
-        $leavesQuery->Orwhere(function ($q) use ($reporting_user) {
-            $q->whereIn('user_id', $reporting_user);
+                $mainQuery->where('user_id', '!=', $currentUser->id);
+
+            } elseif ($currentUser->hasRole(5)) {
+
+                $mainQuery->whereHas('user', function ($q) use ($teamIds) {
+
+                    $q->where(function ($r) {
+                        $r->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(6)])
+                            ->orWhereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)]);
+                    })
+                        ->where(function ($sub) use ($teamIds) {
+                            foreach ($teamIds as $teamId) {
+                                $sub->orWhereJsonContains('team_id', $teamId);
+                            }
+                        });
+                });
+
+            } elseif ($currentUser->hasRole(6)) {
+
+                $teamMemberIds = User::whereJsonContains('role_id', 7)
+                    ->where('is_active', 1)
+                    ->where('tl_id', $currentUser->id)
+                    ->whereNot('id', $currentUser->id)
+                    ->pluck('id')
+                    ->toArray();
+
+                $mainQuery->whereIn('user_id', $teamMemberIds);
+
+            } elseif ($currentUser->hasRole(7)) {
+
+                $mainQuery->where('user_id', $currentUser->id);
+
+            } else {
+
+                $mainQuery->whereHas('user', function ($q) use ($teamIds) {
+
+                    $q->whereRaw('JSON_CONTAINS(role_id, ?)', [json_encode(7)])
+                        ->where(function ($sub) use ($teamIds) {
+                            foreach ($teamIds as $teamId) {
+                                $sub->orWhereJsonContains('team_id', $teamId);
+                            }
+                        });
+                });
+            }
+
+            $mainQuery->orWhereIn('user_id', $reporting_user);
         });
 
-        $leaves = $leavesQuery->get();
+        if (!empty($search) && !empty($searchBy)) {
 
-        if ($leaves->isEmpty()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'No leaves found',
-                'data' => []
-            ]);
+            switch ($searchBy) {
+
+                case 'user_name':
+                    $leavesQuery->whereHas('user', function ($q) use ($search) {
+                        $q->where('name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+
+                case 'leave_type':
+                    $leavesQuery->where('leave_type', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'status':
+                    $leavesQuery->where('status', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'start_date':
+                    $leavesQuery->whereDate('start_date', $search);
+                    break;
+
+                case 'end_date':
+                    $leavesQuery->whereDate('end_date', $search);
+                    break;
+            }
         }
 
-        $leaveData = $leaves->map(function ($leave) {
+        $leaves = $leavesQuery->paginate($perPage);
+
+        $formatted = $leaves->getCollection()->map(function ($leave) {
+
             return [
                 'id' => $leave->id,
                 'user_id' => $leave->user_id,
@@ -685,10 +723,12 @@ class LeaveController extends Controller
             ];
         });
 
+        $leaves->setCollection($formatted);
+
         return response()->json([
             'success' => true,
-            'message' => 'leaves data',
-            'data' => $leaveData
+            'message' => 'Leaves data',
+            'data' => $leaves
         ]);
     }
 

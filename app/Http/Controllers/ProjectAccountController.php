@@ -12,15 +12,45 @@ use Illuminate\Support\Facades\Auth;
 
 class ProjectAccountController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $accounts = ProjectAccount::with([
+        $perPage = $request->get('per_page', 20);
+        $search = trim($request->get('search'));
+        $searchBy = $request->get('search_by');
+
+        $query = ProjectAccount::with([
             'source',
             'projects',
             'projectRelations.project'
-        ])->get();
+        ]);
 
-        return ProjectAccountResource::collection($accounts);
+        if (!empty($search) && !empty($searchBy)) {
+
+            switch ($searchBy) {
+
+                case 'account_name':
+                    $query->where('account_name', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'source_name':
+                    $query->whereHas('source', function ($q) use ($search) {
+                        $q->where('name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+
+                case 'project_name':
+                    $query->whereHas('projects', function ($q) use ($search) {
+                        $q->where('project_name', 'LIKE', "%{$search}%");
+                    });
+                    break;
+            }
+        }
+        $accounts = $query->paginate($perPage)->withQueryString();
+
+        return response()->json([
+            'success' => true,
+            'data' => ProjectAccountResource::collection($accounts)->response()->getData(true)
+        ]);
     }
 
 
