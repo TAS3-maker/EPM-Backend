@@ -49,7 +49,7 @@ class PerformaSheetController extends Controller
                 ],
                 'data.*.date' => 'required|date_format:Y-m-d',
                 'data.*.time' => ['required', 'regex:/^\d{2}:\d{2}$/'],
-                'data.*.task_id' => 'nullable|integer',
+                'data.*.task_id' => 'required|integer',
                 'data.*.work_type' => 'required|string|max:255',
                 'data.*.narration' => [
                     'nullable',
@@ -150,12 +150,12 @@ class PerformaSheetController extends Controller
                 }
             }
 
-            $tasks = Task::where('project_id', $record['project_id'])->get();
+            $tasks = Task::where('id', $record['task_id'])->get();
 
             if ($tasks->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "No tasks found for project '{$projectName}'. Please create at least one task to proceed."
+                    'message' => "No tasks found. Please Select task to proceed."
                 ], 400);
             }
 
@@ -166,7 +166,7 @@ class PerformaSheetController extends Controller
             if (!$validStatusTask) {
                 return response()->json([
                     'success' => false,
-                    'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
+                    'message' => "The Selected Task is either completed or not started. Please update task status to 'To do' or 'In progress'."
                 ], 400);
             }
 
@@ -1224,6 +1224,7 @@ class PerformaSheetController extends Controller
                     ],
                     'data.date' => 'required|date_format:Y-m-d',
                     'data.time' => 'required|date_format:H:i',
+                    'data.task_id' => 'required|integer',
                     'data.work_type' => 'required|string|max:255',
                     'data.narration' => [
                         'nullable',
@@ -1239,7 +1240,7 @@ class PerformaSheetController extends Controller
                     'data.tracking_mode' => 'nullable|in:all,partial',
                     'data.tracked_hours' => 'nullable',
                     // 'data.offline_hours' => 'nullable',
-                    'data.is_fillable' => 'nullable|boolean',
+                    'data.is_fillable' => 'required|boolean',
                     // 'data.status' => 'nullable',
                 ]);
             } catch (\Illuminate\Validation\ValidationException $e) {
@@ -1253,12 +1254,12 @@ class PerformaSheetController extends Controller
             $projectId = $validatedData['data']['project_id'];
             $project = ProjectMaster::find($projectId);
             $projectName = $project ? $project->name : "Unknown Project";
-            $tasks = Task::where('project_id', $projectId)->get();
+            $tasks = Task::where('id', $validatedData['data']['task_id'])->get();
 
             if ($tasks->isEmpty()) {
                 return response()->json([
                     'success' => false,
-                    'message' => "No task exists for the selected project: {$projectName}"
+                    'message' => "No tasks found. Please Select task to proceed."
                 ], 402);
             }
 
@@ -1270,7 +1271,7 @@ class PerformaSheetController extends Controller
             if (!$validTaskExists) {
                 return response()->json([
                     'success' => false,
-                    'message' => "All tasks for project '{$projectName}' are either completed or not started. Please update task status to 'To do' or 'In progress'."
+                    'message' => "The Selected Task is either completed or not started. Please update task status to 'To do' or 'In progress'."
                 ], 402);
             }
 
@@ -2879,8 +2880,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                        ? Carbon::parse($holiday->end_date)
-                        : Carbon::parse($holiday->start_date)
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -5215,9 +5216,9 @@ class PerformaSheetController extends Controller
 
             $holidays = EventHoliday::select('start_date', 'end_date', 'type', 'start_time', 'end_time')->get();
             $allUsers = User::whereIn('id', $userIds)
-            ->select('id', 'name', 'role_id', 'created_at')
-            ->get();
-            
+                ->select('id', 'name', 'role_id', 'created_at')
+                ->get();
+
             $mergedData = [];
 
             foreach ($allUsers as $user) {
@@ -5262,7 +5263,7 @@ class PerformaSheetController extends Controller
                         foreach ($holidays as $holiday) {
 
                             $start_date = Carbon::parse($holiday->start_date)->toDateString();
-                            $end_date   = Carbon::parse($holiday->end_date ?? $holiday->start_date)->toDateString();
+                            $end_date = Carbon::parse($holiday->end_date ?? $holiday->start_date)->toDateString();
 
                             if ($start_date <= $date && $end_date >= $date) {
 
