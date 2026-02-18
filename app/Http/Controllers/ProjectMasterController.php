@@ -26,6 +26,7 @@ use App\Models\TagsActivity;
 use App\Models\PerformaSheet;
 use App\Models\ClientMaster;
 use App\Models\Department;
+use App\Models\EventHoliday;
 use App\Models\LeavePolicy;
 use App\Models\Team;
 use Carbon\Carbon;
@@ -1977,6 +1978,58 @@ class ProjectMasterController extends Controller
                 + $timeToMinutes($data['time'] ?? null);
         }
 
+        /*holiday */
+        $holidays = EventHoliday::where(function ($q) use ($startDate, $endDate) {
+            $q->where('start_date', '<=', $endDate)
+                ->where('end_date', '>=', $startDate);
+        })->get();
+
+        $holidayMinutesByDate = [];
+        foreach ($holidays as $holiday) {
+
+            $cursor = Carbon::parse($holiday->start_date)->startOfDay();
+            $end    = Carbon::parse($holiday->end_date)->endOfDay();
+
+            while ($cursor->lte($end)) {
+
+                if (!$cursor->isWeekend()) {
+
+                    $dateStr = $cursor->toDateString();
+                    $minutes = 0;
+
+                    switch (strtolower($holiday->type)) {
+
+                        case 'full holiday':
+                        case 'multiple holiday':
+                            $minutes = 510;
+                            break;
+
+                        case 'half holiday':
+                            $minutes = 255;
+                            break;
+
+                        case 'short holiday':
+
+                            if ($holiday->start_time && $holiday->end_time) {
+
+                                $start = Carbon::parse("$dateStr $holiday->start_time");
+                                $endT  = Carbon::parse("$dateStr $holiday->end_time");
+
+                                if ($endT->lt($start)) $endT->addDay();
+
+                                $minutes = $start->diffInMinutes($endT);
+                            }
+
+                            break;
+                    }
+
+                    $holidayMinutesByDate[$dateStr] =
+                        max($holidayMinutesByDate[$dateStr] ?? 0, $minutes);
+                }
+
+                $cursor->addDay();
+            }
+        }
         /*LEAVES*/
         $leaves = LeavePolicy::whereIn('user_id', $eligibleUsers->keys())
             ->where('status', 'Approved')
@@ -1989,12 +2042,35 @@ class ProjectMasterController extends Controller
 
         $notFilledUsers = [];
         $summary = [
+            'expected' => 0,
+            'actual'   => 0,
+            'leave' => 0,
             'billable' => 0,
             'inhouse' => 0,
             'no_work' => 0,
-            'expected' => 0,
             'pending' => 0,
         ];
+
+        $approvedMinutesByUserDate = [];
+        $pendingMinutesByUserDate  = [];
+        foreach ($allSheetsForUnfilled as $sheet) {
+
+            $data = json_decode($sheet->data, true);
+            if (!is_array($data) || empty($data['date'])) continue;
+
+            $uid = (int)$sheet->user_id;
+            $dateStr = Carbon::parse($data['date'])->toDateString();
+            $minutes = $timeToMinutes($data['time'] ?? null);
+
+            if ($sheet->status === 'approved') {
+                $approvedMinutesByUserDate[$uid][$dateStr] =
+                    ($approvedMinutesByUserDate[$uid][$dateStr] ?? 0) + $minutes;
+            } else {
+                $pendingMinutesByUserDate[$uid][$dateStr] =
+                    ($pendingMinutesByUserDate[$uid][$dateStr] ?? 0) + $minutes;
+            }
+        }
+
 
         foreach ($eligibleUsers as $user) {
 
@@ -2013,13 +2089,17 @@ class ProjectMasterController extends Controller
                 if (Carbon::parse($dateStr)->lt($effectiveStart)) {
                     continue;
                 }
+                $FULL_DAY = 510;
+                $HALF_DAY = 255;
+                $baseExpected = $FULL_DAY;
+                $baseMinutes = 510;
+                $leaveMinutes = 0;
 
-                $userExpectedMinutes += 510;
-                $fillableMinutes = 510;
-                $worked = $workedMinutesByUserDate[$uid][$dateStr] ?? 0;
+                $holidayMinutes = $holidayMinutesByDate[$dateStr] ?? 0;
+                $baseMinutes = max(0, $baseExpected - $holidayMinutes);
+                // $worked = $workedMinutesByUserDate[$uid][$dateStr] ?? 0;
 
-                // Determine leave for this date
-                if (!empty($leaves[$uid])) {
+                if ($baseMinutes > 0 && !empty($leaves[$uid])) {
 
                     foreach ($leaves[$uid] as $leave) {
 
@@ -2028,35 +2108,53 @@ class ProjectMasterController extends Controller
                             switch (strtolower($leave->leave_type)) {
 
                                 case 'multiple days leave':
-                                    $fillableMinutes = 0;
-                                    break 2;
-
                                 case 'full leave':
-                                    $fillableMinutes = 0;
+                                    $leaveMinutes = $baseMinutes;
                                     break 2;
 
                                 case 'half day':
-                                    $fillableMinutes = min($fillableMinutes, 255);
+                                    $leaveMinutes = $HALF_DAY;
                                     break;
+
                                 case 'short leave':
-                                    $fillableMinutes = min($fillableMinutes, 390);
+
+                                    if (!empty($leave->start_time) && !empty($leave->end_time)) {
+
+                                        $start = Carbon::parse($leave->start_time);
+                                        $end   = Carbon::parse($leave->end_time);
+
+                                        if ($end->lessThan($start)) {
+                                            $end->addDay();
+                                        }
+
+                                        $leaveMinutes = max(
+                                            $leaveMinutes,
+                                            $end->diffInMinutes($start)
+                                        );
+                                    }
                                     break;
                             }
                         }
                     }
                 }
-
                 // Skip full leave day completely
-                if ($fillableMinutes === 0) {
-                    continue;
-                }
-                //$userExpectedMinutes += $fillableMinutes;
-                if ($worked < $fillableMinutes) {
+
+                $actualMinutes = max(0, $baseMinutes - $leaveMinutes);
+                $approved = $approvedMinutesByUserDate[$uid][$dateStr] ?? 0;
+                $pending  = $pendingMinutesByUserDate[$uid][$dateStr] ?? 0;
+                $worked = $approved + $pending;
+
+                $summary['expected'] += $baseMinutes;
+                $summary['actual']  += $actualMinutes;
+                $summary['leave'] += $leaveMinutes;
+                $userExpectedMinutes += $baseMinutes;
+                // $fillableMinutes = $actualMinutes;
+
+                if ($worked < $actualMinutes) {
                     $missingDates[] = $dateStr;
-                    $missingMinutes += ($fillableMinutes - $worked);
+                    $missingMinutes += ($actualMinutes - $worked);
                 }
             }
-            $summary['expected'] += $userExpectedMinutes;
             if (!empty($missingDates)) {
                 $notFilledUsers[] = [
                     'user_id' => $uid,
@@ -2202,16 +2300,15 @@ class ProjectMasterController extends Controller
                 }
 
                 // Numeric string
-                $m = (int) $m;
             }
+            $m = (int) $m;
 
-            if (!is_int($m)) {
-                $m = 0;
-            }
+            // if (!is_int($m)) {
+            //     $m = 0;
+            // }
 
             return sprintf('%02d:%02d', intdiv($m, 60), $m % 60);
         };
-
 
         $summary = array_map($toTime, $summary);
         foreach ($usersData as &$u) {
