@@ -311,13 +311,18 @@ class UserController extends Controller
         $perPage = $request->get('per_page', 20);
         $search = $request->get('search');
         $searchBy = $request->get('search_by');
+        $status = $request->get('status');
 
         if (!is_null($search)) {
             $search = is_array($search) ? implode(',', $search) : trim($search);
         }
 
         $query = User::orderBy('id', 'desc');
-
+        if ($status === 'active') {
+            $query->where('is_active', 1);
+        } elseif ($status === 'inactive') {
+            $query->where('is_active', 0);
+        }
         if (!empty($search) && !empty($searchBy)) {
 
             switch ($searchBy) {
