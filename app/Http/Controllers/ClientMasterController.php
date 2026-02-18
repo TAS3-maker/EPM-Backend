@@ -10,10 +10,44 @@ use App\Services\ActivityService;
 use Illuminate\Validation\Rule;
 class ClientMasterController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $clients = ClientMaster::select('id', 'client_name', 'client_email', 'client_number', 'created_at', 'updated_at')->orderBy('id', 'DESC')->get();
-        return ApiResponse::success('Clients fetched successfully', ClientMasterResource::collection($clients));
+        $perPage = $request->get('per_page', 20);
+        $search = trim($request->get('search'));
+        $searchBy = $request->get('search_by');
+
+        $query = ClientMaster::select(
+            'id',
+            'client_name',
+            'client_email',
+            'client_number',
+            'created_at',
+            'updated_at'
+        )->orderBy('id', 'DESC');
+
+        if (!empty($search) && !empty($searchBy)) {
+
+            switch ($searchBy) {
+
+                case 'client_name':
+                    $query->where('client_name', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'client_email':
+                    $query->where('client_email', 'LIKE', "%{$search}%");
+                    break;
+
+                case 'client_number':
+                    $query->where('client_number', 'LIKE', "%{$search}%");
+                    break;
+            }
+        }
+        $clients = $query->paginate($perPage);
+
+        return response()->json([
+            'success' => true,
+            'data' => $clients,
+        ], 200);
     }
 
     public function show($id)
