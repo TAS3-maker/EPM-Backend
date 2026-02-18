@@ -67,6 +67,36 @@ class PerformaSheetController extends Controller
                 // 'data.*.offline_hours' => 'nullable',
                 // 'data.*.status' => 'nullable',
                 'data.*.is_fillable' => 'required|boolean',
+            ], [
+
+                'data.required' => 'Data field is required.',
+                'data.array' => 'Data must be an array.',
+
+                'data.*.project_id.required' => 'Project is required.',
+                'data.*.project_id.exists' => 'Selected project is not assigned to you.',
+
+                'data.*.date.required' => 'Date is required.',
+                'data.*.date.date_format' => 'Date must be in Y-m-d format.',
+
+                'data.*.time.required' => 'Time is required.',
+                'data.*.time.regex' => 'Time must be in HH:MM format.',
+
+                'data.*.task_id.required' => 'Task is required.',
+                'data.*.task_id.integer' => 'Task ID must be a valid number.',
+
+                'data.work_type.required' => 'Work type is required.',
+
+                'data.*.narration.string' => 'Narration must be a valid string.',
+
+                'data.*.is_tracking.required' => 'Tracking field is required.',
+                'data.*.is_tracking.in' => 'Tracking must be either yes or no.',
+
+                'data.*.tracking_mode.in' => 'Tracking mode must be either all or partial.',
+
+                'data.*.tracked_hours.regex' => 'Tracked hours must be in HH:MM format.',
+
+                'data.*.is_fillable.required' => 'Fillable field is required.',
+                'data.*.is_fillable.boolean' => 'Fillable field must be true or false.',
             ]);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -1242,6 +1272,36 @@ class PerformaSheetController extends Controller
                     // 'data.offline_hours' => 'nullable',
                     'data.is_fillable' => 'nullable|boolean',
                     // 'data.status' => 'nullable',
+                ], [
+
+                    'id.required' => 'Sheet ID is required.',
+                    'id.exists' => 'The selected sheet does not exist.',
+
+                    'data.required' => 'Data field is required.',
+                    'data.array' => 'Data must be a valid object.',
+
+                    'data.project_id.required' => 'Project is required.',
+                    'data.project_id.exists' => 'Selected project is not assigned to you.',
+
+                    'data.date.required' => 'Date is required.',
+                    'data.date.date_format' => 'Date must be in Y-m-d format.',
+
+                    'data.time.required' => 'Time is required.',
+                    'data.time.date_format' => 'Time must be in HH:i (24-hour) format.',
+
+                    'data.task_id.required' => 'Task is required.',
+                    'data.task_id.integer' => 'Task ID must be a valid number.',
+
+                    'data.work_type.required' => 'Work type is required.',
+
+                    'data.narration.string' => 'Narration must be a valid string.',
+
+                    'data.is_tracking.required' => 'Tracking field is required.',
+                    'data.is_tracking.in' => 'Tracking must be either yes or no.',
+
+                    'data.tracking_mode.in' => 'Tracking mode must be either all or partial.',
+
+                    'data.is_fillable.boolean' => 'Fillable field must be true or false.',
                 ]);
             } catch (\Illuminate\Validation\ValidationException $e) {
                 return response()->json([
