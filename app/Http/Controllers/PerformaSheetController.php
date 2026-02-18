@@ -2847,6 +2847,7 @@ class PerformaSheetController extends Controller
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
+                        case 'Multiple Days Leave':
                             $fullLeaveDates->push($dateStr);
                             break;
 
@@ -2866,20 +2867,68 @@ class PerformaSheetController extends Controller
             }
 
             $fullLeaveDates = $fullLeaveDates->unique();
+            $holidayMinutesByDate = [];
+            $fullHolidayDates = collect();
+            $holidays = EventHoliday::where(function ($q) use ($startDate, $endDate) {
+                $q->where('start_date', '<=', $endDate)
+                    ->where('end_date', '>=', $startDate);
+            })->get();
 
+            foreach ($holidays as $holiday) {
+
+                $period = CarbonPeriod::create(
+                    Carbon::parse($holiday->start_date),
+                    $holiday->end_date
+                        ? Carbon::parse($holiday->end_date)
+                        : Carbon::parse($holiday->start_date)
+                );
+
+                foreach ($period as $date) {
+
+                    if (!$date->isWeekday() || !$date->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+
+                    switch ($holiday->type) {
+
+                        case 'Full Holiday':
+                        case 'Multiple Holiday':
+                            $fullHolidayDates->push($dateStr);
+                            break;
+
+                        case 'Half Holiday':
+                            $holidayMinutesByDate[$dateStr] = 255;
+                            break;
+
+                        case 'Short Holiday':
+                            if ($holiday->start_time && $holiday->end_time) {
+                                $holidayMin = abs(Carbon::parse($holiday->start_time)
+                                    ->diffInMinutes(Carbon::parse($holiday->end_time)));
+
+                                $holidayMinutesByDate[$dateStr] = $holidayMin;
+                            }
+                            break;
+                    }
+                }
+            }
+
+            $fullHolidayDates = $fullHolidayDates->unique();
             $missingData = [];
             $totalMissingMinutes = 0;
 
             foreach ($allDates as $dateStr) {
 
-                if ($fullLeaveDates->contains($dateStr)) {
+                if ($fullLeaveDates->contains($dateStr) || $fullHolidayDates->contains($dateStr)) {
                     continue;
                 }
-
                 $worked = $workedMinutesByDate[$dateStr] ?? 0;
                 $leave = $leaveMinutesByDate[$dateStr] ?? 0;
+                $holiday = $holidayMinutesByDate[$dateStr] ?? 0;
 
-                $missing = max(0, 510 - $worked - $leave);
+                $requiredMinutes = max(0, 510 - $holiday);
+                $missing = max(0, $requiredMinutes - $worked - $leave);
 
                 if ($missing > 0) {
 
@@ -5164,11 +5213,12 @@ class PerformaSheetController extends Controller
                 ->get()
                 ->groupBy('user_id');
 
-            $mergedData = [];
-
+            $holidays = EventHoliday::select('start_date', 'end_date', 'type', 'start_time', 'end_time')->get();
             $allUsers = User::whereIn('id', $userIds)
-                ->select('id', 'name', 'role_id', 'created_at')
-                ->get();
+            ->select('id', 'name', 'role_id', 'created_at')
+            ->get();
+            
+            $mergedData = [];
 
             foreach ($allUsers as $user) {
 
@@ -5198,17 +5248,42 @@ class PerformaSheetController extends Controller
                         continue;
                     }
 
-                    $onLeave = false;
+                    $skipDay = false;
                     if (isset($leaves[$user->id])) {
                         foreach ($leaves[$user->id] as $leave) {
                             if ($leave->start_date <= $date && $leave->end_date >= $date) {
-                                $onLeave = true;
+                                $skipDay = true;
                                 break;
                             }
                         }
                     }
 
-                    if (!$onLeave) {
+                    if (!$skipDay) {
+                        foreach ($holidays as $holiday) {
+
+                            $start_date = Carbon::parse($holiday->start_date)->toDateString();
+                            $end_date   = Carbon::parse($holiday->end_date ?? $holiday->start_date)->toDateString();
+
+                            if ($start_date <= $date && $end_date >= $date) {
+
+                                switch (strtolower($holiday->type)) {
+
+                                    case 'full holiday':
+                                    case 'multiple holiday':
+                                        $skipDay = true;
+                                        break 2;
+
+                                    case 'half holiday':
+                                    case 'short holiday':
+                                        // Still fillable
+                                        break;
+                                }
+                            }
+                        }
+                    }
+
+                    /* final check */
+                    if (!$skipDay) {
                         $missingDates[] = $date;
                     }
                 }
