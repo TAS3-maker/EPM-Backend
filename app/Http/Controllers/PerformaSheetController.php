@@ -2548,8 +2548,10 @@ class PerformaSheetController extends Controller
         [$startStr, $endStr] = array_map('trim', explode('to', $hours));
 
         try {
-            $start = Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $startStr);
-            $end = Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $endStr);
+            // $start = Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $startStr);
+            // $end = Carbon::createFromFormat('Y-m-d h:i A', $date . ' ' . $endStr);
+            $start = Carbon::parse($date . ' ' . $startStr);
+            $end = Carbon::parse($date . ' ' . $endStr);
 
             if ($end->lessThan($start)) {
                 $end->addDay();
@@ -2738,15 +2740,17 @@ class PerformaSheetController extends Controller
 
                                 case 'Short Holiday':
                                     // Bind date + time
-                                    $start = Carbon::createFromFormat(
-                                        'Y-m-d h:i A',
-                                        $date . ' ' . strtoupper($holiday['start_time'])
-                                    );
+                                    // $start = Carbon::createFromFormat(
+                                    //     'Y-m-d h:i A',
+                                    //     $date . ' ' . strtoupper($holiday['start_time'])
+                                    // );
 
-                                    $end = Carbon::createFromFormat(
-                                        'Y-m-d h:i A',
-                                        $date . ' ' . strtoupper($holiday['end_time'])
-                                    );
+                                    // $end = Carbon::createFromFormat(
+                                    //     'Y-m-d h:i A',
+                                    //     $date . ' ' . strtoupper($holiday['end_time'])
+                                    // );
+                                    $start = Carbon::parse($date . ' ' . $holiday['start_time']);
+                                    $end = Carbon::parse($date . ' ' . $holiday['end_time']);
 
                                     if ($end->lessThan($start)) {
                                         $end->addDay();
@@ -3144,15 +3148,17 @@ class PerformaSheetController extends Controller
                                         break;
 
                                     case 'Short Holiday':
-                                        $start = Carbon::createFromFormat(
-                                            'Y-m-d h:i a',
-                                            $dateStr . ' ' . $holiday['start_time']
-                                        );
+                                        // $start = Carbon::createFromFormat(
+                                        //     'Y-m-d h:i a',
+                                        //     $dateStr . ' ' . $holiday['start_time']
+                                        // );
 
-                                        $end = Carbon::createFromFormat(
-                                            'Y-m-d h:i a',
-                                            $dateStr . ' ' . $holiday['end_time']
-                                        );
+                                        // $end = Carbon::createFromFormat(
+                                        //     'Y-m-d h:i a',
+                                        //     $dateStr . ' ' . $holiday['end_time']
+                                        // );
+                                        $start = Carbon::parse($dateStr . ' ' . $holiday->start_time);
+                                        $end = Carbon::parse($dateStr . ' ' . $holiday->end_time);
                                         if ($end->lessThan($start)) {
                                             $end->addDay();
                                         }
@@ -4101,14 +4107,16 @@ class PerformaSheetController extends Controller
                             break;
                         case 'Short Holiday':
                             if ($holiday->start_time && $holiday->end_time) {
-                                $start = Carbon::createFromFormat(
-                                    'Y-m-d H:i a',
-                                    $dateStr . ' ' . $holiday->start_time
-                                );
-                                $end = Carbon::createFromFormat(
-                                    'Y-m-d H:i a',
-                                    $dateStr . ' ' . $holiday->end_time
-                                );
+                                // $start = Carbon::createFromFormat(
+                                //     'Y-m-d H:i a',
+                                //     $dateStr . ' ' . $holiday->start_time
+                                // );
+                                // $end = Carbon::createFromFormat(
+                                //     'Y-m-d H:i a',
+                                //     $dateStr . ' ' . $holiday->end_time
+                                // );
+                                $start = Carbon::parse($dateStr . ' ' . $holiday->start_time);
+                                $end = Carbon::parse($dateStr . ' ' . $holiday->end_time);
                                 if ($end->lessThan($start)) {
                                     $end->addDay();
                                 }
