@@ -291,7 +291,7 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first()
-            ], 200);
+            ], 404);
         }
 
         try {
@@ -302,7 +302,7 @@ class ProjectMasterController extends Controller
                     'success' => false,
                     'message' => 'Project not found',
                     'data' => null
-                ], 200);
+                ], 404);
             }
 
             $relation = ProjectRelation::where('project_id', $project->id)->first();
@@ -312,7 +312,7 @@ class ProjectMasterController extends Controller
                     'success' => false,
                     'message' => 'Project relation not found',
                     'data' => null
-                ], 200);
+                ], 404);
             }
 
 
@@ -347,7 +347,7 @@ class ProjectMasterController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'Invalid communication format'
-                    ], 200);
+                    ], 404);
                 }
 
                 $existingIds = CommunicationType::whereIn('id', $communication_id)
@@ -358,7 +358,7 @@ class ProjectMasterController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'One or more communication types do not exist'
-                    ], 200);
+                    ], 404);
                 }
 
                 $relation->communication_id = $communication_id;
@@ -378,7 +378,7 @@ class ProjectMasterController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'Invalid assignees format'
-                    ], 200);
+                    ], 404);
                 }
 
                 $existingAssignees = User::whereIn('id', $assignees)->where('is_active', 1)
@@ -389,7 +389,7 @@ class ProjectMasterController extends Controller
                     return response()->json([
                         'success' => false,
                         'message' => 'One or more assignees do not exist'
-                    ], 200);
+                    ], 404);
                 }
 
                 $relation->assignees = $assignees;
