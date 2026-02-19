@@ -3157,8 +3157,9 @@ class PerformaSheetController extends Controller
                                         //     'Y-m-d h:i a',
                                         //     $dateStr . ' ' . $holiday['end_time']
                                         // );
-                                        $start = Carbon::parse($dateStr . ' ' . $holiday->start_time);
-                                        $end = Carbon::parse($dateStr . ' ' . $holiday->end_time);
+                                        $start = Carbon::parse($dateStr . ' ' . $holiday['start_time']);
+                                        $end = Carbon::parse($dateStr . ' ' . $holiday['end_time']);
+
                                         if ($end->lessThan($start)) {
                                             $end->addDay();
                                         }
