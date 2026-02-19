@@ -4296,12 +4296,12 @@ class PerformaSheetController extends Controller
 
                         $holidayMinutes = $holidayMinutesPerDay[$dateStr] ?? 0;
                         $effectiveExpected = max(
-                            $dailyExpectedMinutes - $holidayMinutes - $leave,
+                            $dailyExpectedMinutes - $holidayMinutes,
                             0
                         );
                         $unfilled = max(
                             0,
-                            $effectiveExpected - $totalWorkedToday
+                            $effectiveExpected - $totalWorkedToday - $leave
                         );
 
                         /* if ($leave >= $dailyExpectedMinutes) {
