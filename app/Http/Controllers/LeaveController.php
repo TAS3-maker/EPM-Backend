@@ -614,6 +614,10 @@ class LeaveController extends Controller
         $perPage = $request->get('per_page', 20);
         $search = trim($request->get('search'));
         $searchBy = $request->get('search_by');
+        $status = $request->get('status');
+        $startDate = $request->get('start_date');
+        $endDate = $request->get('end_date');
+
 
         $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
             ->latest();
@@ -687,20 +691,25 @@ class LeaveController extends Controller
                 case 'leave_type':
                     $leavesQuery->where('leave_type', 'LIKE', "%{$search}%");
                     break;
-
-                case 'status':
-                    $leavesQuery->where('status', 'LIKE', "%{$search}%");
-                    break;
-
-                case 'start_date':
-                    $leavesQuery->whereDate('start_date', $search);
-                    break;
-
-                case 'end_date':
-                    $leavesQuery->whereDate('end_date', $search);
-                    break;
             }
         }
+        $leavesQuery
+            ->when($status, fn($q) => $q->where('status', $status))
+            ->when(
+                $startDate && $endDate,
+                fn($q) =>
+                $q->whereBetween('start_date', [$startDate, $endDate])
+            )
+            ->when(
+                $startDate && !$endDate,
+                fn($q) =>
+                $q->whereDate('start_date', '>=', $startDate)
+            )
+            ->when(
+                !$startDate && $endDate,
+                fn($q) =>
+                $q->whereDate('end_date', '<=', $endDate)
+            );
 
         $leaves = $leavesQuery->paginate($perPage);
 
