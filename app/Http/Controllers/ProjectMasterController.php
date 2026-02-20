@@ -144,30 +144,33 @@ class ProjectMasterController extends Controller
         }
         if ($request->tracking_id) {
             $tracking_id = $request->tracking_id;
+        } else {
+            $tracking_id = [];
+        }
 
-            if (is_string($tracking_id)) {
-                $tracking_id = array_filter(
-                    array_map('intval', explode(',', $tracking_id))
-                );
-            }
+        if (is_string($tracking_id)) {
+            $tracking_id = array_filter(
+                array_map('intval', explode(',', $tracking_id))
+            );
+        }
 
-            if (!is_array($tracking_id) || empty($tracking_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid tracking format'
-                ], 404);
-            }
+        if (!is_array($tracking_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid tracking format'
+            ], 404);
+        }
 
-            $existingtrackingIds = ProjectAccount::whereIn('id', $tracking_id)
-                ->pluck('id')
-                ->toArray();
+        $existingtrackingIds = ProjectAccount::whereIn('id', $tracking_id)
+            ->pluck('id')
+            ->toArray();
 
-            if (count($existingtrackingIds) !== count($tracking_id)) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'One or more tracking types do not exist'
-                ], 404);
-            }
+        if (count($existingtrackingIds) !== count($tracking_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more tracking types do not exist'
+            ], 404);
+
         }
         $assignees = $request->assignees;
 
