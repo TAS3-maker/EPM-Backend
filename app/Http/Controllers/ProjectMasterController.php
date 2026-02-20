@@ -114,7 +114,7 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => $validator->errors()->first()
-            ], 200);
+            ], 404);
         }
 
         $communication_id = $request->communication_id;
@@ -129,7 +129,7 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid communication format'
-            ], 200);
+            ], 404);
         }
 
         $existingIds = CommunicationType::whereIn('id', $communication_id)
@@ -140,32 +140,34 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'One or more communication types do not exist'
-            ], 200);
+            ], 404);
         }
-        $tracking_id = $request->tracking_id;
+        if ($request->tracking_id) {
+            $tracking_id = $request->tracking_id;
 
-        if (is_string($tracking_id)) {
-            $tracking_id = array_filter(
-                array_map('intval', explode(',', $tracking_id))
-            );
-        }
+            if (is_string($tracking_id)) {
+                $tracking_id = array_filter(
+                    array_map('intval', explode(',', $tracking_id))
+                );
+            }
 
-        if (!is_array($tracking_id) || empty($tracking_id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid tracking format'
-            ], 200);
-        }
+            if (!is_array($tracking_id) || empty($tracking_id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid tracking format'
+                ], 404);
+            }
 
-        $existingIds = ProjectAccount::whereIn('id', $tracking_id)
-            ->pluck('id')
-            ->toArray();
+            $existingtrackingIds = ProjectAccount::whereIn('id', $tracking_id)
+                ->pluck('id')
+                ->toArray();
 
-        if (count($existingIds) !== count($tracking_id)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'One or more tracking types do not exist'
-            ], 200);
+            if (count($existingtrackingIds) !== count($tracking_id)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'One or more tracking types do not exist'
+                ], 404);
+            }
         }
         $assignees = $request->assignees;
 
@@ -179,7 +181,7 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid assignees format'
-            ], 200);
+            ], 404);
         }
 
         $existingAssignees = User::whereIn('id', $assignees)->where('is_active', 1)
@@ -190,7 +192,7 @@ class ProjectMasterController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'One or more assignees not exist'
-            ], 200);
+            ], 404);
         }
 
 
@@ -407,11 +409,11 @@ class ProjectMasterController extends Controller
                     ], 404);
                 }
 
-                $existingIds = ProjectAccount::whereIn('id', $tracking_id)
+                $existingtrackingIds = ProjectAccount::whereIn('id', $tracking_id)
                     ->pluck('id')
                     ->toArray();
 
-                if (count($existingIds) !== count($tracking_id)) {
+                if (count($existingtrackingIds) !== count($tracking_id)) {
                     return response()->json([
                         'success' => false,
                         'message' => 'One or more tracking types do not exist'
