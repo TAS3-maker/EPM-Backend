@@ -26,6 +26,7 @@ class ProjectRelation extends Model
     protected $casts = [
         'communication_id' => 'array',
         'assignees' => 'array',
+        'tracking_id' => 'array',
     ];
     public function client()
     {
@@ -110,9 +111,9 @@ class ProjectRelation extends Model
     }
     public function trackingID()
     {
-        return ProjectAccount::where(
+        return ProjectAccount::whereIn(
             'id',
-            $this->tracking_id ?? ''
+            $this->tracking_id ?? []
         )->get();
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Helpers\ApiResponse;
+use App\Models\ProjectAccount;
 use App\Models\ProjectMaster;
 use App\Models\CommunicationType;
 use App\Http\Resources\ProjectMasterResource;
@@ -92,7 +93,7 @@ class ProjectMasterController extends Controller
             'project_call_by' => 'nullable|integer|exists:users,id',
             'project_tracking' => 'required|integer',
             'tracking_source_id' => 'nullable|integer',
-            'tracking_id' => 'nullable|integer',
+            'tracking_id' => 'nullable',
             'project_status' => 'nullable|string',
             'project_description' => 'nullable|string',
             'project_budget' => 'nullable|string',
@@ -141,7 +142,31 @@ class ProjectMasterController extends Controller
                 'message' => 'One or more communication types do not exist'
             ], 200);
         }
+        $tracking_id = $request->tracking_id;
 
+        if (is_string($tracking_id)) {
+            $tracking_id = array_filter(
+                array_map('intval', explode(',', $tracking_id))
+            );
+        }
+
+        if (!is_array($tracking_id) || empty($tracking_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid tracking format'
+            ], 200);
+        }
+
+        $existingIds = ProjectAccount::whereIn('id', $tracking_id)
+            ->pluck('id')
+            ->toArray();
+
+        if (count($existingIds) !== count($tracking_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'One or more tracking types do not exist'
+            ], 200);
+        }
         $assignees = $request->assignees;
 
         if (is_string($assignees)) {
@@ -192,7 +217,7 @@ class ProjectMasterController extends Controller
                 'assignees' => $assignees,
                 'source_id' => $request->source_id,
                 'account_id' => $request->account_id,
-                'tracking_id' => $request->tracking_id,
+                'tracking_id' => $tracking_id,
                 'tracking_source_id' => $request->tracking_source_id,
                 'sales_person_id' => $request->sales_person_id,
                 'project_estimation_by' => $request->project_estimation_by,
@@ -271,7 +296,7 @@ class ProjectMasterController extends Controller
             'project_estimation_by' => 'sometimes|nullable|integer|exists:users,id',
             'project_call_by' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
-            'tracking_id' => 'sometimes|nullable|integer',
+            'tracking_id' => 'sometimes|nullable',
             'tracking_source_id' => 'nullable|integer',
             'project_status' => 'sometimes|nullable|string',
             'project_description' => 'sometimes|nullable|string',
@@ -366,6 +391,35 @@ class ProjectMasterController extends Controller
 
                 $relation->communication_id = $communication_id;
             }
+            if ($request->has('tracking_id')) {
+                $tracking_id = $request->tracking_id;
+
+                if (is_string($tracking_id)) {
+                    $tracking_id = array_filter(
+                        array_map('intval', explode(',', $tracking_id))
+                    );
+                }
+
+                if (!is_array($tracking_id)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Invalid tracking format'
+                    ], 404);
+                }
+
+                $existingIds = ProjectAccount::whereIn('id', $tracking_id)
+                    ->pluck('id')
+                    ->toArray();
+
+                if (count($existingIds) !== count($tracking_id)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'One or more tracking types do not exist'
+                    ], 404);
+                }
+
+                $relation->tracking_id = $tracking_id;
+            }
 
 
             if ($request->has('assignees')) {
@@ -403,7 +457,6 @@ class ProjectMasterController extends Controller
                 'client_id',
                 'source_id',
                 'account_id',
-                'tracking_id',
                 'tracking_source_id',
                 'sales_person_id',
                 'project_estimation_by',
