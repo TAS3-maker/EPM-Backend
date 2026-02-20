@@ -99,7 +99,7 @@ class ProjectRelation extends Model
     {
         return $this->belongsTo(ProjectSource::class, 'source_id');
     }
-    public function tracking_source_id()
+    public function tracking_source()
     {
         return $this->belongsTo(ProjectSource::class, 'tracking_source_id');
     }
