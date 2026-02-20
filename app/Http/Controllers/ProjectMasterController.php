@@ -2124,19 +2124,18 @@ class ProjectMasterController extends Controller
 
                                 case 'short leave':
 
-                                    if (!empty($leave->start_time) && !empty($leave->end_time)) {
+                                    if (!empty($leave->hours)) {
 
-                                        $start = Carbon::parse($leave->start_time);
-                                        $end = Carbon::parse($leave->end_time);
+                                        [$startTime, $endTime] = explode('to', $leave->hours);
+
+                                        $start = Carbon::parse(trim($startTime));
+                                        $end = Carbon::parse(trim($endTime));
 
                                         if ($end->lessThan($start)) {
                                             $end->addDay();
                                         }
 
-                                        $leaveMinutes = max(
-                                            $leaveMinutes,
-                                            $end->diffInMinutes($start)
-                                        );
+                                        $leaveMinutes = $start->diffInMinutes($end);
                                     }
                                     break;
                             }
