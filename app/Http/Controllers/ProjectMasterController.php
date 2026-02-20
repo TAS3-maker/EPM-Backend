@@ -1570,6 +1570,209 @@ class ProjectMasterController extends Controller
     }
 
 
+    // public function getFullDetailsOfProjectById(Request $request)
+    // {
+    //     $startDate = $request->start_date
+    //         ? Carbon::parse($request->start_date)->startOfDay()
+    //         : null;
+
+    //     $endDate = $request->end_date
+    //         ? Carbon::parse($request->end_date)->endOfDay()
+    //         : null;
+    //     if (!$request->project_id) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Project Id is required',
+    //         ], 422);
+    //     }
+    //     $project = ProjectMaster::select('id', 'project_name')
+    //         ->where('id', $request->project_id)
+    //         ->with([
+    //             'tasks:id,project_id,title,status,hours',
+    //             'relation:id,project_id,assignees'
+    //         ])
+    //         ->first();
+
+    //     if (!$project) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Project not found',
+    //         ], 404);
+    //     }
+
+    //     $assignees = [];
+
+    //     if ($project->relation && $project->relation->assignees) {
+    //         $assignees = is_string($project->relation->assignees)
+    //             ? json_decode($project->relation->assignees, true)
+    //             : (array) $project->relation->assignees;
+    //     }
+
+    //     if (empty($assignees)) {
+    //         unset($project->relation);
+    //         return response()->json([
+    //             'success' => true,
+    //             'data' => $project,
+    //         ]);
+    //     }
+
+    //     $usersMap = User::whereIn('id', $assignees)->where('is_active', 1)
+    //         ->pluck('name', 'id')
+    //         ->toArray();
+
+    //     $taskIds = $project->tasks->pluck('id')->toArray();
+
+    //     $performaSheets = PerformaSheet::whereIn('user_id', $assignees)
+    //         ->where('status', 'approved')
+    //         ->get();
+
+    //     $taskUserData = [];
+
+    //     foreach ($performaSheets as $sheet) {
+    //         $decoded = json_decode($sheet->data, true);
+
+    //         if (is_string($decoded)) {
+    //             $decoded = json_decode($decoded, true);
+    //         }
+
+    //         $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+    //         foreach ($entries as $entry) {
+    //             if (!isset($entry['task_id'], $entry['time'], $entry['date'])) {
+    //                 continue;
+    //             }
+    //             $entryDate = Carbon::parse($entry['date']);
+    //             if ($startDate && $entryDate->lt($startDate)) {
+    //                 continue;
+    //             }
+    //             if ($endDate && $entryDate->gt($endDate)) {
+    //                 continue;
+    //             }
+
+    //             $taskId = (int) $entry['task_id'];
+
+    //             if (!in_array($taskId, $taskIds)) {
+    //                 continue;
+    //             }
+
+    //             [$h, $m] = array_map('intval', explode(':', $entry['time']));
+    //             $minutes = ($h * 60) + $m;
+
+    //             $taskUserData[$taskId][$sheet->user_id]['minutes'] =
+    //                 ($taskUserData[$taskId][$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+    //             $taskUserData[$taskId][$sheet->user_id]['sheets'][] = [
+    //                 'sheet_id' => $sheet->id,
+    //                 'status' => $sheet->status,
+    //                 'project_id' => $entry['project_id'],
+    //                 'task_id' => $entry['task_id'],
+    //                 'date' => $entry['date'] ?? null,
+    //                 'time' => $entry['time'],
+    //                 'activity_type' => $entry['activity_type'] ?? null,
+    //                 'work_type' => $entry['work_type'] ?? null,
+    //                 'narration' => $entry['narration'] ?? null,
+    //             ];
+    //         }
+    //     }
+
+    //     $project->tasks = $project->tasks->map(function ($task) use ($taskUserData, $usersMap) {
+
+    //         $totalMinutes = 0;
+    //         $users = [];
+
+    //         if (isset($taskUserData[$task->id])) {
+    //             foreach ($taskUserData[$task->id] as $userId => $data) {
+    //                 $totalMinutes += $data['minutes'];
+    //                 $users[] = [
+    //                     'id' => $userId,
+    //                     'name' => $usersMap[$userId] ?? 'Unknown',
+    //                     'hours' => round($data['minutes'] / 60, 2),
+    //                     'sheets' => collect($data['sheets'] ?? [])
+    //                         ->sortByDesc('sheet_id')
+    //                         ->values()
+    //                         ->toArray(),
+    //                 ];
+    //             }
+    //         }
+
+
+    //         $task->used_hours = round($totalMinutes / 60, 2);
+    //         $task->users = $users;
+
+    //         return $task;
+    //     });
+
+    //     $projectUserData = [];
+
+    //     foreach ($performaSheets as $sheet) {
+
+    //         $decoded = json_decode($sheet->data, true);
+    //         if (is_string($decoded)) {
+    //             $decoded = json_decode($decoded, true);
+    //         }
+
+    //         $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+    //         foreach ($entries as $entry) {
+    //             if (!isset($entry['project_id'], $entry['time'], $entry['date'])) {
+    //                 continue;
+    //             }
+
+    //             if ((int) $entry['project_id'] !== (int) $project->id) {
+    //                 continue;
+    //             }
+
+    //             $entryDate = Carbon::parse($entry['date']);
+    //             if ($startDate && $entryDate->lt($startDate))
+    //                 continue;
+    //             if ($endDate && $entryDate->gt($endDate))
+    //                 continue;
+
+    //             [$h, $m] = array_map('intval', explode(':', $entry['time']));
+    //             $minutes = ($h * 60) + $m;
+
+    //             $projectUserData[$sheet->user_id]['minutes'] =
+    //                 ($projectUserData[$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+    //             $projectUserData[$sheet->user_id]['sheets'][] = [
+    //                 'sheet_id' => $sheet->id,
+    //                 'status' => $sheet->status,
+    //                 'project_id' => $entry['project_id'],
+    //                 'task_id' => $entry['task_id'] ?? null,
+    //                 'date' => $entry['date'] ?? null,
+    //                 'time' => $entry['time'],
+    //                 'activity_type' => $entry['activity_type'] ?? null,
+    //                 'work_type' => $entry['work_type'] ?? null,
+    //                 'narration' => $entry['narration'] ?? null,
+    //             ];
+    //         }
+    //     }
+    //     $projectUsers = [];
+    //     foreach ($projectUserData as $userId => $data) {
+    //         $projectUsers[] = [
+    //             'id' => $userId,
+    //             'name' => $usersMap[$userId] ?? 'Unknown',
+    //             'hours' => round($data['minutes'] / 60, 2),
+    //             'sheets' => collect($data['sheets'] ?? [])
+    //                 ->sortByDesc('sheet_id')
+    //                 ->values()
+    //                 ->toArray(),
+    //         ];
+    //     }
+
+    //     $project->projectSheets = [
+    //         'users' => $projectUsers
+    //     ];
+
+    //     unset($project->relation);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => $project,
+    //     ]);
+    // }
+
+
     public function getFullDetailsOfProjectById(Request $request)
     {
         $startDate = $request->start_date
@@ -1579,18 +1782,17 @@ class ProjectMasterController extends Controller
         $endDate = $request->end_date
             ? Carbon::parse($request->end_date)->endOfDay()
             : null;
+
         if (!$request->project_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Project Id is required',
             ], 422);
         }
+
         $project = ProjectMaster::select('id', 'project_name')
+            ->with(['tasks:id,project_id,title,status,hours'])
             ->where('id', $request->project_id)
-            ->with([
-                'tasks:id,project_id,title,status,hours',
-                'relation:id,project_id,assignees'
-            ])
             ->first();
 
         if (!$project) {
@@ -1600,37 +1802,25 @@ class ProjectMasterController extends Controller
             ], 404);
         }
 
-        $assignees = [];
+        $projectId = (int) $project->id;
 
-        if ($project->relation && $project->relation->assignees) {
-            $assignees = is_string($project->relation->assignees)
-                ? json_decode($project->relation->assignees, true)
-                : (array) $project->relation->assignees;
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 1: Get ALL approved sheets first
+        |--------------------------------------------------------------------------
+        */
 
-        if (empty($assignees)) {
-            unset($project->relation);
-            return response()->json([
-                'success' => true,
-                'data' => $project,
-            ]);
-        }
-
-        $usersMap = User::whereIn('id', $assignees)->where('is_active', 1)
-            ->pluck('name', 'id')
-            ->toArray();
-
-        $taskIds = $project->tasks->pluck('id')->toArray();
-
-        $performaSheets = PerformaSheet::whereIn('user_id', $assignees)
-            ->where('status', 'approved')
-            ->get();
+        $performaSheets = PerformaSheet::where('status', 'approved')->get();
 
         $taskUserData = [];
+        $projectUserData = [];
+        $userIdsFromSheets = [];
 
         foreach ($performaSheets as $sheet) {
+
             $decoded = json_decode($sheet->data, true);
 
+            // Handle double JSON encoded
             if (is_string($decoded)) {
                 $decoded = json_decode($decoded, true);
             }
@@ -1638,35 +1828,65 @@ class ProjectMasterController extends Controller
             $entries = isset($decoded[0]) ? $decoded : [$decoded];
 
             foreach ($entries as $entry) {
-                if (!isset($entry['task_id'], $entry['time'], $entry['date'])) {
+
+                if (!isset($entry['project_id'], $entry['time'], $entry['date'])) {
                     continue;
                 }
+
+                if ((int) $entry['project_id'] !== $projectId) {
+                    continue;
+                }
+
                 $entryDate = Carbon::parse($entry['date']);
-                if ($startDate && $entryDate->lt($startDate)) {
+                if ($startDate && $entryDate->lt($startDate))
                     continue;
-                }
-                if ($endDate && $entryDate->gt($endDate)) {
+                if ($endDate && $entryDate->gt($endDate))
                     continue;
-                }
 
-                $taskId = (int) $entry['task_id'];
-
-                if (!in_array($taskId, $taskIds)) {
-                    continue;
-                }
+                $userIdsFromSheets[] = $sheet->user_id;
 
                 [$h, $m] = array_map('intval', explode(':', $entry['time']));
                 $minutes = ($h * 60) + $m;
 
-                $taskUserData[$taskId][$sheet->user_id]['minutes'] =
-                    ($taskUserData[$taskId][$sheet->user_id]['minutes'] ?? 0) + $minutes;
+                /*
+                |--------------------------------------------------------------------------
+                | TASK WISE DATA
+                |--------------------------------------------------------------------------
+                */
+                if (isset($entry['task_id'])) {
 
-                $taskUserData[$taskId][$sheet->user_id]['sheets'][] = [
+                    $taskId = (int) $entry['task_id'];
+
+                    $taskUserData[$taskId][$sheet->user_id]['minutes'] =
+                        ($taskUserData[$taskId][$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+                    $taskUserData[$taskId][$sheet->user_id]['sheets'][] = [
+                        'sheet_id' => $sheet->id,
+                        'status' => $sheet->status,
+                        'project_id' => $entry['project_id'],
+                        'task_id' => $entry['task_id'],
+                        'date' => $entry['date'],
+                        'time' => $entry['time'],
+                        'activity_type' => $entry['activity_type'] ?? null,
+                        'work_type' => $entry['work_type'] ?? null,
+                        'narration' => $entry['narration'] ?? null,
+                    ];
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | PROJECT WISE DATA
+                |--------------------------------------------------------------------------
+                */
+                $projectUserData[$sheet->user_id]['minutes'] =
+                    ($projectUserData[$sheet->user_id]['minutes'] ?? 0) + $minutes;
+
+                $projectUserData[$sheet->user_id]['sheets'][] = [
                     'sheet_id' => $sheet->id,
                     'status' => $sheet->status,
                     'project_id' => $entry['project_id'],
-                    'task_id' => $entry['task_id'],
-                    'date' => $entry['date'] ?? null,
+                    'task_id' => $entry['task_id'] ?? null,
+                    'date' => $entry['date'],
                     'time' => $entry['time'],
                     'activity_type' => $entry['activity_type'] ?? null,
                     'work_type' => $entry['work_type'] ?? null,
@@ -1675,14 +1895,36 @@ class ProjectMasterController extends Controller
             }
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | STEP 2: Get users ONLY from sheets (even if unassigned now)
+        |--------------------------------------------------------------------------
+        */
+
+        $userIdsFromSheets = array_unique($userIdsFromSheets);
+
+        $usersMap = User::whereIn('id', $userIdsFromSheets)
+            ->where('is_active', 1)
+            ->pluck('name', 'id')
+            ->toArray();
+
+        /*
+        |--------------------------------------------------------------------------
+        | TASK RESPONSE BUILD
+        |--------------------------------------------------------------------------
+        */
+
         $project->tasks = $project->tasks->map(function ($task) use ($taskUserData, $usersMap) {
 
             $totalMinutes = 0;
             $users = [];
 
             if (isset($taskUserData[$task->id])) {
+
                 foreach ($taskUserData[$task->id] as $userId => $data) {
+
                     $totalMinutes += $data['minutes'];
+
                     $users[] = [
                         'id' => $userId,
                         'name' => $usersMap[$userId] ?? 'Unknown',
@@ -1695,60 +1937,22 @@ class ProjectMasterController extends Controller
                 }
             }
 
-
             $task->used_hours = round($totalMinutes / 60, 2);
             $task->users = $users;
 
             return $task;
         });
 
-        $projectUserData = [];
+        /*
+        |--------------------------------------------------------------------------
+        | PROJECT USERS RESPONSE BUILD
+        |--------------------------------------------------------------------------
+        */
 
-        foreach ($performaSheets as $sheet) {
-
-            $decoded = json_decode($sheet->data, true);
-            if (is_string($decoded)) {
-                $decoded = json_decode($decoded, true);
-            }
-
-            $entries = isset($decoded[0]) ? $decoded : [$decoded];
-
-            foreach ($entries as $entry) {
-                if (!isset($entry['project_id'], $entry['time'], $entry['date'])) {
-                    continue;
-                }
-
-                if ((int) $entry['project_id'] !== (int) $project->id) {
-                    continue;
-                }
-
-                $entryDate = Carbon::parse($entry['date']);
-                if ($startDate && $entryDate->lt($startDate))
-                    continue;
-                if ($endDate && $entryDate->gt($endDate))
-                    continue;
-
-                [$h, $m] = array_map('intval', explode(':', $entry['time']));
-                $minutes = ($h * 60) + $m;
-
-                $projectUserData[$sheet->user_id]['minutes'] =
-                    ($projectUserData[$sheet->user_id]['minutes'] ?? 0) + $minutes;
-
-                $projectUserData[$sheet->user_id]['sheets'][] = [
-                    'sheet_id' => $sheet->id,
-                    'status' => $sheet->status,
-                    'project_id' => $entry['project_id'],
-                    'task_id' => $entry['task_id'] ?? null,
-                    'date' => $entry['date'] ?? null,
-                    'time' => $entry['time'],
-                    'activity_type' => $entry['activity_type'] ?? null,
-                    'work_type' => $entry['work_type'] ?? null,
-                    'narration' => $entry['narration'] ?? null,
-                ];
-            }
-        }
         $projectUsers = [];
+
         foreach ($projectUserData as $userId => $data) {
+
             $projectUsers[] = [
                 'id' => $userId,
                 'name' => $usersMap[$userId] ?? 'Unknown',
@@ -1763,8 +1967,6 @@ class ProjectMasterController extends Controller
         $project->projectSheets = [
             'users' => $projectUsers
         ];
-
-        unset($project->relation);
 
         return response()->json([
             'success' => true,
