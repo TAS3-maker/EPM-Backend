@@ -308,7 +308,7 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $perPage = $request->get('per_page', 20);
+        $perPage = $request->get('per_page', null);
         $search = $request->get('search');
         $searchBy = $request->get('search_by');
         $status = $request->get('status');
@@ -353,12 +353,17 @@ class UserController extends Controller
                     break;
             }
         }
-
-        $users = $query->paginate($perPage);
+        if (!empty($perPage)) {
+            $users = $query->paginate((int) $perPage);
+            $data = UserResource::collection($users)->response()->getData(true);
+        } else {
+            $users = $query->get();
+            $data = UserResource::collection($users);
+        }
 
         return response()->json([
             'success' => true,
-            'data' => UserResource::collection($users)->response()->getData(true),
+            'data' => $data,
         ], 200);
     }
 
