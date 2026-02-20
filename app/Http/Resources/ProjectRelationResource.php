@@ -16,7 +16,9 @@ class ProjectRelationResource extends JsonResource
             'communication_id' => $this->communication_id,
             'assignees_id' => $this->assignees,
             'source_id' => $this->source_id,
+            'source' => $this->source ? $this->source->source_name : null,
             'account_id' => $this->account_id,
+            'account' => $this->account ? $this->account->account_name : null,
             'tracking_id' => $this->tracking_id,
             'tracking_account' => $this->trackingID(),
             'tracking_source_id' => $this->tracking_source_id,
@@ -33,8 +35,6 @@ class ProjectRelationResource extends JsonResource
             'project' => $this->project ? $this->project->project_name : null,
             'communications' => $this->communications(),
             'assignees' => $this->assignees(),
-            'source' => $this->source ? $this->source->source_name : null,
-            'account' => $this->account ? $this->account->account_name : null,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
