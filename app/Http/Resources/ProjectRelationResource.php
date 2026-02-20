@@ -20,7 +20,7 @@ class ProjectRelationResource extends JsonResource
             'tracking_id' => $this->tracking_id,
             'tracking_account' => $this->trackingID(),
             'tracking_source_id' => $this->tracking_source_id,
-            'tracking_source' => $this->tracking_source_id(),
+            'tracking_source_name' => $this->tracking_source_id ? $this->tracking_source_id->source_name : null,
             'sales_person_id' => $this->sales_person_id,
             'project_estimation_by' => $this->project_estimation_by,
             'project_call_by' => $this->project_call_by,
