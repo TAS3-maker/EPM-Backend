@@ -18,6 +18,7 @@ class ProjectRelation extends Model
         'source_id',
         'account_id',
         'tracking_id',
+        'tracking_source_id',
         'sales_person_id',
         'project_estimation_by',
         'project_call_by',
@@ -97,6 +98,10 @@ class ProjectRelation extends Model
     public function source()
     {
         return $this->belongsTo(ProjectSource::class, 'source_id');
+    }
+    public function tracking_source_id()
+    {
+        return $this->belongsTo(ProjectSource::class, 'tracking_source_id');
     }
 
     public function account()

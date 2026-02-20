@@ -91,6 +91,7 @@ class ProjectMasterController extends Controller
             'project_estimation_by' => 'nullable|integer|exists:users,id',
             'project_call_by' => 'nullable|integer|exists:users,id',
             'project_tracking' => 'required|integer',
+            'tracking_source_id' => 'nullable|integer',
             'tracking_id' => 'nullable|integer',
             'project_status' => 'nullable|string',
             'project_description' => 'nullable|string',
@@ -192,6 +193,7 @@ class ProjectMasterController extends Controller
                 'source_id' => $request->source_id,
                 'account_id' => $request->account_id,
                 'tracking_id' => $request->tracking_id,
+                'tracking_source_id' => $request->tracking_source_id,
                 'sales_person_id' => $request->sales_person_id,
                 'project_estimation_by' => $request->project_estimation_by,
                 'project_call_by' => $request->project_call_by,
@@ -270,6 +272,7 @@ class ProjectMasterController extends Controller
             'project_call_by' => 'sometimes|nullable|integer|exists:users,id',
             'project_tracking' => 'sometimes|required|integer',
             'tracking_id' => 'sometimes|nullable|integer',
+            'tracking_source_id' => 'nullable|integer',
             'project_status' => 'sometimes|nullable|string',
             'project_description' => 'sometimes|nullable|string',
             'project_budget' => 'sometimes|nullable|string',
@@ -401,6 +404,7 @@ class ProjectMasterController extends Controller
                 'source_id',
                 'account_id',
                 'tracking_id',
+                'tracking_source_id',
                 'sales_person_id',
                 'project_estimation_by',
                 'project_call_by',
@@ -1122,17 +1126,17 @@ class ProjectMasterController extends Controller
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                            return [
-                                'id' => $task->id,
-                                'project_id' => $task->project_id,
-                                'title' => $task->title,
-                                'description' => $task->description,
-                                'hours' => $task->hours,
-                                'deadline' => $task->deadline,
-                                'status' => $task->status,
-                                'start_date' => $task->start_date,
-                            ];
-                        });
+                        return [
+                            'id' => $task->id,
+                            'project_id' => $task->project_id,
+                            'title' => $task->title,
+                            'description' => $task->description,
+                            'hours' => $task->hours,
+                            'deadline' => $task->deadline,
+                            'status' => $task->status,
+                            'start_date' => $task->start_date,
+                        ];
+                    });
 
                     return [
                         'id' => $project->id,
@@ -1931,7 +1935,7 @@ class ProjectMasterController extends Controller
                 // if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
                 //     return false;
                 // }
-
+    
                 return true;
             });
 
@@ -1988,7 +1992,7 @@ class ProjectMasterController extends Controller
         foreach ($holidays as $holiday) {
 
             $cursor = Carbon::parse($holiday->start_date)->startOfDay();
-            $end    = Carbon::parse($holiday->end_date)->endOfDay();
+            $end = Carbon::parse($holiday->end_date)->endOfDay();
 
             while ($cursor->lte($end)) {
 
@@ -2013,9 +2017,10 @@ class ProjectMasterController extends Controller
                             if ($holiday->start_time && $holiday->end_time) {
 
                                 $start = Carbon::parse("$dateStr $holiday->start_time");
-                                $endT  = Carbon::parse("$dateStr $holiday->end_time");
+                                $endT = Carbon::parse("$dateStr $holiday->end_time");
 
-                                if ($endT->lt($start)) $endT->addDay();
+                                if ($endT->lt($start))
+                                    $endT->addDay();
 
                                 $minutes = $start->diffInMinutes($endT);
                             }
@@ -2043,7 +2048,7 @@ class ProjectMasterController extends Controller
         $notFilledUsers = [];
         $summary = [
             'expected' => 0,
-            'actual'   => 0,
+            'actual' => 0,
             'leave' => 0,
             'billable' => 0,
             'inhouse' => 0,
@@ -2052,13 +2057,14 @@ class ProjectMasterController extends Controller
         ];
 
         $approvedMinutesByUserDate = [];
-        $pendingMinutesByUserDate  = [];
+        $pendingMinutesByUserDate = [];
         foreach ($allSheetsForUnfilled as $sheet) {
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date'])) continue;
+            if (!is_array($data) || empty($data['date']))
+                continue;
 
-            $uid = (int)$sheet->user_id;
+            $uid = (int) $sheet->user_id;
             $dateStr = Carbon::parse($data['date'])->toDateString();
             $minutes = $timeToMinutes($data['time'] ?? null);
 
@@ -2121,7 +2127,7 @@ class ProjectMasterController extends Controller
                                     if (!empty($leave->start_time) && !empty($leave->end_time)) {
 
                                         $start = Carbon::parse($leave->start_time);
-                                        $end   = Carbon::parse($leave->end_time);
+                                        $end = Carbon::parse($leave->end_time);
 
                                         if ($end->lessThan($start)) {
                                             $end->addDay();
@@ -2141,11 +2147,11 @@ class ProjectMasterController extends Controller
 
                 $actualMinutes = max(0, $baseMinutes - $leaveMinutes);
                 $approved = $approvedMinutesByUserDate[$uid][$dateStr] ?? 0;
-                $pending  = $pendingMinutesByUserDate[$uid][$dateStr] ?? 0;
+                $pending = $pendingMinutesByUserDate[$uid][$dateStr] ?? 0;
                 $worked = $approved + $pending;
 
                 $summary['expected'] += $baseMinutes;
-                $summary['actual']  += $actualMinutes;
+                $summary['actual'] += $actualMinutes;
                 $summary['leave'] += $leaveMinutes;
                 $userExpectedMinutes += $baseMinutes;
                 // $fillableMinutes = $actualMinutes;
@@ -2184,7 +2190,7 @@ class ProjectMasterController extends Controller
 
             $type = strtolower($data['activity_type'] ?? '');
             $minutes = $timeToMinutes($data['time'] ?? null);
-            $status  = strtolower($sheet->status ?? '');
+            $status = strtolower($sheet->status ?? '');
 
             if (
                 !empty($allowedActivityTypes) &&
@@ -2225,8 +2231,8 @@ class ProjectMasterController extends Controller
 
             $emptyFlags = [
                 'billable' => false,
-                'inhouse'  => false,
-                'no_work'  => false,
+                'inhouse' => false,
+                'no_work' => false,
             ];
             if ($status === 'pending' || $status === 'backdated') {
                 $summary['pending'] += $minutes;
@@ -2238,9 +2244,9 @@ class ProjectMasterController extends Controller
                         'team_names' => $userTeamNames,
                         'summary' => [
                             'billable' => 0,
-                            'inhouse'  => 0,
-                            'no_work'  => 0,
-                            'pending'  => 0,
+                            'inhouse' => 0,
+                            'no_work' => 0,
+                            'pending' => 0,
                         ],
                         'sheets' => []
                     ];
@@ -2287,9 +2293,12 @@ class ProjectMasterController extends Controller
         $userCounts = ['billable' => 0, 'inhouse' => 0, 'no_work' => 0];
 
         foreach ($userCategoryFlags as $flags) {
-            if (!empty($flags['billable'])) $userCounts['billable']++;
-            if (!empty($flags['inhouse']))  $userCounts['inhouse']++;
-            if (!empty($flags['no_work']))  $userCounts['no_work']++;
+            if (!empty($flags['billable']))
+                $userCounts['billable']++;
+            if (!empty($flags['inhouse']))
+                $userCounts['inhouse']++;
+            if (!empty($flags['no_work']))
+                $userCounts['no_work']++;
         }
 
         $toTime = function ($m) {
@@ -2595,10 +2604,10 @@ class ProjectMasterController extends Controller
             'project_tag_activity',
             'created_at'
         )->with([
-            'relation:id,project_id,assignees,sales_person_id',
-            'client:clients_master.id,clients_master.client_name',
-            'tagActivityRelated:id,name'
-        ]);
+                    'relation:id,project_id,assignees,sales_person_id',
+                    'client:clients_master.id,clients_master.client_name',
+                    'tagActivityRelated:id,name'
+                ]);
         if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
             // full access
         } else if ($currentUser->hasRole(12)) {
