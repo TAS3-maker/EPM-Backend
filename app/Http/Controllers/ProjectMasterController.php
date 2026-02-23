@@ -2852,7 +2852,7 @@ class ProjectMasterController extends Controller
     public function getProjectsMasterdetails(Request $request)
     {
         $currentUser = auth()->user();
-        $perPage = $request->get('per_page', 20);
+        $perPage = $request->get('per_page');
         $search = trim($request->get('search'));
         $searchBy = $request->get('search_by');
         $query = ProjectMaster::select(
@@ -2879,7 +2879,6 @@ class ProjectMasterController extends Controller
             });
         }
 
-        // search query 
         if (!empty($search) && !empty($searchBy)) {
 
             switch ($searchBy) {
@@ -2905,22 +2904,42 @@ class ProjectMasterController extends Controller
                     break;
             }
         }
-        $projects = $query->paginate($perPage);
-        $formatted = $projects->getCollection()->map(function (ProjectMaster $project) {
-            return [
-                'id' => $project->id,
-                'project_name' => $project->project_name,
-                'project_tracking' => $project->project_tracking,
-                'project_status' => $project->project_status,
-                'client_name' => optional($project->client)->client_name,
-                'project_tag_activity' => optional($project->tagActivityRelated)->name,
-                'created_at' => $project->created_at
-                    ? $project->created_at->format('d-m-y')
-                    : null,
-            ];
-        });
+        if (!empty($perPage)) {
 
-        $projects->setCollection($formatted);
+            $projects = $query->paginate($perPage);
+
+            $formatted = $projects->getCollection()->map(function (ProjectMaster $project) {
+                return [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'project_tracking' => $project->project_tracking,
+                    'project_status' => $project->project_status,
+                    'client_name' => optional($project->client)->client_name,
+                    'project_tag_activity' => optional($project->tagActivityRelated)->name,
+                    'created_at' => $project->created_at
+                        ? $project->created_at->format('d-m-y')
+                        : null,
+                ];
+            });
+
+            $projects->setCollection($formatted);
+
+        } else {
+
+            $projects = $query->get()->map(function (ProjectMaster $project) {
+                return [
+                    'id' => $project->id,
+                    'project_name' => $project->project_name,
+                    'project_tracking' => $project->project_tracking,
+                    'project_status' => $project->project_status,
+                    'client_name' => optional($project->client)->client_name,
+                    'project_tag_activity' => optional($project->tagActivityRelated)->name,
+                    'created_at' => $project->created_at
+                        ? $project->created_at->format('d-m-y')
+                        : null,
+                ];
+            });
+        }
 
         return response()->json([
             'success' => true,
