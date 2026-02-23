@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Mail;
 use App\Mail\ProjectAssignedMail;
 use Illuminate\Support\Facades\Storage;
 use LDAP\Result;
+use Illuminate\Support\Facades\Validator;
+
 
 class LeaveController extends Controller
 {
@@ -32,8 +34,8 @@ class LeaveController extends Controller
             $user_id = $user->id;
         }
 
-        $request->validate([
-            'start_date' => 'required|date|after_or_equal:today',
+        $validator = Validator::make($request->all(), [
+            'start_date' => 'required|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'leave_type' => 'required|in:Full Leave,Short Leave,Half Day,Multiple Days Leave',
             'reason' => 'required',
@@ -57,8 +59,29 @@ class LeaveController extends Controller
             ],
 
             'documents' => 'nullable|mimes:jpg,jpeg,png,pdf,docx|max:10240'
+        ], [
+            'start_date.required' => 'Start date is required.',
+            'end_date.after_or_equal' => 'End date must be greater than or equal to start date.',
+            'start_time.required_if' => 'Start time is required for Short Leave.',
+            'end_time.required_if' => 'End time is required for Short Leave.',
         ]);
 
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+        if (!auth()->user()->hasAnyRole([1, 2, 3, 4])) {
+
+            if (Carbon::parse($request->start_date)->isBefore(Carbon::today())) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'You are not allowed to apply leave for past dates.'
+                ], 403);
+            }
+        }
         if (in_array($request->leave_type, ['Full Leave', 'Short Leave', 'Half Day'])) {
             $endDate = $request->start_date;
         } elseif ($request->leave_type === 'Multiple Days Leave') {
