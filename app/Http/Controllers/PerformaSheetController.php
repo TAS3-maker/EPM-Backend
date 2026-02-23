@@ -1822,10 +1822,194 @@ class PerformaSheetController extends Controller
         ]);
     }
 
-    public function getAllPendingPerformaSheets(Request $request)
+    // public function getAllPendingPerformaSheets(Request $request)
+    // {
+    //     $user = $request->user();
+    //     $team_id = $user->team_id ?? [];
+
+    //     $search = $request->search ?? null;
+    //     $searchBy = $request->search_by ?? null;
+    //     $perPage = $request->per_page ?? 10;
+    //     $page = $request->page ?? 1;
+
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     $startDate = $startDate ? Carbon::parse($startDate)->format('Y-m-d') : null;
+    //     $endDate = $endDate ? Carbon::parse($endDate)->format('Y-m-d') : null;
+
+    //     $baseQuery = PerformaSheet::with('user:id,name');
+
+    //     if ($startDate && $endDate) {
+    //         $baseQuery->whereBetween(
+    //             DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date'))"),
+    //             [$startDate, $endDate]
+    //         );
+    //     }
+
+    //     if ($user->hasRole(7)) {
+
+    //         $baseQuery->where('user_id', $user->id);
+
+    //     } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+
+    //     } elseif ($user->hasRole(6)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where('tl_id', $user->id)
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+
+    //     } elseif (!empty($team_id)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where(function ($q) use ($team_id) {
+    //                 foreach ($team_id as $t) {
+    //                     $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+    //                 }
+    //             })
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+    //     }
+
+    //     $baseQuery->whereIn('status', ['pending', 'backdated'])
+    //         ->whereNot('user_id', $user->id)
+    //         ->orderBy('id', 'DESC');
+
+    //     if ($search && $searchBy) {
+
+    //         if ($searchBy === 'name') {
+
+    //             $baseQuery->whereHas('user', function ($uq) use ($search) {
+    //                 $uq->where('name', 'LIKE', "%{$search}%");
+    //             });
+
+    //         } elseif ($searchBy === 'project_name') {
+
+    //             $baseQuery->whereIn('id', function ($sub) use ($search) {
+    //                 $sub->select('ps.id')
+    //                     ->from('performa_sheets as ps')
+    //                     ->join(
+    //                         'projects_master as pm',
+    //                         DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+    //                         '=',
+    //                         'pm.id'
+    //                     )
+    //                     ->where('pm.project_name', 'LIKE', "%{$search}%");
+    //             });
+
+    //         } elseif ($searchBy === 'activity_type') {
+
+    //             $baseQuery->whereRaw(
+    //                 "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+    //                 ["%{$search}%"]
+    //             );
+    //         }
+
+    //     } elseif ($search) {
+
+    //         $baseQuery->where(function ($q) use ($search) {
+
+    //             $q->whereHas('user', function ($uq) use ($search) {
+    //                 $uq->where('name', 'LIKE', "%{$search}%");
+    //             });
+
+    //             $q->orWhereRaw(
+    //                 "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+    //                 ["%{$search}%"]
+    //             );
+
+    //             $q->orWhereIn('id', function ($sub) use ($search) {
+    //                 $sub->select('ps.id')
+    //                     ->from('performa_sheets as ps')
+    //                     ->join(
+    //                         'projects_master as pm',
+    //                         DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+    //                         '=',
+    //                         'pm.id'
+    //                     )
+    //                     ->where('pm.project_name', 'LIKE', "%{$search}%");
+    //             });
+    //         });
+    //     }
+
+    //     $sheets = $baseQuery->get();
+
+    //     $packets = [];
+
+    //     foreach ($sheets as $sheet) {
+
+    //         $dataArray = json_decode($sheet->data, true);
+
+    //         if (is_string($dataArray)) {
+    //             $dataArray = json_decode($dataArray, true);
+    //         }
+
+    //         if (!is_array($dataArray)) {
+    //             continue;
+    //         }
+
+    //         $sheetDate = $dataArray['date'] ?? 'no_date';
+
+    //         $dataArray['status'] = $sheet->status;
+    //         $dataArray['id'] = $sheet->id;
+
+    //         $key = $sheet->user_id . '_' . $sheetDate;
+
+    //         if (!isset($packets[$key])) {
+    //             $packets[$key] = [
+    //                 'user_id' => $sheet->user_id,
+    //                 'user_name' => $sheet->user->name ?? 'No User',
+    //                 'date' => $sheetDate,
+    //                 'sheets' => []
+    //             ];
+    //         }
+
+    //         $packets[$key]['sheets'][] = $dataArray;
+    //     }
+
+    //     $collection = collect(array_values($packets));
+
+    //     $paginated = new LengthAwarePaginator(
+    //         $collection->forPage($page, $perPage),
+    //         $collection->count(),
+    //         $perPage,
+    //         $page,
+    //         [
+    //             'path' => request()->url(),
+    //             'query' => request()->query()
+    //         ]
+    //     );
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Pending sheets fetched successfully',
+    //         'data' => $paginated->values(),
+    //         'pagination' => [
+    //             'current_page' => $paginated->currentPage(),
+    //             'last_page' => $paginated->lastPage(),
+    //             'per_page' => $paginated->perPage(),
+    //             'total_packets' => $paginated->total(),
+    //         ]
+    //     ]);
+    // }
+
+
+     public function getAllPendingPerformaSheets(Request $request)
     {
         $user = $request->user();
         $team_id = $user->team_id ?? [];
+        $status = $request->status ?? null;
 
         $search = $request->search ?? null;
         $searchBy = $request->search_by ?? null;
@@ -1835,23 +2019,31 @@ class PerformaSheetController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        $startDate = $startDate ? Carbon::parse($startDate)->format('Y-m-d') : null;
-        $endDate = $endDate ? Carbon::parse($endDate)->format('Y-m-d') : null;
-
-        $baseQuery = PerformaSheet::with('user:id,name');
-
-        if ($startDate && $endDate) {
-            $baseQuery->whereBetween(
-                DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date'))"),
-                [$startDate, $endDate]
-            );
+        if (!$startDate && !$endDate) {
+            $startDate = Carbon::now()->startOfWeek();
+            $endDate = Carbon::now()->endOfWeek();
+        } elseif ($startDate && !$endDate) {
+            $startDate = Carbon::parse($startDate)->startOfDay();
+            $endDate = Carbon::now()->endOfDay();
+        } else {
+            $startDate = Carbon::parse($startDate)->startOfDay();
+            $endDate = Carbon::parse($endDate)->endOfDay();
         }
 
-        if ($user->hasRole(7)) {
+        $baseQuery = PerformaSheet::with('user:id,name')
+            ->orderByRaw("
+            STR_TO_DATE(
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(
+                        JSON_UNQUOTE(data),
+                        '$.date'
+                    )
+                ),
+                '%Y-%m-%d'
+            ) DESC
+        ");
 
-            $baseQuery->where('user_id', $user->id);
-
-        } elseif ($user->hasAnyRole([1, 2, 3, 4])) {
+        if ($user->hasAnyRole([1, 2, 3, 4])) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
                 ->where('is_active', 1)
@@ -1864,9 +2056,14 @@ class PerformaSheetController extends Controller
             $teamMemberIds = User::whereJsonContains('role_id', 7)
                 ->where('is_active', 1)
                 ->where('tl_id', $user->id)
+                ->whereNot('id', $user->id)
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
+
+        } elseif ($user->hasRole(7)) {
+
+            $baseQuery->where('user_id', $user->id);
 
         } elseif (!empty($team_id)) {
 
@@ -1874,17 +2071,30 @@ class PerformaSheetController extends Controller
                 ->where('is_active', 1)
                 ->where(function ($q) use ($team_id) {
                     foreach ($team_id as $t) {
-                        $q->orWhereRaw('JSON_CONTAINS(team_id, ?)', [json_encode($t)]);
+                        $q->orWhereRaw(
+                            'JSON_CONTAINS(team_id, ?)',
+                            [json_encode($t)]
+                        );
                     }
                 })
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
         }
+        if (!empty($status)) {
+            $baseQuery->where('status', $status);
+        } else {
+            $baseQuery->whereIn('status', ['pending', 'backdated']);
+        }
 
-        $baseQuery->whereIn('status', ['pending', 'backdated'])
-            ->whereNot('user_id', $user->id)
-            ->orderBy('id', 'DESC');
+        $baseQuery->whereNot('user_id', $user->id);
+
+        if ($startDate && $endDate) {
+            $baseQuery->whereBetween(
+                DB::raw("STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date')), '%Y-%m-%d')"),
+                [$startDate, $endDate]
+            );
+        }
 
         if ($search && $searchBy) {
 
@@ -1961,8 +2171,20 @@ class PerformaSheetController extends Controller
 
             $sheetDate = $dataArray['date'] ?? 'no_date';
 
-            $dataArray['status'] = $sheet->status;
+            $projectId = $dataArray['project_id'] ?? null;
+            $project = $projectId
+                ? ProjectMaster::with('client')->find($projectId)
+                : null;
+
+            $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
+            $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
+            $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
+            $dataArray['status'] = $sheet->status ?? 'pending';
             $dataArray['id'] = $sheet->id;
+            $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
+            $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
+
+            unset($dataArray['user_id'], $dataArray['user_name']);
 
             $key = $sheet->user_id . '_' . $sheetDate;
 
@@ -1985,15 +2207,12 @@ class PerformaSheetController extends Controller
             $collection->count(),
             $perPage,
             $page,
-            [
-                'path' => request()->url(),
-                'query' => request()->query()
-            ]
+            ['path' => request()->url(), 'query' => request()->query()]
         );
 
         return response()->json([
             'success' => true,
-            'message' => 'Pending sheets fetched successfully',
+            'message' => 'All Performa Sheets fetched successfully',
             'data' => $paginated->values(),
             'pagination' => [
                 'current_page' => $paginated->currentPage(),
