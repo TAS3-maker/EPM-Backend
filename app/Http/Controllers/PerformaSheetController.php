@@ -2005,7 +2005,7 @@ class PerformaSheetController extends Controller
     // }
 
 
-     public function getAllPendingPerformaSheets(Request $request)
+    public function getAllPendingPerformaSheets(Request $request)
     {
         $user = $request->user();
         $team_id = $user->team_id ?? [];
@@ -3977,17 +3977,34 @@ class PerformaSheetController extends Controller
                 ->whereIn('id', $projectIds)
                 ->pluck('project_name', 'id');
 
-            $projectRelations = DB::table('project_relations')
+            $projectRelationsRaw = DB::table('project_relations')
                 ->whereIn('project_id', $projectIds)
-                ->pluck('tracking_id', 'project_id');
+                ->get(['project_id', 'tracking_id']);
 
-            $trackingIds = $projectRelations
-                ->filter()
-                ->unique()
-                ->values();
+            $projectRelations = [];
+            $allTrackingIds = [];
+
+            foreach ($projectRelationsRaw as $relation) {
+
+                $decoded = json_decode($relation->tracking_id, true);
+
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                if (!is_array($decoded)) {
+                    $decoded = $decoded ? [$decoded] : [];
+                }
+
+                $projectRelations[$relation->project_id] = $decoded;
+
+                $allTrackingIds = array_merge($allTrackingIds, $decoded);
+            }
+
+            $allTrackingIds = array_unique(array_filter($allTrackingIds));
 
             $accounts = DB::table('project_accounts')
-                ->whereIn('id', $trackingIds)
+                ->whereIn('id', $allTrackingIds)
                 ->pluck('account_name', 'id');
 
             $response = [];
@@ -3999,11 +4016,21 @@ class PerformaSheetController extends Controller
 
                 foreach ($projectsData as $projectId => $minutes) {
 
-                    $trackingId = $projectRelations[$projectId] ?? null;
+                    $trackingIds = $projectRelations[$projectId] ?? [];
+
+                    $trackingNames = [];
+
+                    if (is_array($trackingIds)) {
+                        foreach ($trackingIds as $tid) {
+                            if (isset($accounts[$tid])) {
+                                $trackingNames[] = $accounts[$tid];
+                            }
+                        }
+                    }
 
                     $projectArray[] = [
                         'project_name' => $projects[$projectId] ?? '',
-                        'traking_id' => $accounts[$trackingId] ?? '',
+                        'traking_id' => $trackingNames,
                         'total_offline_hours' => $this->minutesToHours($minutes)
                     ];
                 }
