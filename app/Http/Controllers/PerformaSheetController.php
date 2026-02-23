@@ -468,15 +468,15 @@ public function addPerformaSheets(Request $request)
         foreach ($sheetsWithDetailsByDate as $date => $sheetsWithDetails) {
             $formattedDate = Carbon::parse($date)->format('d-m-Y');
             foreach ($users as $approver) {
-                Mail::to($approver->email)->queue(
-                    new EmployeePerformaSheet(
-                        $sheetsWithDetails,
-                        $approver,
-                        $submitting_user_name,
-                        $submitting_employee_id,
-                        $formattedDate
-                    )
-                );
+                // Mail::to($approver->email)->queue(
+                //     new EmployeePerformaSheet(
+                //         $sheetsWithDetails,
+                //         $approver,
+                //         $submitting_user_name,
+                //         $submitting_employee_id,
+                //         $formattedDate
+                //     )
+                // );
             }
         }
 
