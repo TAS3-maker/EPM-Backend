@@ -2019,16 +2019,8 @@ class PerformaSheetController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
-        if (!$startDate && !$endDate) {
-            $startDate = Carbon::now()->startOfWeek();
-            $endDate = Carbon::now()->endOfWeek();
-        } elseif ($startDate && !$endDate) {
-            $startDate = Carbon::parse($startDate)->startOfDay();
-            $endDate = Carbon::now()->endOfDay();
-        } else {
-            $startDate = Carbon::parse($startDate)->startOfDay();
-            $endDate = Carbon::parse($endDate)->endOfDay();
-        }
+        $startDate = $startDate ? Carbon::parse($startDate)->format('Y-m-d') : null;
+        $endDate = $endDate ? Carbon::parse($endDate)->format('Y-m-d') : null;
 
         $baseQuery = PerformaSheet::with('user:id,name')
             ->orderByRaw("
