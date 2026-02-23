@@ -2897,7 +2897,7 @@ class ProjectMasterController extends Controller
                     });
                     break;
 
-                case 'tag_activity':
+                case 'project_tags':
                     $query->whereHas('tagActivityRelated', function ($q) use ($search) {
                         $q->where('name', 'LIKE', "%{$search}%");
                     });
