@@ -2192,9 +2192,9 @@ class ProjectMasterController extends Controller
                 }
 
                 /**only assigned projects */
-                // if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
-                //     return false;
-                // }
+                if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
+                    return false;
+                }
     
                 return true;
             });
