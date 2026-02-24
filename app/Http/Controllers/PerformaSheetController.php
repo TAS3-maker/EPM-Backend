@@ -4758,6 +4758,14 @@ class PerformaSheetController extends Controller
                     ->where('is_active', true)
                     ->whereJsonContains('role_id', 7)
                     ->get();
+                $teamHolidayMinutes = 0;
+                $period = CarbonPeriod::create($startDate, $endDate);
+                foreach ($period as $date) {
+                    if ($date->isWeekend())
+                        continue;
+                    $dateStr = $date->toDateString();
+                    $teamHolidayMinutes += $holidayMinutesPerDay[$dateStr] ?? 0;
+                }
                 foreach ($users as $user) {
 
                     $finalData[$team->id]['teamMembers'][$user->id] = [
@@ -4936,7 +4944,8 @@ class PerformaSheetController extends Controller
                         $finalData[$team->id]['expectedMinutes'] += $effectiveExpected;
                     }
                 }
-                $finalData[$team->id]['holidaysMinutes'] = $toTime($holidayMinutes);
+                // $finalData[$team->id]['holidaysMinutes'] = $toTime($holidayMinutes);
+                $finalData[$team->id]['holidaysMinutes'] = $toTime($teamHolidayMinutes);
             }
             $response = [];
             foreach ($finalData as $team) {
