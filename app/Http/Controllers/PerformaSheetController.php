@@ -4901,6 +4901,177 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function getSheetsForReportingManager(Request $request)
+    // {
+    //     $status = $request->status ?? null;
+
+    //     $currentUser = $request->current_user_id
+    //         ? User::findOrFail($request->current_user_id)
+    //         : $request->user();
+
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     if (!$startDate && !$endDate) {
+    //         $startDate = Carbon::now()->startOfWeek()->format('Y-m-d');
+    //         $endDate = Carbon::now()->endOfWeek()->format('Y-m-d');
+    //     } elseif ($startDate && !$endDate) {
+    //         $startDate = Carbon::parse($startDate)->format('Y-m-d');
+    //         $endDate = Carbon::now()->format('Y-m-d');
+    //     } else {
+    //         $startDate = Carbon::parse($startDate)->format('Y-m-d');
+    //         $endDate = Carbon::parse($endDate)->format('Y-m-d');
+    //     }
+
+    //     $search = $request->search ?? null;
+    //     $searchBy = $request->search_by ?? null;
+
+    //     $perPage = $request->per_page ?? 10;
+    //     $page = $request->page ?? 1;
+
+    //     $includeSelf = $request->has('current_user_id');
+
+    //     $childrenQuery = User::where('is_active', 1)
+    //         ->select('id', 'name');
+
+    //     $currentUserRoles = is_array($currentUser->role_id)
+    //         ? $currentUser->role_id
+    //         : [(int) $currentUser->role_id];
+
+    //     if (!empty(array_intersect($currentUserRoles, [1, 2, 3, 4]))) {
+    //         $childrenQuery->where(function ($q) {
+    //             foreach ([1, 2, 3, 4] as $role) {
+    //                 $q->whereJsonDoesntContain('role_id', $role);
+    //             }
+    //         });
+    //     } else {
+    //         $childrenQuery->where('reporting_manager_id', $currentUser->id);
+    //     }
+
+    //     $children = $childrenQuery->get();
+    //     $userIdsForSheets = $children->pluck('id')->toArray();
+
+    //     if ($includeSelf) {
+    //         $userIdsForSheets[] = $currentUser->id;
+    //     }
+
+    //     $sheetQuery = PerformaSheet::with('user:id,name')
+    //         ->whereIn('user_id', $userIdsForSheets);
+
+    //     if ($status) {
+    //         $sheetQuery->where('status', $status);
+    //     } else {
+    //         $sheetQuery->whereIn('status', ['approved', 'rejected']);
+    //     }
+
+
+    //     if ($search && $searchBy) {
+
+    //         if ($searchBy === 'name') {
+    //             $sheetQuery->whereHas('user', function ($q) use ($search) {
+    //                 $q->where('name', 'LIKE', "%{$search}%");
+    //             });
+    //         }
+
+    //         if ($searchBy === 'activity_type') {
+    //             $sheetQuery->whereRaw(
+    //                 "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+    //                 ["%{$search}%"]
+    //             );
+    //         }
+
+    //         if ($searchBy === 'project_name') {
+    //             $sheetQuery->whereIn('id', function ($sub) use ($search) {
+    //                 $sub->select('ps.id')
+    //                     ->from('performa_sheets as ps')
+    //                     ->join(
+    //                         'projects_master as pm',
+    //                         DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+    //                         '=',
+    //                         'pm.id'
+    //                     )
+    //                     ->where('pm.project_name', 'LIKE', "%{$search}%");
+    //             });
+    //         }
+    //     }
+
+    //     $sheets = $sheetQuery->orderBy('id', 'DESC')->get();
+
+    //     $packets = [];
+
+    //     foreach ($sheets as $sheet) {
+
+    //         $data = json_decode($sheet->data, true);
+
+    //         if (!is_array($data) || empty($data['date'])) {
+    //             continue;
+    //         }
+
+    //         if ($data['date'] < $startDate || $data['date'] > $endDate) {
+    //             continue;
+    //         }
+
+    //         $project = isset($data['project_id'])
+    //             ? ProjectMaster::with('client')->find($data['project_id'])
+    //             : null;
+
+    //         $sheetData = array_merge(
+    //             [
+    //                 'id' => $sheet->id,
+    //                 'project_name' => $project->project_name ?? 'No Project Found',
+    //                 'client_name' => $project->client->client_name ?? 'No Client Found',
+    //                 'deadline' => $project->deadline ?? null,
+    //                 'status' => $sheet->status,
+    //                 'created_at' => optional($sheet->created_at)->format('Y-m-d H:i:s'),
+    //                 'updated_at' => optional($sheet->updated_at)->format('Y-m-d H:i:s'),
+    //             ],
+    //             $data
+    //         );
+
+    //         $key = $sheet->user_id . '_' . $data['date'];
+
+    //         if (!isset($packets[$key])) {
+    //             $packets[$key] = [
+    //                 'user_id' => $sheet->user_id,
+    //                 'user_name' => $sheet->user->name ?? 'No User',
+    //                 'date' => $data['date'],
+    //                 'sheets' => []
+    //             ];
+    //         }
+
+    //         $packets[$key]['sheets'][] = $sheetData;
+    //     }
+
+    //     $collection = collect(array_values($packets))
+    //         ->sortByDesc('date')
+    //         ->values();
+
+    //     $paginated = new LengthAwarePaginator(
+    //         $collection->forPage($page, $perPage),
+    //         $collection->count(),
+    //         $perPage,
+    //         $page,
+    //         [
+    //             'path' => request()->url(),
+    //             'query' => request()->query()
+    //         ]
+    //     );
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'performa sheets fetched successfully',
+    //         'data' => $paginated->values(),
+    //         'pagination' => [
+    //             'current_page' => $paginated->currentPage(),
+    //             'last_page' => $paginated->lastPage(),
+    //             'per_page' => $paginated->perPage(),
+    //             'total_packets' => $paginated->total(),
+    //         ]
+    //     ]);
+    // }
+
+
+
     public function getSheetsForReportingManager(Request $request)
     {
         $status = $request->status ?? null;
@@ -4955,8 +5126,29 @@ class PerformaSheetController extends Controller
             $userIdsForSheets[] = $currentUser->id;
         }
 
-        $sheetQuery = PerformaSheet::with('user:id,name')
-            ->whereIn('user_id', $userIdsForSheets);
+        /*
+        |--------------------------------------------------------------------------
+        | MAIN SHEET QUERY (DATE FILTER MOVED TO DB)
+        |--------------------------------------------------------------------------
+        */
+
+        $sheetQuery = PerformaSheet::select('id', 'user_id', 'data', 'status', 'created_at', 'updated_at')
+            ->with('user:id,name')
+            ->whereIn('user_id', $userIdsForSheets)
+            ->whereBetween(
+                DB::raw("
+                STR_TO_DATE(
+                    JSON_UNQUOTE(
+                        JSON_EXTRACT(
+                            JSON_UNQUOTE(data),
+                            '$.date'
+                        )
+                    ),
+                    '%Y-%m-%d'
+                )
+            "),
+                [$startDate, $endDate]
+            );
 
         if ($status) {
             $sheetQuery->where('status', $status);
@@ -4964,6 +5156,11 @@ class PerformaSheetController extends Controller
             $sheetQuery->whereIn('status', ['approved', 'rejected']);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | SEARCH (unchanged logic)
+        |--------------------------------------------------------------------------
+        */
 
         if ($search && $searchBy) {
 
@@ -4997,23 +5194,37 @@ class PerformaSheetController extends Controller
 
         $sheets = $sheetQuery->orderBy('id', 'DESC')->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | PRELOAD PROJECTS (REMOVE N+1)
+        |--------------------------------------------------------------------------
+        */
+
+        $projectIds = $sheets->map(function ($sheet) {
+            $data = json_decode($sheet->data, true);
+            return $data['project_id'] ?? null;
+        })->filter()->unique();
+
+        $projects = ProjectMaster::with('client')
+            ->whereIn('id', $projectIds)
+            ->get()
+            ->keyBy('id');
+
+        /*
+        |--------------------------------------------------------------------------
+        | PACKET GROUPING (UNCHANGED STRUCTURE)
+        |--------------------------------------------------------------------------
+        */
+
         $packets = [];
 
         foreach ($sheets as $sheet) {
 
             $data = json_decode($sheet->data, true);
-
-            if (!is_array($data) || empty($data['date'])) {
+            if (!is_array($data) || empty($data['date']))
                 continue;
-            }
 
-            if ($data['date'] < $startDate || $data['date'] > $endDate) {
-                continue;
-            }
-
-            $project = isset($data['project_id'])
-                ? ProjectMaster::with('client')->find($data['project_id'])
-                : null;
+            $project = $projects[$data['project_id'] ?? null] ?? null;
 
             $sheetData = array_merge(
                 [
@@ -5051,10 +5262,7 @@ class PerformaSheetController extends Controller
             $collection->count(),
             $perPage,
             $page,
-            [
-                'path' => request()->url(),
-                'query' => request()->query()
-            ]
+            ['path' => request()->url(), 'query' => request()->query()]
         );
 
         return response()->json([
