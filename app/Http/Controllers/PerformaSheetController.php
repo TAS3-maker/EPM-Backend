@@ -94,6 +94,7 @@ class PerformaSheetController extends Controller
                 'data.*.tracking_mode.in' => 'Tracking mode must be either all or partial.',
 
                 'data.*.tracked_hours.regex' => 'Tracked hours must be in HH:MM format.',
+                'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
 
                 'data.*.is_fillable.required' => 'Fillable field is required.',
                 'data.*.is_fillable.boolean' => 'Fillable field must be true or false.',
@@ -1513,6 +1514,7 @@ class PerformaSheetController extends Controller
                     'data.is_tracking.in' => 'Tracking must be either yes or no.',
 
                     'data.tracking_mode.in' => 'Tracking mode must be either all or partial.',
+                    'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
 
                     'data.is_fillable.boolean' => 'Fillable field must be true or false.',
                 ]);
