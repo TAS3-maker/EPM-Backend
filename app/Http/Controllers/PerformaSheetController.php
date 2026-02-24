@@ -64,7 +64,7 @@ class PerformaSheetController extends Controller
                 'data.*.is_tracking' => 'required|in:yes,no',
                 'data.*.tracking_mode' => 'nullable|in:all,partial',
                 'data.*.tracked_hours' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
-                // 'data.*.offline_hours' => 'nullable',
+                'data.*.not_tracked_reason' => 'nullable|string|required_if:data.*.tracking_mode,partial',
                 // 'data.*.status' => 'nullable',
                 'data.*.is_fillable' => 'required|boolean',
             ], [
@@ -816,17 +816,18 @@ class PerformaSheetController extends Controller
 
         $baseQuery = PerformaSheet::select('id', 'user_id', 'data', 'status', 'created_at', 'updated_at')
             ->with('user:id,name');
+
         $baseQuery->orderByRaw("
-            STR_TO_DATE(
-                JSON_UNQUOTE(
-                    JSON_EXTRACT(
-                        JSON_UNQUOTE(data),
-                        '$.date'
-                    )
-                ),
-                '%Y-%m-%d'
-            ) DESC
-        ");
+        STR_TO_DATE(
+            JSON_UNQUOTE(
+                JSON_EXTRACT(
+                    JSON_UNQUOTE(data),
+                    '$.date'
+                )
+            ),
+            '%Y-%m-%d'
+        ) DESC
+    ");
 
         if ($user->hasAnyRole([1, 2, 3, 4])) {
 
@@ -858,9 +859,76 @@ class PerformaSheetController extends Controller
         }
 
         $baseQuery->whereBetween(
-            DB::raw("STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date')), '%Y-%m-%d')"),
+            DB::raw("
+            STR_TO_DATE(
+                JSON_UNQUOTE(
+                    JSON_EXTRACT(
+                        JSON_UNQUOTE(data),
+                        '$.date'
+                    )
+                ),
+                '%Y-%m-%d'
+            )
+        "),
             [$startDate, $endDate]
         );
+
+        if ($search && $searchBy) {
+
+            if ($searchBy === 'name') {
+
+                $baseQuery->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('name', 'LIKE', "%{$search}%");
+                });
+
+            } elseif ($searchBy === 'project_name') {
+
+                $baseQuery->whereIn('id', function ($sub) use ($search) {
+                    $sub->select('ps.id')
+                        ->from('performa_sheets as ps')
+                        ->join(
+                            'projects_master as pm',
+                            DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+                            '=',
+                            'pm.id'
+                        )
+                        ->where('pm.project_name', 'LIKE', "%{$search}%");
+                });
+
+            } elseif ($searchBy === 'activity_type') {
+
+                $baseQuery->whereRaw(
+                    "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+                    ["%{$search}%"]
+                );
+            }
+
+        } elseif ($search) {
+
+            $baseQuery->where(function ($q) use ($search) {
+
+                $q->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('name', 'LIKE', "%{$search}%");
+                });
+
+                $q->orWhereRaw(
+                    "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+                    ["%{$search}%"]
+                );
+
+                $q->orWhereIn('id', function ($sub) use ($search) {
+                    $sub->select('ps.id')
+                        ->from('performa_sheets as ps')
+                        ->join(
+                            'projects_master as pm',
+                            DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+                            '=',
+                            'pm.id'
+                        )
+                        ->where('pm.project_name', 'LIKE', "%{$search}%");
+                });
+            });
+        }
 
         $sheets = $baseQuery->get();
 
@@ -908,7 +976,6 @@ class PerformaSheetController extends Controller
 
             $packets[$key]['sheets'][] = $dataArray;
         }
-
 
         $collection = collect(array_values($packets));
 
@@ -1415,7 +1482,7 @@ class PerformaSheetController extends Controller
                     'data.is_tracking' => 'required|in:yes,no',
                     'data.tracking_mode' => 'nullable|in:all,partial',
                     'data.tracked_hours' => 'nullable',
-                    // 'data.offline_hours' => 'nullable',
+                    'data.not_tracked_reason' => 'nullable|string|required_if:data.tracking_mode,partial',
                     'data.is_fillable' => 'nullable|boolean',
                     // 'data.status' => 'nullable',
                 ], [
