@@ -63,6 +63,12 @@ class PerformaSheetController extends Controller
                 ],
                 'data.*.is_tracking' => 'required|in:yes,no',
                 'data.*.tracking_mode' => 'nullable|in:all,partial',
+                'data.*.tracking_id' => [
+                    'nullable',
+                    'integer',
+                    'required_if:data.*.is_tracking,yes',
+                    Rule::exists('project_accounts', 'id')
+                ],
                 'data.*.tracked_hours' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
                 'data.*.not_tracked_reason' => 'nullable|string|required_if:data.*.tracking_mode,partial',
                 // 'data.*.status' => 'nullable',
@@ -90,6 +96,10 @@ class PerformaSheetController extends Controller
 
                 'data.*.is_tracking.required' => 'Tracking field is required.',
                 'data.*.is_tracking.in' => 'Tracking must be either yes or no.',
+
+                'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
+                'data.*.tracking_id.integer' => 'Tracking ID must be a valid number.',
+                'data.*.tracking_id.exists' => 'Selected Tracking ID is invalid.',
 
                 'data.*.tracking_mode.in' => 'Tracking mode must be either all or partial.',
 
@@ -1483,6 +1493,12 @@ class PerformaSheetController extends Controller
                     'data.is_tracking' => 'required|in:yes,no',
                     'data.tracking_mode' => 'nullable|in:all,partial',
                     'data.tracked_hours' => 'nullable',
+                    'data.*.tracking_id' => [
+                        'nullable',
+                        'integer',
+                        'required_if:data.*.is_tracking,yes',
+                        Rule::exists('project_accounts', 'id')
+                    ],
                     'data.not_tracked_reason' => 'nullable|string|required_if:data.tracking_mode,partial',
                     'data.is_fillable' => 'nullable|boolean',
                     // 'data.status' => 'nullable',
@@ -1512,6 +1528,10 @@ class PerformaSheetController extends Controller
 
                     'data.is_tracking.required' => 'Tracking field is required.',
                     'data.is_tracking.in' => 'Tracking must be either yes or no.',
+
+                    'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
+                    'data.*.tracking_id.integer' => 'Tracking ID must be a valid number.',
+                    'data.*.tracking_id.exists' => 'Selected Tracking ID is invalid.',
 
                     'data.tracking_mode.in' => 'Tracking mode must be either all or partial.',
                     'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
