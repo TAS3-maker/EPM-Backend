@@ -569,6 +569,225 @@ class PerformaSheetController extends Controller
         ]);
     }
 
+    // public function getAllPerformaSheets(Request $request)
+    // {
+    //     $user = $request->user();
+    //     $team_id = $user->team_id ?? [];
+    //     $status = $request->status ?? null;
+
+    //     $search = $request->search ?? null;
+    //     $searchBy = $request->search_by ?? null;
+    //     $perPage = $request->per_page ?? 10;
+    //     $page = $request->page ?? 1;
+
+    //     $startDate = $request->start_date ?? null;
+    //     $endDate = $request->end_date ?? null;
+
+    //     if (!$startDate && !$endDate) {
+    //         $startDate = Carbon::now()->startOfWeek();
+    //         $endDate = Carbon::now()->endOfWeek();
+    //     } elseif ($startDate && !$endDate) {
+    //         $startDate = Carbon::parse($startDate)->startOfDay();
+    //         $endDate = Carbon::now()->endOfDay();
+    //     } else {
+    //         $startDate = Carbon::parse($startDate)->startOfDay();
+    //         $endDate = Carbon::parse($endDate)->endOfDay();
+    //     }
+
+    //     $baseQuery = PerformaSheet::with('user:id,name')
+    //         ->orderByRaw("
+    //         STR_TO_DATE(
+    //             JSON_UNQUOTE(
+    //                 JSON_EXTRACT(
+    //                     JSON_UNQUOTE(data),
+    //                     '$.date'
+    //                 )
+    //             ),
+    //             '%Y-%m-%d'
+    //         ) DESC
+    //     ");
+
+    //     if ($user->hasAnyRole([1, 2, 3, 4])) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+
+    //     } elseif ($user->hasRole(6)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where('tl_id', $user->id)
+    //             ->whereNot('id', $user->id)
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+
+    //     } elseif ($user->hasRole(7)) {
+
+    //         $baseQuery->where('user_id', $user->id);
+
+    //     } elseif (!empty($team_id)) {
+
+    //         $teamMemberIds = User::whereJsonContains('role_id', 7)
+    //             ->where('is_active', 1)
+    //             ->where(function ($q) use ($team_id) {
+    //                 foreach ($team_id as $t) {
+    //                     $q->orWhereRaw(
+    //                         'JSON_CONTAINS(team_id, ?)',
+    //                         [json_encode($t)]
+    //                     );
+    //                 }
+    //             })
+    //             ->pluck('id');
+
+    //         $baseQuery->whereIn('user_id', $teamMemberIds);
+    //     }
+    //     if (!empty($status)) {
+    //         $baseQuery->where('status', $status);
+    //     } else {
+    //         $baseQuery->whereIn('status', ['approved', 'rejected']);
+    //     }
+
+    //     $baseQuery->whereNot('user_id', $user->id);
+
+    //     if ($startDate && $endDate) {
+    //         $baseQuery->whereBetween(
+    //             DB::raw("STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date')), '%Y-%m-%d')"),
+    //             [$startDate, $endDate]
+    //         );
+    //     }
+
+    //     if ($search && $searchBy) {
+
+    //         if ($searchBy === 'name') {
+
+    //             $baseQuery->whereHas('user', function ($uq) use ($search) {
+    //                 $uq->where('name', 'LIKE', "%{$search}%");
+    //             });
+
+    //         } elseif ($searchBy === 'project_name') {
+
+    //             $baseQuery->whereIn('id', function ($sub) use ($search) {
+    //                 $sub->select('ps.id')
+    //                     ->from('performa_sheets as ps')
+    //                     ->join(
+    //                         'projects_master as pm',
+    //                         DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+    //                         '=',
+    //                         'pm.id'
+    //                     )
+    //                     ->where('pm.project_name', 'LIKE', "%{$search}%");
+    //             });
+
+    //         } elseif ($searchBy === 'activity_type') {
+
+    //             $baseQuery->whereRaw(
+    //                 "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+    //                 ["%{$search}%"]
+    //             );
+    //         }
+
+    //     } elseif ($search) {
+
+    //         $baseQuery->where(function ($q) use ($search) {
+
+    //             $q->whereHas('user', function ($uq) use ($search) {
+    //                 $uq->where('name', 'LIKE', "%{$search}%");
+    //             });
+
+    //             $q->orWhereRaw(
+    //                 "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
+    //                 ["%{$search}%"]
+    //             );
+
+    //             $q->orWhereIn('id', function ($sub) use ($search) {
+    //                 $sub->select('ps.id')
+    //                     ->from('performa_sheets as ps')
+    //                     ->join(
+    //                         'projects_master as pm',
+    //                         DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
+    //                         '=',
+    //                         'pm.id'
+    //                     )
+    //                     ->where('pm.project_name', 'LIKE', "%{$search}%");
+    //             });
+    //         });
+    //     }
+
+    //     $sheets = $baseQuery->get();
+
+    //     $packets = [];
+
+    //     foreach ($sheets as $sheet) {
+
+    //         $dataArray = json_decode($sheet->data, true);
+
+    //         if (is_string($dataArray)) {
+    //             $dataArray = json_decode($dataArray, true);
+    //         }
+
+    //         if (!is_array($dataArray)) {
+    //             continue;
+    //         }
+
+    //         $sheetDate = $dataArray['date'] ?? 'no_date';
+
+    //         $projectId = $dataArray['project_id'] ?? null;
+    //         $project = $projectId
+    //             ? ProjectMaster::with('client')->find($projectId)
+    //             : null;
+
+    //         $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
+    //         $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
+    //         $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
+    //         $dataArray['status'] = $sheet->status ?? 'pending';
+    //         $dataArray['id'] = $sheet->id;
+    //         $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
+    //         $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
+
+    //         unset($dataArray['user_id'], $dataArray['user_name']);
+
+    //         $key = $sheet->user_id . '_' . $sheetDate;
+
+    //         if (!isset($packets[$key])) {
+    //             $packets[$key] = [
+    //                 'user_id' => $sheet->user_id,
+    //                 'user_name' => $sheet->user->name ?? 'No User',
+    //                 'date' => $sheetDate,
+    //                 'sheets' => []
+    //             ];
+    //         }
+
+    //         $packets[$key]['sheets'][] = $dataArray;
+    //     }
+
+    //     $collection = collect(array_values($packets));
+
+    //     $paginated = new LengthAwarePaginator(
+    //         $collection->forPage($page, $perPage),
+    //         $collection->count(),
+    //         $perPage,
+    //         $page,
+    //         ['path' => request()->url(), 'query' => request()->query()]
+    //     );
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'All Performa Sheets fetched successfully',
+    //         'data' => $paginated->values(),
+    //         'pagination' => [
+    //             'current_page' => $paginated->currentPage(),
+    //             'last_page' => $paginated->lastPage(),
+    //             'per_page' => $paginated->perPage(),
+    //             'total_packets' => $paginated->total(),
+    //         ]
+    //     ]);
+    // }
+
+
     public function getAllPerformaSheets(Request $request)
     {
         $user = $request->user();
@@ -583,6 +802,7 @@ class PerformaSheetController extends Controller
         $startDate = $request->start_date ?? null;
         $endDate = $request->end_date ?? null;
 
+        // Date Handling
         if (!$startDate && !$endDate) {
             $startDate = Carbon::now()->startOfWeek();
             $endDate = Carbon::now()->endOfWeek();
@@ -594,8 +814,9 @@ class PerformaSheetController extends Controller
             $endDate = Carbon::parse($endDate)->endOfDay();
         }
 
-        $baseQuery = PerformaSheet::with('user:id,name')
-            ->orderByRaw("
+        $baseQuery = PerformaSheet::select('id', 'user_id', 'data', 'status', 'created_at', 'updated_at')
+            ->with('user:id,name');
+        $baseQuery->orderByRaw("
             STR_TO_DATE(
                 JSON_UNQUOTE(
                     JSON_EXTRACT(
@@ -628,127 +849,51 @@ class PerformaSheetController extends Controller
         } elseif ($user->hasRole(7)) {
 
             $baseQuery->where('user_id', $user->id);
-
-        } elseif (!empty($team_id)) {
-
-            $teamMemberIds = User::whereJsonContains('role_id', 7)
-                ->where('is_active', 1)
-                ->where(function ($q) use ($team_id) {
-                    foreach ($team_id as $t) {
-                        $q->orWhereRaw(
-                            'JSON_CONTAINS(team_id, ?)',
-                            [json_encode($t)]
-                        );
-                    }
-                })
-                ->pluck('id');
-
-            $baseQuery->whereIn('user_id', $teamMemberIds);
         }
+
         if (!empty($status)) {
             $baseQuery->where('status', $status);
         } else {
             $baseQuery->whereIn('status', ['approved', 'rejected']);
         }
 
-        $baseQuery->whereNot('user_id', $user->id);
-
-        if ($startDate && $endDate) {
-            $baseQuery->whereBetween(
-                DB::raw("STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date')), '%Y-%m-%d')"),
-                [$startDate, $endDate]
-            );
-        }
-
-        if ($search && $searchBy) {
-
-            if ($searchBy === 'name') {
-
-                $baseQuery->whereHas('user', function ($uq) use ($search) {
-                    $uq->where('name', 'LIKE', "%{$search}%");
-                });
-
-            } elseif ($searchBy === 'project_name') {
-
-                $baseQuery->whereIn('id', function ($sub) use ($search) {
-                    $sub->select('ps.id')
-                        ->from('performa_sheets as ps')
-                        ->join(
-                            'projects_master as pm',
-                            DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
-                            '=',
-                            'pm.id'
-                        )
-                        ->where('pm.project_name', 'LIKE', "%{$search}%");
-                });
-
-            } elseif ($searchBy === 'activity_type') {
-
-                $baseQuery->whereRaw(
-                    "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
-                    ["%{$search}%"]
-                );
-            }
-
-        } elseif ($search) {
-
-            $baseQuery->where(function ($q) use ($search) {
-
-                $q->whereHas('user', function ($uq) use ($search) {
-                    $uq->where('name', 'LIKE', "%{$search}%");
-                });
-
-                $q->orWhereRaw(
-                    "JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.activity_type')) LIKE ?",
-                    ["%{$search}%"]
-                );
-
-                $q->orWhereIn('id', function ($sub) use ($search) {
-                    $sub->select('ps.id')
-                        ->from('performa_sheets as ps')
-                        ->join(
-                            'projects_master as pm',
-                            DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(ps.data), '$.project_id'))"),
-                            '=',
-                            'pm.id'
-                        )
-                        ->where('pm.project_name', 'LIKE', "%{$search}%");
-                });
-            });
-        }
+        $baseQuery->whereBetween(
+            DB::raw("STR_TO_DATE(JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date')), '%Y-%m-%d')"),
+            [$startDate, $endDate]
+        );
 
         $sheets = $baseQuery->get();
+
+        $projectIds = $sheets->map(function ($sheet) {
+            $data = json_decode($sheet->data, true);
+            return $data['project_id'] ?? null;
+        })->filter()->unique();
+
+        $projects = ProjectMaster::with('client')
+            ->whereIn('id', $projectIds)
+            ->get()
+            ->keyBy('id');
+
 
         $packets = [];
 
         foreach ($sheets as $sheet) {
 
             $dataArray = json_decode($sheet->data, true);
-
-            if (is_string($dataArray)) {
-                $dataArray = json_decode($dataArray, true);
-            }
-
-            if (!is_array($dataArray)) {
+            if (!is_array($dataArray))
                 continue;
-            }
 
             $sheetDate = $dataArray['date'] ?? 'no_date';
-
             $projectId = $dataArray['project_id'] ?? null;
-            $project = $projectId
-                ? ProjectMaster::with('client')->find($projectId)
-                : null;
+            $project = $projects[$projectId] ?? null;
 
             $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
             $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
-            $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
-            $dataArray['status'] = $sheet->status ?? 'pending';
+            $dataArray['deadline'] = $project->deadline ?? null;
+            $dataArray['status'] = $sheet->status;
             $dataArray['id'] = $sheet->id;
             $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
             $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
-
-            unset($dataArray['user_id'], $dataArray['user_name']);
 
             $key = $sheet->user_id . '_' . $sheetDate;
 
@@ -763,6 +908,7 @@ class PerformaSheetController extends Controller
 
             $packets[$key]['sheets'][] = $dataArray;
         }
+
 
         $collection = collect(array_values($packets));
 
@@ -4039,6 +4185,138 @@ class PerformaSheetController extends Controller
                 'success' => true,
                 'data' => $response
             ]);
+        } catch (\Exception $e) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal Server Error',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getUsersOfflineHoursDateWise(Request $request)
+    {
+        try {
+
+            $startDate = $request->start_date
+                ? Carbon::parse($request->start_date)->startOfDay()
+                : Carbon::today()->startOfDay();
+
+            $endDate = $request->end_date
+                ? Carbon::parse($request->end_date)->endOfDay()
+                : Carbon::today()->endOfDay();
+
+            $performaSheets = PerformaSheet::where('status', 'approved')->get();
+
+            $data = [];
+
+            foreach ($performaSheets as $sheet) {
+
+                $decoded = json_decode($sheet->data, true);
+                if (is_string($decoded)) {
+                    $decoded = json_decode($decoded, true);
+                }
+
+                $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+                foreach ($entries as $dataArray) {
+
+                    if (
+                        empty($dataArray['offline_hours']) ||
+                        $dataArray['offline_hours'] === '00:00' ||
+                        empty($dataArray['date'])
+                    ) {
+                        continue;
+                    }
+
+                    // Only Billable + partial
+                    if (
+                        ($dataArray['activity_type'] ?? '') !== 'Billable' ||
+                        ($dataArray['tracking_mode'] ?? '') !== 'partial'
+                    ) {
+                        continue;
+                    }
+
+                    $entryDate = Carbon::parse($dataArray['date']);
+
+                    if ($entryDate->lt($startDate) || $entryDate->gt($endDate)) {
+                        continue;
+                    }
+
+                    [$h, $m] = explode(':', $dataArray['offline_hours']);
+                    $minutes = ((int) $h * 60) + (int) $m;
+
+                    $dateKey = $entryDate->format('Y-m-d');
+                    $userId = $sheet->user_id;
+
+                    // Project details
+                    $projectId = $dataArray['project_id'] ?? null;
+
+                    $project = $projectId
+                        ? ProjectMaster::with('client')->find($projectId)
+                        : null;
+
+                    $dataArray['project_name'] = $project->project_name ?? 'No Project Found';
+                    $dataArray['client_name'] = $project->client->client_name ?? 'No Client Found';
+                    $dataArray['deadline'] = $project->deadline ?? 'No Deadline Set';
+                    $dataArray['status'] = $sheet->status ?? 'pending';
+                    $dataArray['sheet_id'] = $sheet->id;
+                    $dataArray['created_at'] = optional($sheet->created_at)->format('Y-m-d H:i:s');
+                    $dataArray['updated_at'] = optional($sheet->updated_at)->format('Y-m-d H:i:s');
+
+                    // Store
+                    $data[$dateKey][$userId]['total_minutes'] =
+                        ($data[$dateKey][$userId]['total_minutes'] ?? 0) + $minutes;
+
+                    $data[$dateKey][$userId]['sheets'][] = $dataArray;
+                }
+            }
+
+            if (empty($data)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+
+            // Get users
+            $allUserIds = collect($data)
+                ->flatMap(fn($users) => array_keys($users))
+                ->unique()
+                ->values();
+
+            $users = User::whereIn('id', $allUserIds)
+                ->where('is_active', 1)
+                ->pluck('name', 'id');
+
+            $response = [];
+
+            foreach ($data as $date => $usersData) {
+
+                $usersArray = [];
+
+                foreach ($usersData as $userId => $details) {
+
+                    $usersArray[] = [
+                        'user_id' => $userId,
+                        'user_name' => $users[$userId] ?? '',
+                        'total_offline_hours' => $this->minutesToHours($details['total_minutes']),
+                        'sheets' => $details['sheets'] ?? []
+                    ];
+                }
+
+                $response[] = [
+                    'date' => $date,
+                    'users' => $usersArray
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $response
+            ]);
+
         } catch (\Exception $e) {
 
             return response()->json([
