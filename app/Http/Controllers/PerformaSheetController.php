@@ -1840,6 +1840,13 @@ class PerformaSheetController extends Controller
             if ($project && $project->tagActivityRelated) {
 
                 $newData['activity_type'] = $project->tagActivityRelated->name;
+                $newData['project_type'] = 'Fixed';
+                $newData['project_type_status'] = 'Offline';
+
+                if ($project->tagActivityRelated->id == 18) {
+                    $newData['project_type'] = 'No Work';
+                }
+
 
                 if (
                     strtolower($project->tagActivityRelated->name) === 'non billable' ||
@@ -1923,7 +1930,16 @@ class PerformaSheetController extends Controller
                 $newData['tracked_hours'] = '00:00';
                 $newData['offline_hours'] = '00:00';
             }
-
+            if ($project && $project->project_tracking) {
+                if (
+                    strtolower($newData['activity_type']) !== 'in-house' &&
+                    strtolower($newData['activity_type']) !== 'no work'
+                ) {
+                    $newData['activity_type'] = 'Billable';
+                    $newData['project_type'] = 'Hourly';
+                    $newData['project_type_status'] = 'Online';
+                }
+            }
 
             $isChanged = $oldData != $newData;
 
