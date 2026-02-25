@@ -3693,26 +3693,199 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function getUserDaterangePerformaSheets(Request $request)
+    // {
+    //     $user = auth()->user();
+    //     try {
+    //         $weeklyTotals = [];
+    //         $dailyExpectedMinutes = 510;
+    //         $leaveMinutesMap = [
+    //             'Full Leave' => $dailyExpectedMinutes,
+    //             'Multiple Days Leave' => $dailyExpectedMinutes,
+    //             'Half Day' => intval($dailyExpectedMinutes / 2),
+    //             'Short Leave' => 120,
+    //         ];
+
+    //         $startDate = $request->query('start_date')
+    //             ? Carbon::parse($request->query('start_date'))->startOfDay()
+    //             : Carbon::today()->startOfMonth();
+
+    //         $endDate = $request->query('end_date')
+    //             ? Carbon::parse($request->query('end_date'))->endOfDay()
+    //             : Carbon::today()->endOfMonth();
+
+    //         if ($startDate->gt($endDate)) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Start date cannot be greater than end date'
+    //             ], 400);
+    //         }
+
+    //         $period = new \DatePeriod($startDate, \DateInterval::createFromDateString('1 day'), $endDate->copy()->addDay(false));
+
+    //         $leaves = LeavePolicy::where('user_id', $user->id)
+    //             ->whereIn('leave_type', array_keys($leaveMinutesMap))
+    //             ->whereIn('status', ['Approved', 'Pending'])
+    //             ->get();
+
+    //         $sheets = PerformaSheet::with('user:id,name')
+    //             ->where('user_id', $user->id)
+    //             ->get()
+    //             ->filter(function ($sheet) use ($startDate, $endDate) {
+    //                 $data = json_decode($sheet->data, true);
+    //                 if (!$data || !isset($data['date']))
+    //                     return false;
+
+    //                 $date = $data['date'];
+    //                 return $date >= $startDate->toDateString() &&
+    //                     $date <= $endDate->toDateString();
+    //             })
+    //             ->values();
+
+    //         // Initialize weekly totals
+    //         foreach ($period as $day) {
+    //             $carbonDay = Carbon::instance($day);
+    //             $weeklyTotals[$carbonDay->toDateString()] = [
+    //                 'dayname' => $carbonDay->format('D'),
+    //                 'availability' => 'Working',
+    //                 'leave_type' => null,
+    //                 'leave_hours' => '00:00',
+    //                 'working_hours' => '00:00',
+    //                 'totalHours' => '00:00',
+    //                 'totalBillableHours' => '00:00',
+    //                 'totalNonBillableHours' => '00:00',
+    //             ];
+    //         }
+
+    //         $timeToMinutes = function ($time) {
+    //             [$hours, $minutes] = explode(':', $time);
+    //             return intval($hours) * 60 + intval($minutes);
+    //         };
+
+    //         $minutesToTime = function ($minutes) {
+    //             $h = floor($minutes / 60);
+    //             $m = $minutes % 60;
+    //             return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+    //         };
+
+    //         $totalsInMinutes = [];
+    //         $billableInMinutes = [];
+    //         $nonBillableInMinutes = [];
+
+    //         foreach ($sheets as $sheet) {
+    //             $data = json_decode($sheet->data, true);
+    //             if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+    //                 continue;
+
+    //             $date = $data['date'];
+    //             $time = $data['time'];
+    //             $activityType = strtolower($data['activity_type']); // to handle case variations
+    //             $minutes = $timeToMinutes($time);
+
+    //             // Total
+    //             $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+
+    //             // Billable / Non-Billable
+    //             if ($activityType === 'billable') {
+    //                 $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+    //             } else {
+    //                 $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+    //             }
+    //         }
+
+    //         // Assign to weekly totals
+    //         // foreach ($weeklyTotals as $date => &$totals) {
+    //         //     $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
+    //         //     $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
+    //         //     $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
+    //         // }
+
+    //         foreach ($weeklyTotals as $date => &$dayData) {
+
+    //             $currentDate = Carbon::parse($date);
+
+    //             // Weekend
+    //             if ($currentDate->isWeekend()) {
+    //                 $dayData['availability'] = 'Weekend';
+    //                 continue;
+    //             }
+
+    //             foreach ($leaves as $leave) {
+
+    //                 $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
+    //                 $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+
+    //                 if ($currentDate->between($leaveStart, $leaveEnd)) {
+
+    //                     $leaveType = $leave->leave_type;
+    //                     $leaveMinutes = $leaveMinutesMap[$leaveType] ?? 0;
+
+    //                     $workedMinutes = $totalsInMinutes[$date] ?? 0;
+
+    //                     switch ($leaveType) {
+
+    //                         case 'Full Leave':
+    //                         case 'Multiple Days Leave':
+    //                             $dayData['availability'] = 'On Leave';
+    //                             $dayData['working_hours'] = '00:00';
+    //                             break;
+
+    //                         case 'Half Day':
+    //                             $dayData['availability'] = 'On Leave';
+    //                             $dayData['working_hours'] = $minutesToTime($workedMinutes);
+    //                             break;
+
+    //                         case 'Short Leave':
+    //                             $dayData['availability'] = 'On Leave';
+    //                             $dayData['working_hours'] = $minutesToTime($workedMinutes);
+    //                             break;
+    //                     }
+
+    //                     $dayData['leave_type'] = $leaveType;
+    //                     $dayData['leave_hours'] = $minutesToTime($leaveMinutes);
+
+    //                     break;
+    //                 }
+    //             }
+    //             if ($dayData['availability'] === 'Working') {
+    //                 $dayData['working_hours'] = isset($totalsInMinutes[$date])
+    //                     ? $minutesToTime($totalsInMinutes[$date])
+    //                     : '00:00';
+    //             }
+    //         }
+
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Monthly Performa Sheets fetched successfully',
+    //             'data' => $weeklyTotals
+    //         ]);
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Internal Server Error',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
     public function getUserDaterangePerformaSheets(Request $request)
     {
         $user = auth()->user();
         try {
-            $weeklyTotals = [];
-            $dailyExpectedMinutes = 510;
-            $leaveMinutesMap = [
-                'Full Leave' => $dailyExpectedMinutes,
-                'Multiple Days Leave' => $dailyExpectedMinutes,
-                'Half Day' => intval($dailyExpectedMinutes / 2),
-                'Short Leave' => 120,
-            ];
+
+            $STANDARD_DAY_MINUTES = 510;
 
             $startDate = $request->query('start_date')
                 ? Carbon::parse($request->query('start_date'))->startOfDay()
-                : Carbon::today()->startOfMonth();
+                : Carbon::yesterday()->startOfDay();
 
             $endDate = $request->query('end_date')
-                ? Carbon::parse($request->query('end_date'))->endOfDay()
-                : Carbon::today()->endOfMonth();
+                ? Carbon::parse($request->query('end_date'))->startOfDay()
+                : Carbon::yesterday()->startOfDay();
+
+            $period = CarbonPeriod::create($startDate, $endDate);
 
             if ($startDate->gt($endDate)) {
                 return response()->json([
@@ -3721,144 +3894,186 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
-            $period = new \DatePeriod($startDate, \DateInterval::createFromDateString('1 day'), $endDate->copy()->addDay(false));
+            $holidayExpectedMinutes = [];
+            $holidayMinutesTaken = [];
 
-            $leaves = LeavePolicy::where('user_id', $user->id)
-                ->whereIn('leave_type', array_keys($leaveMinutesMap))
-                ->whereIn('status', ['Approved', 'Pending'])
+            $holidays = DB::table('event_holidays')
+                ->where('start_date', '<=', $endDate)
+                ->where(function ($q) use ($startDate) {
+                    $q->whereNull('end_date')
+                        ->orWhere('end_date', '>=', $startDate);
+                })
                 ->get();
 
-            $sheets = PerformaSheet::with('user:id,name')
-                ->where('user_id', $user->id)
-                ->get()
-                ->filter(function ($sheet) use ($startDate, $endDate) {
-                    $data = json_decode($sheet->data, true);
-                    if (!$data || !isset($data['date']))
-                        return false;
+            foreach ($holidays as $holiday) {
 
-                    $date = $data['date'];
-                    return $date >= $startDate->toDateString() &&
-                        $date <= $endDate->toDateString();
-                })
-                ->values();
+                $holidayEnd = $holiday->end_date
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date);
 
-            // Initialize weekly totals
-            foreach ($period as $day) {
-                $carbonDay = Carbon::instance($day);
-                $weeklyTotals[$carbonDay->toDateString()] = [
-                    'dayname' => $carbonDay->format('D'),
-                    'availability' => 'Working',
-                    'leave_type' => null,
-                    'leave_hours' => '00:00',
-                    'working_hours' => '00:00',
-                    'totalHours' => '00:00',
-                    'totalBillableHours' => '00:00',
-                    'totalNonBillableHours' => '00:00',
-                ];
+                $holidayPeriod = CarbonPeriod::create(
+                    Carbon::parse($holiday->start_date),
+                    $holidayEnd
+                );
+
+                foreach ($holidayPeriod as $day) {
+
+                    if ($day->isWeekend() || !$day->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $day->toDateString();
+
+                    switch ($holiday->type) {
+
+                        case 'Full Holiday':
+                            $holidayExpectedMinutes[$dateStr] = 0;
+                            $holidayMinutesTaken[$dateStr] = $STANDARD_DAY_MINUTES;
+                            break;
+
+                        case 'Half Holiday':
+                            $holidayExpectedMinutes[$dateStr] = $STANDARD_DAY_MINUTES / 2;
+                            $holidayMinutesTaken[$dateStr] = $STANDARD_DAY_MINUTES / 2;
+                            break;
+
+                        case 'Short Holiday':
+                            if ($holiday->start_time && $holiday->end_time) {
+                                $holidayMin = Carbon::parse($holiday->start_time)
+                                    ->diffInMinutes(Carbon::parse($holiday->end_time));
+
+                                $holidayExpectedMinutes[$dateStr] =
+                                    max(0, $STANDARD_DAY_MINUTES - $holidayMin);
+
+                                $holidayMinutesTaken[$dateStr] = $holidayMin;
+                            }
+                            break;
+                    }
+                }
             }
+            $leaves = LeavePolicy::where('user_id', $user->id)
+                ->where('status', 'Approved')
+                ->where('start_date', '<=', $endDate)
+                ->where('end_date', '>=', $startDate)
+                ->get();
+
+            $sheets = PerformaSheet::where('user_id', $user->id)->get();
 
             $timeToMinutes = function ($time) {
-                [$hours, $minutes] = explode(':', $time);
-                return intval($hours) * 60 + intval($minutes);
+                [$h, $m] = explode(':', $time);
+                return ($h * 60) + $m;
             };
 
             $minutesToTime = function ($minutes) {
                 $h = floor($minutes / 60);
                 $m = $minutes % 60;
-                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
+                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' .
+                    str_pad($m, 2, '0', STR_PAD_LEFT);
             };
 
-            $totalsInMinutes = [];
-            $billableInMinutes = [];
-            $nonBillableInMinutes = [];
+            $workedMinutes = [];
+            $billableMinutes = [];
+            $nonBillableMinutes = [];
 
             foreach ($sheets as $sheet) {
+
                 $data = json_decode($sheet->data, true);
-                if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+                if (!$data || !isset($data['date']))
                     continue;
 
                 $date = $data['date'];
-                $time = $data['time'];
-                $activityType = strtolower($data['activity_type']); // to handle case variations
-                $minutes = $timeToMinutes($time);
 
-                // Total
-                $totalsInMinutes[$date] = ($totalsInMinutes[$date] ?? 0) + $minutes;
+                if (
+                    $date < $startDate->toDateString() ||
+                    $date > $endDate->toDateString()
+                )
+                    continue;
 
-                // Billable / Non-Billable
-                if ($activityType === 'billable') {
-                    $billableInMinutes[$date] = ($billableInMinutes[$date] ?? 0) + $minutes;
+                $minutes = $timeToMinutes($data['time']);
+
+                $workedMinutes[$date] = ($workedMinutes[$date] ?? 0) + $minutes;
+
+                if (strtolower($data['activity_type']) === 'billable') {
+                    $billableMinutes[$date] = ($billableMinutes[$date] ?? 0) + $minutes;
                 } else {
-                    $nonBillableInMinutes[$date] = ($nonBillableInMinutes[$date] ?? 0) + $minutes;
+                    $nonBillableMinutes[$date] = ($nonBillableMinutes[$date] ?? 0) + $minutes;
                 }
             }
 
-            // Assign to weekly totals
-            // foreach ($weeklyTotals as $date => &$totals) {
-            //     $totals['totalHours'] = isset($totalsInMinutes[$date]) ? $minutesToTime($totalsInMinutes[$date]) : '00:00';
-            //     $totals['totalBillableHours'] = isset($billableInMinutes[$date]) ? $minutesToTime($billableInMinutes[$date]) : '00:00';
-            //     $totals['totalNonBillableHours'] = isset($nonBillableInMinutes[$date]) ? $minutesToTime($nonBillableInMinutes[$date]) : '00:00';
-            // }
+            $response = [];
 
-            foreach ($weeklyTotals as $date => &$dayData) {
+            foreach ($period as $day) {
 
+                $date = Carbon::instance($day)->toDateString();
                 $currentDate = Carbon::parse($date);
 
-                // Weekend
+                $expected = $holidayExpectedMinutes[$date] ?? $STANDARD_DAY_MINUTES;
+                $holidayMin = $holidayMinutesTaken[$date] ?? 0;
+                $worked = $workedMinutes[$date] ?? 0;
+
+                $leaveMin = 0;
+                $leaveType = null;
+                $availability = 'Working';
+
                 if ($currentDate->isWeekend()) {
-                    $dayData['availability'] = 'Weekend';
-                    continue;
+                    $availability = 'Weekend';
+                    $expected = 0;
                 }
 
                 foreach ($leaves as $leave) {
 
-                    $leaveStart = Carbon::parse($leave->start_date)->startOfDay();
-                    $leaveEnd = Carbon::parse($leave->end_date)->endOfDay();
+                    $leaveStart = Carbon::parse($leave->start_date);
+                    $leaveEnd = Carbon::parse($leave->end_date);
 
                     if ($currentDate->between($leaveStart, $leaveEnd)) {
 
                         $leaveType = $leave->leave_type;
-                        $leaveMinutes = $leaveMinutesMap[$leaveType] ?? 0;
-
-                        $workedMinutes = $totalsInMinutes[$date] ?? 0;
 
                         switch ($leaveType) {
 
                             case 'Full Leave':
                             case 'Multiple Days Leave':
-                                $dayData['availability'] = 'On Leave';
-                                $dayData['working_hours'] = '00:00';
+                                $leaveMin = $expected;
+                                $availability = 'On Leave';
                                 break;
 
                             case 'Half Day':
-                                $dayData['availability'] = 'On Leave';
-                                $dayData['working_hours'] = $minutesToTime($workedMinutes);
+                                $leaveMin = min($expected / 2, $expected);
+                                $availability = 'On Leave';
                                 break;
 
                             case 'Short Leave':
-                                $dayData['availability'] = 'On Leave';
-                                $dayData['working_hours'] = $minutesToTime($workedMinutes);
+                                if ($leave->hours && str_contains($leave->hours, 'to')) {
+                                    [$s, $e] = explode('to', $leave->hours);
+                                    $leaveMin = Carbon::parse($s)
+                                        ->diffInMinutes(Carbon::parse($e));
+                                    $availability = 'On Leave';
+                                }
                                 break;
                         }
-
-                        $dayData['leave_type'] = $leaveType;
-                        $dayData['leave_hours'] = $minutesToTime($leaveMinutes);
-
                         break;
                     }
                 }
-                if ($dayData['availability'] === 'Working') {
-                    $dayData['working_hours'] = isset($totalsInMinutes[$date])
-                        ? $minutesToTime($totalsInMinutes[$date])
-                        : '00:00';
-                }
-            }
 
+                $unfilled = max(0, $expected - $worked - $leaveMin);
+
+                $response[$date] = [
+                    'dayname' => $currentDate->format('D'),
+                    'availability' => $availability,
+                    'holiday_hours' => $minutesToTime($holidayMin),
+                    'leave_type' => $leaveType,
+                    'leave_hours' => $minutesToTime($leaveMin),
+                    'working_hours' => $minutesToTime($worked),
+                    'unfilled_hours' => $minutesToTime($unfilled),
+                    'totalHours' => $minutesToTime($worked),
+                    'totalBillableHours' => $minutesToTime($billableMinutes[$date] ?? 0),
+                    'totalNonBillableHours' => $minutesToTime($nonBillableMinutes[$date] ?? 0),
+                ];
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => 'Monthly Performa Sheets fetched successfully',
-                'data' => $weeklyTotals
+                'message' => 'Performa summary fetched successfully',
+                'data' => $response
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -4416,6 +4631,230 @@ class PerformaSheetController extends Controller
         }
     }
 
+    // public function getUserPerformaDataWithsheets(Request $request)
+    // {
+    //     if (!$request->user_id) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'user id is required'
+    //         ], 404);
+    //     }
+
+    //     try {
+
+    //         $startDate = $request->start_date
+    //             ? Carbon::parse($request->start_date)->startOfDay()
+    //             : Carbon::today()->startOfDay();
+
+    //         $endDate = $request->end_date
+    //             ? Carbon::parse($request->end_date)->endOfDay()
+    //             : Carbon::today()->endOfDay();
+
+    //         $performaSheets = DB::table('performa_sheets')
+    //             ->where('user_id', $request->user_id)
+    //             ->whereIn('status', ['approved', 'pending', 'backdated'])
+    //             ->get();
+
+    //         $projects = DB::table('projects_master')
+    //             ->pluck('project_name', 'id');
+
+    //         $activityTotals = [
+    //             'Billable' => 0,
+    //             'In-House' => 0,
+    //             'No Work' => 0,
+    //             'Offline' => 0,
+    //             'Unfilled' => 0,
+    //         ];
+
+    //         $sheets = [];
+    //         $filledDates = [];
+    //         $leaveDates = [];
+    //         $workedMinutesByDate = [];
+
+    //         $pendingCount = 0;
+    //         $totalLeaveMinutes = 0;
+
+    //         $unfilledDates = [];
+    //         $unfilledCount = 0;
+
+    //         foreach ($performaSheets as $row) {
+
+    //             $decoded = json_decode($row->data, true);
+    //             if (is_string($decoded)) {
+    //                 $decoded = json_decode($decoded, true);
+    //             }
+
+    //             $entries = isset($decoded[0]) ? $decoded : [$decoded];
+
+    //             foreach ($entries as $entry) {
+
+    //                 if (!isset($entry['activity_type'], $entry['time'], $entry['date'])) {
+    //                     continue;
+    //                 }
+
+    //                 $entryDate = Carbon::parse($entry['date']);
+
+    //                 if (
+    //                     $entryDate->lt($startDate) ||
+    //                     $entryDate->gt($endDate) ||
+    //                     $entryDate->isWeekend()
+    //                 ) {
+    //                     continue;
+    //                 }
+
+    //                 $dateStr = $entryDate->toDateString();
+
+    //                 $filledDates[$dateStr] = true;
+
+    //                 $entry['project_name'] = $projects[$entry['project_id']] ?? null;
+    //                 $entry['status'] = $row->status;
+
+    //                 $sheets[] = $entry;
+
+    //                 $minutes = $this->timeToMinutesforgetUserPerformaData($entry['time']);
+
+    //                 $workedMinutesByDate[$dateStr] =
+    //                     ($workedMinutesByDate[$dateStr] ?? 0) + $minutes;
+
+    //                 if ($row->status === 'pending') {
+    //                     $pendingCount++;
+    //                     continue;
+    //                 }
+
+    //                 if (isset($activityTotals[$entry['activity_type']])) {
+    //                     $activityTotals[$entry['activity_type']] += $minutes;
+    //                 }
+    //             }
+    //         }
+    //         $leaves = LeavePolicy::where('user_id', $request->user_id)
+    //             ->where('status', 'Approved')
+    //             ->where(function ($q) use ($startDate, $endDate) {
+    //                 $q->where('start_date', '<=', $endDate)
+    //                     ->where('end_date', '>=', $startDate);
+    //             })
+    //             ->get();
+
+    //         foreach ($leaves as $leave) {
+
+    //             $period = CarbonPeriod::create(
+    //                 Carbon::parse($leave->start_date),
+    //                 Carbon::parse($leave->end_date)
+    //             );
+
+    //             foreach ($period as $date) {
+
+    //                 if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
+    //                     continue;
+    //                 }
+
+    //                 $dateStr = $date->toDateString();
+    //                 $leaveDates[$dateStr] = true;
+
+    //                 $worked = $workedMinutesByDate[$dateStr] ?? 0;
+
+    //                 switch ($leave->leave_type) {
+
+    //                     case 'Full Leave':
+    //                         $totalLeaveMinutes += 510;
+    //                         break;
+
+    //                     case 'Half Day':
+    //                         $totalLeaveMinutes += 255;
+
+    //                         $remaining = max(0, 510 - 255 - $worked);
+    //                         $activityTotals['Unfilled'] += $remaining;
+
+    //                         if ($remaining > 0) {
+    //                             $unfilledDates[$dateStr] = $remaining;
+    //                             $unfilledCount++;
+    //                         }
+    //                         break;
+
+    //                     case 'Short Leave':
+    //                         if ($leave->hours && str_contains($leave->hours, 'to')) {
+    //                             [$start, $end] = explode('to', $leave->hours);
+    //                             $leaveMin = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
+
+    //                             $totalLeaveMinutes += $leaveMin;
+
+    //                             $remaining = max(0, 510 - $leaveMin - $worked);
+    //                             $activityTotals['Unfilled'] += $remaining;
+
+    //                             if ($remaining > 0) {
+    //                                 $unfilledDates[$dateStr] = $remaining;
+    //                                 $unfilledCount++;
+    //                             }
+    //                         }
+    //                         break;
+    //                 }
+    //             }
+    //         }
+
+    //         foreach ($workedMinutesByDate as $dateStr => $workedMinutes) {
+
+    //             if (isset($leaveDates[$dateStr])) {
+    //                 continue;
+    //             }
+
+    //             if ($workedMinutes < 510) {
+
+    //                 $remaining = 510 - $workedMinutes;
+
+    //                 $activityTotals['Unfilled'] += $remaining;
+    //                 if ($remaining > 0) {
+    //                     $unfilledDates[$dateStr] = $remaining;
+    //                     $unfilledCount++;
+    //                 }
+    //             }
+    //         }
+
+    //         $period = CarbonPeriod::create($startDate, $endDate);
+
+    //         foreach ($period as $date) {
+
+    //             if ($date->isWeekend()) {
+    //                 continue;
+    //             }
+
+    //             $dateStr = $date->toDateString();
+
+    //             if (!isset($filledDates[$dateStr]) && !isset($leaveDates[$dateStr])) {
+
+    //                 $activityTotals['Unfilled'] += 510;
+    //                 $unfilledDates[$dateStr] = 510;
+    //                 $unfilledCount++;
+    //             }
+    //         }
+
+    //         return response()->json([
+    //             'success' => true,
+    //             'message' => 'Performa & Leave summary fetched successfully',
+    //             'data' => [
+    //                 'activities' => collect($activityTotals)->map(fn($m) => $this->minutesToHours($m)),
+    //                 'pending_sheet_count' => $pendingCount,
+    //                 'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
+
+    //                 'unfilled' => [
+    //                     'count' => $unfilledCount,
+    //                     'dates' => collect($unfilledDates)->map(
+    //                         fn($m) => $this->minutesToHours($m)
+    //                     )
+    //                 ],
+
+    //                 'sheets' => $sheets
+    //             ]
+    //         ]);
+    //     } catch (\Exception $e) {
+
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Internal Server Error',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
     public function getUserPerformaDataWithsheets(Request $request)
     {
         if (!$request->user_id) {
@@ -4434,6 +4873,67 @@ class PerformaSheetController extends Controller
             $endDate = $request->end_date
                 ? Carbon::parse($request->end_date)->endOfDay()
                 : Carbon::today()->endOfDay();
+
+            $STANDARD_DAY_MINUTES = 510;
+            $totalHolidayMinutes = 0;
+
+            $holidayExpectedMinutesByDate = [];
+
+            $holidays = DB::table('event_holidays')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<=', $endDate)
+                        ->where(function ($q2) use ($startDate) {
+                            $q2->whereNull('end_date')
+                                ->orWhere('end_date', '>=', $startDate);
+                        });
+                })
+                ->get();
+
+            foreach ($holidays as $holiday) {
+
+                $holidayEnd = $holiday->end_date
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date);
+
+                $period = CarbonPeriod::create(
+                    Carbon::parse($holiday->start_date),
+                    $holidayEnd
+                );
+
+                foreach ($period as $date) {
+
+                    if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+
+                    switch ($holiday->type) {
+
+                        case 'Full Holiday':
+                            $holidayExpectedMinutesByDate[$dateStr] = 0;
+                            $totalHolidayMinutes += $STANDARD_DAY_MINUTES;
+                            break;
+
+                        case 'Half Holiday':
+                            $holidayExpectedMinutesByDate[$dateStr] = $STANDARD_DAY_MINUTES / 2;
+                            $totalHolidayMinutes += $STANDARD_DAY_MINUTES / 2;
+                            break;
+
+                        case 'Short Holiday':
+                            if ($holiday->start_time && $holiday->end_time) {
+                                $holidayMinutes = Carbon::parse($holiday->start_time)
+                                    ->diffInMinutes(Carbon::parse($holiday->end_time));
+
+                                $holidayExpectedMinutesByDate[$dateStr] =
+                                    max(0, $STANDARD_DAY_MINUTES - $holidayMinutes);
+
+                                $totalHolidayMinutes += $holidayMinutes;
+                            }
+                            break;
+                    }
+                }
+            }
 
             $performaSheets = DB::table('performa_sheets')
                 ->where('user_id', $request->user_id)
@@ -4458,7 +4958,6 @@ class PerformaSheetController extends Controller
 
             $pendingCount = 0;
             $totalLeaveMinutes = 0;
-
             $unfilledDates = [];
             $unfilledCount = 0;
 
@@ -4488,7 +4987,6 @@ class PerformaSheetController extends Controller
                     }
 
                     $dateStr = $entryDate->toDateString();
-
                     $filledDates[$dateStr] = true;
 
                     $entry['project_name'] = $projects[$entry['project_id']] ?? null;
@@ -4511,6 +5009,7 @@ class PerformaSheetController extends Controller
                     }
                 }
             }
+
             $leaves = LeavePolicy::where('user_id', $request->user_id)
                 ->where('status', 'Approved')
                 ->where(function ($q) use ($startDate, $endDate) {
@@ -4536,78 +5035,28 @@ class PerformaSheetController extends Controller
                     $leaveDates[$dateStr] = true;
 
                     $worked = $workedMinutesByDate[$dateStr] ?? 0;
+                    $expectedMinutes = $holidayExpectedMinutesByDate[$dateStr] ?? $STANDARD_DAY_MINUTES;
 
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
-                            $totalLeaveMinutes += 510;
+                            $totalLeaveMinutes += $expectedMinutes;
                             break;
 
                         case 'Half Day':
-                            $totalLeaveMinutes += 255;
-
-                            $remaining = max(0, 510 - 255 - $worked);
-                            $activityTotals['Unfilled'] += $remaining;
-
-                            if ($remaining > 0) {
-                                $unfilledDates[$dateStr] = $remaining;
-                                $unfilledCount++;
-                            }
+                            $leaveMinutes = min($expectedMinutes / 2, $expectedMinutes);
+                            $totalLeaveMinutes += $leaveMinutes;
                             break;
 
                         case 'Short Leave':
                             if ($leave->hours && str_contains($leave->hours, 'to')) {
                                 [$start, $end] = explode('to', $leave->hours);
-                                $leaveMin = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
-
+                                $leaveMin = Carbon::parse($start)
+                                    ->diffInMinutes(Carbon::parse($end));
                                 $totalLeaveMinutes += $leaveMin;
-
-                                $remaining = max(0, 510 - $leaveMin - $worked);
-                                $activityTotals['Unfilled'] += $remaining;
-
-                                if ($remaining > 0) {
-                                    $unfilledDates[$dateStr] = $remaining;
-                                    $unfilledCount++;
-                                }
                             }
                             break;
                     }
-                }
-            }
-
-            foreach ($workedMinutesByDate as $dateStr => $workedMinutes) {
-
-                if (isset($leaveDates[$dateStr])) {
-                    continue;
-                }
-
-                if ($workedMinutes < 510) {
-
-                    $remaining = 510 - $workedMinutes;
-
-                    $activityTotals['Unfilled'] += $remaining;
-                    if ($remaining > 0) {
-                        $unfilledDates[$dateStr] = $remaining;
-                        $unfilledCount++;
-                    }
-                }
-            }
-
-            $period = CarbonPeriod::create($startDate, $endDate);
-
-            foreach ($period as $date) {
-
-                if ($date->isWeekend()) {
-                    continue;
-                }
-
-                $dateStr = $date->toDateString();
-
-                if (!isset($filledDates[$dateStr]) && !isset($leaveDates[$dateStr])) {
-
-                    $activityTotals['Unfilled'] += 510;
-                    $unfilledDates[$dateStr] = 510;
-                    $unfilledCount++;
                 }
             }
 
@@ -4615,20 +5064,25 @@ class PerformaSheetController extends Controller
                 'success' => true,
                 'message' => 'Performa & Leave summary fetched successfully',
                 'data' => [
-                    'activities' => collect($activityTotals)->map(fn($m) => $this->minutesToHours($m)),
+                    'activities' => collect($activityTotals)
+                        ->map(fn($m) => $this->minutesToHours($m)),
+
                     'pending_sheet_count' => $pendingCount,
+
                     'leave_hours' => $this->minutesToHours($totalLeaveMinutes),
+
+                    'holiday_hours' => $this->minutesToHours($totalHolidayMinutes), // ✅ ADDED HERE
 
                     'unfilled' => [
                         'count' => $unfilledCount,
-                        'dates' => collect($unfilledDates)->map(
-                            fn($m) => $this->minutesToHours($m)
-                        )
+                        'dates' => collect($unfilledDates)
+                            ->map(fn($m) => $this->minutesToHours($m))
                     ],
 
                     'sheets' => $sheets
                 ]
             ]);
+
         } catch (\Exception $e) {
 
             return response()->json([
