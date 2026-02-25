@@ -62,7 +62,7 @@ class PerformaSheetController extends Controller
                     },
                 ],
                 'data.*.is_tracking' => 'required|in:yes,no',
-                'data.*.tracking_mode' => 'nullable|in:all,partial',
+                'data.*.tracking_mode' => 'nullable|in:all,partial|required_if:data.*.is_tracking,yes',
                 'data.*.tracking_id' => [
                     'nullable',
                     'integer',
@@ -97,14 +97,15 @@ class PerformaSheetController extends Controller
                 'data.*.is_tracking.required' => 'Tracking field is required.',
                 'data.*.is_tracking.in' => 'Tracking must be either yes or no.',
 
-                'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
+                'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is Enabled.',
                 'data.*.tracking_id.integer' => 'Tracking ID must be a valid number.',
                 'data.*.tracking_id.exists' => 'Selected Tracking ID is invalid.',
 
                 'data.*.tracking_mode.in' => 'Tracking mode must be either all or partial.',
+                'data.*.tracking_mode.required_if' => 'Tracking mode is Requried when Tracking is Enabled',
 
                 'data.*.tracked_hours.regex' => 'Tracked hours must be in HH:MM format.',
-                'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
+                'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required when Tracking Mode is Partial',
 
                 'data.*.is_fillable.required' => 'Fillable field is required.',
                 'data.*.is_fillable.boolean' => 'Fillable field must be true or false.',
@@ -143,7 +144,32 @@ class PerformaSheetController extends Controller
                 $record['project_type'] = 'No Work';
             }
 
-            if ($record['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+            if ($record['is_tracking'] == 'no') {
+
+                $record['tracked_hours'] = $record['tracked_hours'] ?? '00:00';
+
+                if (
+                    $record['activity_type'] == 'Billable'
+                ) {
+                    if (empty($record['not_tracked_reason'])) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Not Tracked Reason is required when tracking Disabled.'
+                        ], 422);
+                    }
+                    if ((int) $project->offline_hours !== 1) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                        ], 422);
+                    }
+                    $record['tracked_hours'] = '00:00';
+                    $record['offline_hours'] = $record['time'];
+                } else {
+                    $record['tracked_hours'] = '00:00';
+                    $record['offline_hours'] = '00:00';
+                }
+            } elseif ($record['is_tracking'] === 'yes' && $project && $project->project_tracking) {
                 if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
                     $record['offline_hours'] = '00:00';
@@ -1458,6 +1484,232 @@ class PerformaSheetController extends Controller
     }
 
 
+    // public function editPerformaSheets(Request $request)
+    // {
+    //     $user = auth()->user();
+
+    //     try {
+    //         try {
+    //             $validatedData = $request->validate([
+    //                 'id' => 'required|exists:performa_sheets,id',
+    //                 'data' => 'required|array',
+    //                 'data.project_id' => [
+    //                     'required',
+    //                     Rule::exists('project_relations', 'project_id')->where(function ($query) use ($user) {
+    //                         $query->whereRaw(
+    //                             'JSON_CONTAINS(assignees, ?, "$")',
+    //                             [json_encode((int) $user->id)]
+    //                         );
+    //                     })
+    //                 ],
+    //                 'data.date' => 'required|date_format:Y-m-d',
+    //                 'data.time' => 'required|date_format:H:i',
+    //                 'data.task_id' => 'required|integer',
+    //                 'data.work_type' => 'required|string|max:255',
+    //                 'data.narration' => [
+    //                     'nullable',
+    //                     'string',
+    //                     function ($attribute, $value, $fail) {
+    //                         $length = strlen(preg_replace('/\s+/', '', $value));
+    //                         if ($length < 50) {
+    //                             $fail('The narration must be at least 50 characters long (excluding spaces).');
+    //                         }
+    //                     },
+    //                 ],
+    //                 'data.is_tracking' => 'required|in:yes,no',
+    //                 'data.tracking_mode' => 'nullable|in:all,partial',
+    //                 'data.tracked_hours' => 'nullable',
+    //                 'data.*.tracking_id' => [
+    //                     'nullable',
+    //                     'integer',
+    //                     'required_if:data.*.is_tracking,yes',
+    //                     Rule::exists('project_accounts', 'id')
+    //                 ],
+    //                 'data.not_tracked_reason' => 'nullable|string|required_if:data.tracking_mode,partial',
+    //                 'data.is_fillable' => 'nullable|boolean',
+    //                 // 'data.status' => 'nullable',
+    //             ], [
+
+    //                 'id.required' => 'Sheet ID is required.',
+    //                 'id.exists' => 'The selected sheet does not exist.',
+
+    //                 'data.required' => 'Data field is required.',
+    //                 'data.array' => 'Data must be a valid object.',
+
+    //                 'data.project_id.required' => 'Project is required.',
+    //                 'data.project_id.exists' => 'Selected project is not assigned to you.',
+
+    //                 'data.date.required' => 'Date is required.',
+    //                 'data.date.date_format' => 'Date must be in Y-m-d format.',
+
+    //                 'data.time.required' => 'Time is required.',
+    //                 'data.time.date_format' => 'Time must be in HH:i (24-hour) format.',
+
+    //                 'data.task_id.required' => 'Task is required.',
+    //                 'data.task_id.integer' => 'Task ID must be a valid number.',
+
+    //                 'data.work_type.required' => 'Work type is required.',
+
+    //                 'data.narration.string' => 'Narration must be a valid string.',
+
+    //                 'data.is_tracking.required' => 'Tracking field is required.',
+    //                 'data.is_tracking.in' => 'Tracking must be either yes or no.',
+
+    //                 'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
+    //                 'data.*.tracking_id.integer' => 'Tracking ID must be a valid number.',
+    //                 'data.*.tracking_id.exists' => 'Selected Tracking ID is invalid.',
+
+    //                 'data.tracking_mode.in' => 'Tracking mode must be either all or partial.',
+    //                 'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
+
+    //                 'data.is_fillable.boolean' => 'Fillable field must be true or false.',
+    //             ]);
+    //         } catch (\Illuminate\Validation\ValidationException $e) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Validation failed!',
+    //                 'errors' => $e->errors()
+    //             ], 422);
+    //         }
+
+    //         $projectId = $validatedData['data']['project_id'];
+    //         $project = ProjectMaster::find($projectId);
+    //         $projectName = $project ? $project->name : "Unknown Project";
+    //         $tasks = Task::where('id', $validatedData['data']['task_id'])->get();
+
+    //         if ($tasks->isEmpty()) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => "No tasks found. Please Select task to proceed."
+    //             ], 402);
+    //         }
+
+    //         $allowedStatuses = ['to do', 'in progress'];
+    //         $validTaskExists = $tasks->contains(function ($task) use ($allowedStatuses) {
+    //             return in_array(strtolower($task->status), $allowedStatuses);
+    //         });
+
+    //         if (!$validTaskExists) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => "The Selected Task is either completed or not started. Please update task status to 'To do' or 'In progress'."
+    //             ], 402);
+    //         }
+
+    //         $performaSheet = PerformaSheet::where('id', $validatedData['id'])
+    //             ->where('user_id', $user->id)
+    //             ->first();
+
+    //         if (!$performaSheet) {
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => 'Performa Sheet not found or you do not have permission to edit it.'
+    //             ], 404);
+    //         }
+
+
+
+    //         $oldData = json_decode($performaSheet->data, true);
+    //         $newData = array_merge($oldData, $validatedData['data']);
+    //         $oldStatus = $performaSheet->status;
+    //         // $newData = $validatedData['data'];
+
+    //         if ($project && $project->project_tracking && $newData['is_tracking'] === 'yes') {
+    //             if ($newData['tracking_mode'] === 'all') {
+    //                 $newData['tracked_hours'] = $newData['time'];
+    //                 $newData['offline_hours'] = '00:00';
+    //             } else if ($newData['tracking_mode'] === 'partial') {
+    //                 if (empty($newData['tracked_hours'])) {
+    //                     return response()->json([
+    //                         'success' => false,
+    //                         'message' => 'Tracked hours are required when tracking mode is partial.'
+    //                     ], 422);
+    //                 }
+    //                 if ((int) $project->offline_hours !== 1) {
+    //                     return response()->json([
+    //                         'success' => false,
+    //                         'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+    //                     ], 422);
+    //                 }
+
+    //                 $totalMinutes = $this->timeToMinutes($newData['time']);
+    //                 $trackedMinutes = $this->timeToMinutes($newData['tracked_hours']);
+
+    //                 if ($trackedMinutes > $totalMinutes) {
+    //                     return response()->json([
+    //                         'success' => false,
+    //                         'message' => 'Tracked hours cannot be greater than total time.'
+    //                     ], 422);
+    //                 }
+    //                 $offlineMinutes = $totalMinutes - $trackedMinutes;
+    //                 $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
+    //             }
+    //         } else if ($project && $project->project_tracking && $newData['is_tracking'] === 'no') {
+    //             $newData['is_tracking'] = 'no';
+    //             if ((int) $project->offline_hours !== 1) {
+    //                 return response()->json([
+    //                     'success' => false,
+    //                     'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+    //                 ], 422);
+    //             }
+    //             $newData['offline_hours'] = ($newData['time']);
+    //         } else {
+    //             $newData['is_tracking'] = 'no';
+    //             $newData['tracking_mode'] = '';
+    //             $newData['tracked_hours'] = '00:00';
+    //             $newData['offline_hours'] = '00:00';
+    //         }
+
+    //         if ($project && $project->project_tracking) {
+    //             $newData['activity_type'] = 'Billable';
+    //             $newData['project_type'] = 'Hourly';
+    //             $newData['project_type_status'] = 'Online';
+    //         }
+
+    //         $isChanged = $oldData != $newData;
+
+    //         if ($isChanged) {
+    //             if (in_array(strtolower($oldStatus), ['standup', 'backdated'])) {
+    //                 $performaSheet->status = $oldStatus;
+    //             } else {
+    //                 if (in_array(strtolower($oldStatus), ['approved', 'rejected'])) {
+    //                     $performaSheet->status = 'pending';
+    //                 } else {
+    //                     $performaSheet->status = $oldStatus;
+    //                 }
+    //             }
+    //             $performaSheet->data = json_encode($newData);
+    //             $performaSheet->save();
+
+    //             ActivityService::log([
+    //                 'project_id' => $project->id,
+    //                 'type' => 'activity',
+    //                 'description' => 'Performa Sheets updated by ' . auth()->user()->name,
+    //             ]);
+    //             return response()->json([
+    //                 'success' => true,
+    //                 'message' => 'Performa Sheet updated successfully',
+    //                 'status' => $performaSheet->status,
+    //                 'data' => $performaSheet
+    //             ]);
+    //         } else {
+    //             return response()->json([
+    //                 'success' => true,
+    //                 'message' => 'No changes detected.',
+    //                 'status' => $oldStatus,
+    //                 'data' => $performaSheet
+    //             ]);
+    //         }
+    //     } catch (\Exception $e) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Internal Server Error',
+    //             'error' => $e->getMessage()
+    //         ], 500);
+    //     }
+    // }
+
+
     public function editPerformaSheets(Request $request)
     {
         $user = auth()->user();
@@ -1491,17 +1743,16 @@ class PerformaSheetController extends Controller
                         },
                     ],
                     'data.is_tracking' => 'required|in:yes,no',
-                    'data.tracking_mode' => 'nullable|in:all,partial',
-                    'data.tracked_hours' => 'nullable',
-                    'data.*.tracking_id' => [
+                    'data.tracking_mode' => 'nullable|in:all,partial|required_if:data.is_tracking,yes',
+                    'data.tracked_hours' => ['nullable', 'regex:/^\d{2}:\d{2}$/'],
+                    'data.tracking_id' => [
                         'nullable',
                         'integer',
-                        'required_if:data.*.is_tracking,yes',
+                        'required_if:data.is_tracking,yes',
                         Rule::exists('project_accounts', 'id')
                     ],
                     'data.not_tracked_reason' => 'nullable|string|required_if:data.tracking_mode,partial',
                     'data.is_fillable' => 'nullable|boolean',
-                    // 'data.status' => 'nullable',
                 ], [
 
                     'id.required' => 'Sheet ID is required.',
@@ -1529,12 +1780,14 @@ class PerformaSheetController extends Controller
                     'data.is_tracking.required' => 'Tracking field is required.',
                     'data.is_tracking.in' => 'Tracking must be either yes or no.',
 
-                    'data.*.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
-                    'data.*.tracking_id.integer' => 'Tracking ID must be a valid number.',
-                    'data.*.tracking_id.exists' => 'Selected Tracking ID is invalid.',
+                    'data.tracking_id.required_if' => 'Tracking ID is required when tracking is enabled.',
+                    'data.tracking_id.integer' => 'Tracking ID must be a valid number.',
+                    'data.tracking_id.exists' => 'Selected Tracking ID is invalid.',
 
                     'data.tracking_mode.in' => 'Tracking mode must be either all or partial.',
-                    'data.*.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
+                    'data.tracking_mode.required_if' => 'Tracking mode is Requried when Tracking is Enabled',
+
+                    'data.not_tracked_reason.required_if' => 'Not Tracked Reason is required. When Tracking Mode Is Partial',
 
                     'data.is_fillable.boolean' => 'Fillable field must be true or false.',
                 ]);
@@ -1547,8 +1800,7 @@ class PerformaSheetController extends Controller
             }
 
             $projectId = $validatedData['data']['project_id'];
-            $project = ProjectMaster::find($projectId);
-            $projectName = $project ? $project->name : "Unknown Project";
+            $project = ProjectMaster::with('tagActivityRelated:id,name')->find($projectId);
             $tasks = Task::where('id', $validatedData['data']['task_id'])->get();
 
             if ($tasks->isEmpty()) {
@@ -1581,64 +1833,97 @@ class PerformaSheetController extends Controller
                 ], 404);
             }
 
-
-
             $oldData = json_decode($performaSheet->data, true);
             $newData = array_merge($oldData, $validatedData['data']);
             $oldStatus = $performaSheet->status;
-            // $newData = $validatedData['data'];
 
-            if ($project && $project->project_tracking && $newData['is_tracking'] === 'yes') {
-                if ($newData['tracking_mode'] === 'all') {
-                    $newData['tracked_hours'] = $newData['time'];
-                    $newData['offline_hours'] = '00:00';
-                } else if ($newData['tracking_mode'] === 'partial') {
-                    if (empty($newData['tracked_hours'])) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Tracked hours are required when tracking mode is partial.'
-                        ], 422);
-                    }
-                    if ((int) $project->offline_hours !== 1) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
-                        ], 422);
-                    }
+            if ($project && $project->tagActivityRelated) {
 
-                    $totalMinutes = $this->timeToMinutes($newData['time']);
-                    $trackedMinutes = $this->timeToMinutes($newData['tracked_hours']);
+                $newData['activity_type'] = $project->tagActivityRelated->name;
 
-                    if ($trackedMinutes > $totalMinutes) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => 'Tracked hours cannot be greater than total time.'
-                        ], 422);
-                    }
-                    $offlineMinutes = $totalMinutes - $trackedMinutes;
-                    $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
+                if (
+                    strtolower($project->tagActivityRelated->name) === 'non billable' ||
+                    strtolower($project->tagActivityRelated->name) === 'non-billable'
+                ) {
+                    $newData['activity_type'] = 'Billable';
                 }
-            } else if ($project && $project->project_tracking && $newData['is_tracking'] === 'no') {
-                $newData['is_tracking'] = 'no';
-                if ((int) $project->offline_hours !== 1) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
-                    ], 422);
+            }
+
+            if ($project && $project->project_tracking) {
+
+                if ($newData['is_tracking'] === 'no') {
+
+                    $newData['tracked_hours'] = '00:00';
+
+                    if ($newData['activity_type'] == 'Billable') {
+
+                        if (empty($newData['not_tracked_reason'])) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Not Tracked Reason is required when tracking Disabled.'
+                            ], 422);
+                        }
+
+                        if ((int) $project->offline_hours !== 1) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                            ], 422);
+                        }
+
+                        $newData['offline_hours'] = $newData['time'];
+
+                    } else {
+
+                        $newData['offline_hours'] = '00:00';
+                    }
+
+                } elseif ($newData['is_tracking'] === 'yes') {
+
+                    if ($newData['tracking_mode'] === 'all') {
+
+                        $newData['tracked_hours'] = $newData['time'];
+                        $newData['offline_hours'] = '00:00';
+
+                    } elseif ($newData['tracking_mode'] === 'partial') {
+
+                        if (empty($newData['tracked_hours'])) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Tracked hours are required when tracking mode is partial.'
+                            ], 422);
+                        }
+
+                        if ((int) $project->offline_hours !== 1) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => "Offline hours are not allowed for the project '{$project->project_name}'."
+                            ], 422);
+                        }
+
+                        $totalMinutes = $this->timeToMinutes($newData['time']);
+                        $trackedMinutes = $this->timeToMinutes($newData['tracked_hours']);
+
+                        if ($trackedMinutes > $totalMinutes) {
+                            return response()->json([
+                                'success' => false,
+                                'message' => 'Tracked hours cannot be greater than total time.'
+                            ], 422);
+                        }
+
+                        $offlineMinutes = $totalMinutes - $trackedMinutes;
+                        $newData['offline_hours'] = $this->minutesToTime($offlineMinutes);
+                    }
                 }
-                $newData['offline_hours'] = ($newData['time']);
+
             } else {
+
                 $newData['is_tracking'] = 'no';
                 $newData['tracking_mode'] = '';
                 $newData['tracked_hours'] = '00:00';
                 $newData['offline_hours'] = '00:00';
             }
 
-            if ($project && $project->project_tracking) {
-                $newData['activity_type'] = 'Billable';
-                $newData['project_type'] = 'Hourly';
-                $newData['project_type_status'] = 'Online';
-            }
 
             $isChanged = $oldData != $newData;
 
@@ -1652,6 +1937,7 @@ class PerformaSheetController extends Controller
                         $performaSheet->status = $oldStatus;
                     }
                 }
+
                 $performaSheet->data = json_encode($newData);
                 $performaSheet->save();
 
@@ -1660,13 +1946,16 @@ class PerformaSheetController extends Controller
                     'type' => 'activity',
                     'description' => 'Performa Sheets updated by ' . auth()->user()->name,
                 ]);
+
                 return response()->json([
                     'success' => true,
                     'message' => 'Performa Sheet updated successfully',
                     'status' => $performaSheet->status,
                     'data' => $performaSheet
                 ]);
+
             } else {
+
                 return response()->json([
                     'success' => true,
                     'message' => 'No changes detected.',
@@ -1674,7 +1963,9 @@ class PerformaSheetController extends Controller
                     'data' => $performaSheet
                 ]);
             }
+
         } catch (\Exception $e) {
+
             return response()->json([
                 'success' => false,
                 'message' => 'Internal Server Error',
@@ -1682,9 +1973,6 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-
-
-
     public function deletePerformaSheets(Request $request)
     {
         $userId = auth()->id();
