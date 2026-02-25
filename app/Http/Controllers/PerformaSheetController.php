@@ -144,7 +144,7 @@ class PerformaSheetController extends Controller
                 $record['project_type'] = 'No Work';
             }
 
-            if ($record['is_tracking'] == 'no') {
+            if ($record['is_tracking'] == 'no' && $project && $project->project_tracking == 1) {
 
                 $record['tracked_hours'] = $record['tracked_hours'] ?? '00:00';
 
@@ -169,7 +169,7 @@ class PerformaSheetController extends Controller
                     $record['tracked_hours'] = '00:00';
                     $record['offline_hours'] = '00:00';
                 }
-            } elseif ($record['is_tracking'] === 'yes' && $project && $project->project_tracking) {
+            } elseif ($record['is_tracking'] === 'yes' && $project && $project->project_tracking == 1) {
                 if ($record['tracking_mode'] === 'all') {
                     $record['tracked_hours'] = $record['time'];
                     $record['offline_hours'] = '00:00';
@@ -1849,7 +1849,7 @@ class PerformaSheetController extends Controller
                 }
             }
 
-            if ($project && $project->project_tracking) {
+            if ($project && $project->project_tracking == 1) {
 
                 if ($newData['is_tracking'] === 'no') {
 
