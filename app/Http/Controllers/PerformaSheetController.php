@@ -3885,8 +3885,6 @@ class PerformaSheetController extends Controller
                 ? Carbon::parse($request->query('end_date'))->startOfDay()
                 : Carbon::yesterday()->startOfDay();
 
-            $period = CarbonPeriod::create($startDate, $endDate);
-
             if ($startDate->gt($endDate)) {
                 return response()->json([
                     'success' => false,
@@ -3894,8 +3892,12 @@ class PerformaSheetController extends Controller
                 ], 400);
             }
 
+            $period = CarbonPeriod::create($startDate, $endDate);
+
             $holidayExpectedMinutes = [];
             $holidayMinutesTaken = [];
+            $holidayTypeMap = [];
+            $holidayDescriptionMap = [];
 
             $holidays = DB::table('event_holidays')
                 ->where('start_date', '<=', $endDate)
@@ -3923,6 +3925,9 @@ class PerformaSheetController extends Controller
                     }
 
                     $dateStr = $day->toDateString();
+
+                    $holidayTypeMap[$dateStr] = $holiday->type;
+                    $holidayDescriptionMap[$dateStr] = $holiday->description ?? null;
 
                     switch ($holiday->type) {
 
@@ -4059,6 +4064,8 @@ class PerformaSheetController extends Controller
                 $response[$date] = [
                     'dayname' => $currentDate->format('D'),
                     'availability' => $availability,
+                    'holiday_type' => $holidayTypeMap[$date] ?? null,
+                    'holiday_description' => $holidayDescriptionMap[$date] ?? null,
                     'holiday_hours' => $minutesToTime($holidayMin),
                     'leave_type' => $leaveType,
                     'leave_hours' => $minutesToTime($leaveMin),
