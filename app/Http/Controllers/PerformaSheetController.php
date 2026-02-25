@@ -3226,7 +3226,7 @@ class PerformaSheetController extends Controller
 
                         if (in_array($holiday->type, ['Full Holiday', 'Multiple Holiday'])) {
                             $dayTotal = 0;
-                            $totals['is_fillable'] = 0;
+                            // $totals['is_fillable'] = 0;
                             break;
                         }
 
