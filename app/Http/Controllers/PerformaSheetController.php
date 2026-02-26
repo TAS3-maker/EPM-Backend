@@ -90,7 +90,7 @@ class PerformaSheetController extends Controller
                 'data.*.task_id.required' => 'Task is required.',
                 'data.*.task_id.integer' => 'Task ID must be a valid number.',
 
-                'data.work_type.required' => 'Work type is required.',
+                'data.*.work_type.required' => 'Work type is required.',
 
                 'data.*.narration.string' => 'Narration must be a valid string.',
 
