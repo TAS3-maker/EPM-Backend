@@ -4241,11 +4241,13 @@ class PerformaSheetController extends Controller
                         case 'Full Holiday':
                             $holidayExpectedMinutes[$dateStr] = 0;
                             $holidayMinutesTaken[$dateStr] = $STANDARD_DAY_MINUTES;
+                            $availability = 'Full Holiday';
                             break;
 
                         case 'Half Holiday':
                             $holidayExpectedMinutes[$dateStr] = $STANDARD_DAY_MINUTES / 2;
                             $holidayMinutesTaken[$dateStr] = $STANDARD_DAY_MINUTES / 2;
+                             $availability = 'Half Holiday';
                             break;
 
                         case 'Short Holiday':
@@ -4257,6 +4259,7 @@ class PerformaSheetController extends Controller
                                     max(0, $STANDARD_DAY_MINUTES - $holidayMin);
 
                                 $holidayMinutesTaken[$dateStr] = $holidayMin;
+                                 $availability = 'Short Holiday';
                             }
                             break;
                     }
@@ -4350,7 +4353,7 @@ class PerformaSheetController extends Controller
 
                             case 'Half Day':
                                 $leaveMin = min($expected / 2, $expected);
-                                $availability = 'On Leave';
+                                $availability = 'On Half Day Leave';
                                 break;
 
                             case 'Short Leave':
@@ -4358,7 +4361,7 @@ class PerformaSheetController extends Controller
                                     [$s, $e] = explode('to', $leave->hours);
                                     $leaveMin = Carbon::parse($s)
                                         ->diffInMinutes(Carbon::parse($e));
-                                    $availability = 'On Leave';
+                                    $availability = 'On Short Leave';
                                 }
                                 break;
                         }
