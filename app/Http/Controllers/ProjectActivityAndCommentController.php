@@ -12,6 +12,7 @@ use App\Models\PerformaSheet;
 use App\Models\User;
 use App\Services\ActivityService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class ProjectActivityAndCommentController extends Controller
 {
@@ -128,6 +129,35 @@ class ProjectActivityAndCommentController extends Controller
         }
     }
 
+    // public function index(Request $request)
+    // {
+    //     if (!$request->project_id) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Project ID is required',
+    //         ], 200);
+    //     }
+
+    //     $activities = ProjectActivityAndComment::with('user')
+    //         ->where('project_id', $request->project_id)
+    //         ->when($request->type, function ($query) use ($request) {
+    //             $query->where('type', $request->type);
+    //         })
+    //         ->get();
+
+    //     if ($activities->isEmpty()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No data found',
+    //             'data' => [],
+    //         ], 200);
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'data' => ProjectActivityAndCommentResource::collection($activities),
+    //     ], 200);
+    // }
 
 
     public function index(Request $request)
@@ -139,12 +169,14 @@ class ProjectActivityAndCommentController extends Controller
             ], 200);
         }
 
-        $activities = ProjectActivityAndComment::with('user')
+        $perPage = $request->per_page ?? 20;
+        $activitiesQuery = ProjectActivityAndComment::with('user')
             ->where('project_id', $request->project_id)
             ->when($request->type, function ($query) use ($request) {
                 $query->where('type', $request->type);
             })
-            ->get();
+            ->orderBy('id', 'DESC');
+        $activities = $activitiesQuery->paginate($perPage);
 
         if ($activities->isEmpty()) {
             return response()->json([
@@ -157,9 +189,14 @@ class ProjectActivityAndCommentController extends Controller
         return response()->json([
             'success' => true,
             'data' => ProjectActivityAndCommentResource::collection($activities),
+            'pagination' => [
+                'current_page' => $activities->currentPage(),
+                'last_page' => $activities->lastPage(),
+                'per_page' => $activities->perPage(),
+                'total' => $activities->total(),
+            ]
         ], 200);
     }
-
 
     // public function update(Request $request, $id = null)
     // {
@@ -385,6 +422,78 @@ class ProjectActivityAndCommentController extends Controller
         ], 200);
     }
 
+    // public function GetAllComments(Request $request)
+    // {
+    //     $taskId = $request->task_id;
+
+    //     if (!$taskId) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'Task id is required',
+    //         ], 404);
+    //     }
+
+    //     $timeline = collect();
+
+    //     $performaSheets = PerformaSheet::whereIn('status', ['approved', 'pending', 'backdated'])->get();
+
+    //     $narrations = $performaSheets->map(function ($sheet) use ($taskId) {
+
+    //         $data = json_decode($sheet->data, true);
+
+    //         if (!$data || ($data['task_id'] ?? null) != $taskId) {
+    //             return null;
+    //         }
+
+    //         $user = User::where('id', $sheet->user_id)
+    //             ->where('is_active', 1)
+    //             ->first();
+
+
+    //         return [
+    //             'message' => $data['narration'] ?? null,
+    //             'time' => $data['time'] ?? null,
+    //             'user' => $user?->name,
+    //             'created_at' => Carbon::parse($sheet->created_at)->format('d-m-Y H:i:s'),
+    //         ];
+    //     })->filter();
+
+    //     $comments = ProjectActivityAndComment::with('user')
+    //         ->where('task_id', $taskId)
+    //         ->where('type', 'comment')
+    //         ->latest()
+    //         ->get()
+    //         ->map(function ($comment) {
+    //             return [
+    //                 'message' => $comment->description ?? null,
+    //                 'user' => $comment->user?->name,
+    //                 'created_at' => $comment->created_at,
+    //             ];
+    //         });
+
+    //     $timeline = $timeline
+    //         ->merge($comments)
+    //         ->merge($narrations)
+    //         ->sortByDesc(fn($item) => \Carbon\Carbon::parse($item['created_at'])->timestamp)
+    //         ->values();
+
+    //     if ($timeline->isEmpty()) {
+    //         return response()->json([
+    //             'success' => false,
+    //             'message' => 'No comments or narrations found',
+    //             'data' => [],
+    //         ], 200);
+    //     }
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Timeline fetched successfully',
+    //         'data' => $timeline
+    //     ], 200);
+    // }
+
+
+
     public function GetAllComments(Request $request)
     {
         $taskId = $request->task_id;
@@ -398,49 +507,66 @@ class ProjectActivityAndCommentController extends Controller
 
         $timeline = collect();
 
-        $performaSheets = PerformaSheet::whereIn('status', ['approved', 'pending'])->get();
+        $perPage = $request->per_page ?? 10;
 
-        $narrations = $performaSheets->map(function ($sheet) use ($taskId) {
+        $comments = DB::table('project_activity_and_comments as pac')
+            ->join('users as u', 'u.id', '=', 'pac.user_id')
+            ->select(
+                'pac.description as message',
+                DB::raw('NULL as time'),
+                'u.name as user',
+                'pac.created_at',
+                DB::raw("'comment' as source_type")
+            )
+            ->where('pac.task_id', $taskId)
+            ->where('pac.type', 'comment');
 
-            $data = json_decode($sheet->data, true);
+        $narrations = DB::table('performa_sheets as ps')
+            ->join('users as u', function ($join) {
+                $join->on('u.id', '=', 'ps.user_id')
+                    ->where('u.is_active', 1);
+            })
+            ->select(
+                DB::raw("
+            JSON_UNQUOTE(
+                JSON_EXTRACT(
+                    JSON_UNQUOTE(ps.data),
+                    '$.narration'
+                )
+            ) as message
+        "),
+                DB::raw("
+            JSON_UNQUOTE(
+                JSON_EXTRACT(
+                    JSON_UNQUOTE(ps.data),
+                    '$.time'
+                )
+            ) as time
+        "),
+                'u.name as user',
+                'ps.created_at',
+                DB::raw("'narration' as source_type")
+            )
+            ->whereIn('ps.status', ['approved', 'pending', 'backdated'])
+            ->whereRaw("
+        CAST(
+            JSON_UNQUOTE(
+                JSON_EXTRACT(
+                    JSON_UNQUOTE(ps.data),
+                    '$.task_id'
+                )
+            ) AS UNSIGNED
+        ) = ?
+    ", [$taskId]);
 
-            if (!$data || ($data['task_id'] ?? null) != $taskId) {
-                return null;
-            }
+        $timeline = $comments->unionAll($narrations);
 
-            $user = User::where('id', $sheet->user_id)
-                ->where('is_active', 1)
-                ->first();
+        $results = DB::query()
+            ->fromSub($timeline, 'timeline')
+            ->orderByDesc('created_at')
+            ->paginate($perPage);
 
-
-            return [
-                'message' => $data['narration'] ?? null,
-                'time' => $data['time'] ?? null,
-                'user' => $user?->name,
-                'created_at' => Carbon::parse($sheet->created_at)->format('d-m-Y H:i:s'),
-            ];
-        })->filter();
-
-        $comments = ProjectActivityAndComment::with('user')
-            ->where('task_id', $taskId)
-            ->where('type', 'comment')
-            ->latest()
-            ->get()
-            ->map(function ($comment) {
-                return [
-                    'message' => $comment->description ?? null,
-                    'user' => $comment->user?->name,
-                    'created_at' => $comment->created_at,
-                ];
-            });
-
-        $timeline = $timeline
-            ->merge($comments)
-            ->merge($narrations)
-            ->sortByDesc(fn($item) => \Carbon\Carbon::parse($item['created_at'])->timestamp)
-            ->values();
-
-        if ($timeline->isEmpty()) {
+        if ($results->isEmpty()) {
             return response()->json([
                 'success' => false,
                 'message' => 'No comments or narrations found',
@@ -451,9 +577,13 @@ class ProjectActivityAndCommentController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Timeline fetched successfully',
-            'data' => $timeline
+            'data' => $results->items(),
+            'pagination' => [
+                'current_page' => $results->currentPage(),
+                'last_page' => $results->lastPage(),
+                'per_page' => $results->perPage(),
+                'total' => $results->total(),
+            ]
         ], 200);
     }
-
-
 }
