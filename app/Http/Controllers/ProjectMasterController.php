@@ -1861,11 +1861,11 @@ class ProjectMasterController extends Controller
             ->when($projectIds->isNotEmpty(), function ($q) use ($projectIds) {
                 $q->whereIn('id', $projectIds);
             })
-            ->when(
-                $activityTags->isNotEmpty(),
-                fn($q) =>
-                $q->whereIn('project_tag_activity', $activityTags)
-            )
+            // ->when(
+            //     $activityTags->isNotEmpty(),
+            //     fn($q) =>
+            //     $q->whereIn('project_tag_activity', $activityTags)
+            // )
             ->whereHas('relation', function ($q) use ($clientIds, $eligibleUserIds) {
 
                 // Client filter
