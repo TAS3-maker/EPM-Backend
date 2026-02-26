@@ -901,8 +901,6 @@ class PerformaSheetController extends Controller
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
         }
-        }
-
         if (!empty($status)) {
             $baseQuery->where('status', $status);
         } else {
