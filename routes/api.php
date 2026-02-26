@@ -266,5 +266,8 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/leave-credits/{id}', [LeaveCreditController::class, 'show']);
         Route::put('/leave-credits/{id}', [LeaveCreditController::class, 'update']);
         Route::delete('/leave-credits/{id}', [LeaveCreditController::class, 'destroy']);
+        Route::post('/generate-leave-credits', [LeaveCreditController::class, 'generateLeaveCredits']);
+        Route::post('/process-monthly-leave-cycle', [LeaveCreditController::class, 'processMonthlyLeaveCycle']);
+        // Route::post('/leave-credits/reset', [LeaveCreditController::class, 'resetLeaveCredits']);
     });
 });

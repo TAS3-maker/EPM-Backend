@@ -11,6 +11,8 @@ use App\Models\Role;
 use App\Http\Resources\UserResource;
 use App\Http\Helpers\ApiResponse;
 use App\Mail\SendEmployeeCredentials;
+use App\Models\LeaveCredit;
+use App\Models\LeaveCreditLog;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -24,6 +26,7 @@ use Tymon\JWTAuth\Exceptions\JWTException;
 use App\Models\Permission;
 
 use Illuminate\Support\Facades\Schema;
+
 class UserController extends Controller
 {
 
@@ -163,6 +166,8 @@ class UserController extends Controller
                 'reporting_manager_id' => 'nullable|exists:users,id',
                 'profile_pic' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
                 'employee_id' => 'required|string|unique:users,employee_id',
+                'employment_status' => 'required|in:provisional,appointed,notice',
+                'joining_date' => 'required|date',
             ], [
                 'employee_id.required' => 'Employee ID is required.',
                 'employee_id.unique' => 'This employee ID already exists. Please choose a different one.',
@@ -285,6 +290,42 @@ class UserController extends Controller
                 ['user_id' => $user->id],
                 $finalPermissions
             ));
+
+            // ================= LEAVE FLOW INIT =================
+            $cycleStart = Carbon::now()->startOfYear(); // 1 Jan current year
+            $cycleEnd   = Carbon::now()->endOfYear();   // 31 Dec current year
+
+            $leaveCredit = LeaveCredit::create([
+                'user_id' => $user->id,
+                'employment_status' => $validatedData['employment_status'],
+                'joining_date' => $validatedData['joining_date'],
+                'cycle_start_date' => $cycleStart,
+                'cycle_end_date' => $cycleEnd,
+                'year' => now()->year,
+                'month' => now()->month,
+                'carry_forward_balance' => 0,
+                'total_used' => 0,
+                'provisional_leave_limit' => 3,
+                'provisional_leave_taken' => 0,
+                'provisional_extended_months' => 0,
+                'notice_start_date' => null,
+                'paid_leaves' => 0,
+                'bunch_time' => 0,
+                'bunch_payble_balance' => 0,
+                'provisional_days' => 0,
+            ]);
+
+            // Create current month log
+           /*  LeaveCreditLog::create([
+                'leave_credit_id' => $leaveCredit->id,
+                'user_id' => $user->id,
+                'year' => now()->year,
+                'month' => now()->month,
+                'worked_days' => 0,
+                'monthly_paid_leave' => 0,
+                'used_in_month' => 0,
+                'converted_to_unpaid' => 0,
+            ]); */
 
             DB::commit();
             return ApiResponse::success(
@@ -1133,7 +1174,6 @@ class UserController extends Controller
                 ]);
 
                 $imported++;
-
             } catch (\Exception $e) {
                 $skipped++;
                 $skippedDetails[] = [
@@ -1184,7 +1224,6 @@ class UserController extends Controller
                 'message' => 'Team Leaders fetched successfully',
                 'data' => $tls
             ]);
-
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -1336,7 +1375,6 @@ class UserController extends Controller
                 'message' => 'Users fetched successfully',
                 'data' => $users
             ]);
-
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -1351,5 +1389,4 @@ class UserController extends Controller
             ], 500);
         }
     }
-
 }

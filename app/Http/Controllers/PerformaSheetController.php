@@ -614,7 +614,6 @@ class PerformaSheetController extends Controller
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
-
         } elseif ($user->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -624,11 +623,9 @@ class PerformaSheetController extends Controller
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
-
         } elseif ($user->hasRole(7)) {
 
             $baseQuery->where('user_id', $user->id);
-
         } elseif (!empty($team_id)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -667,7 +664,6 @@ class PerformaSheetController extends Controller
                 $baseQuery->whereHas('user', function ($uq) use ($search) {
                     $uq->where('name', 'LIKE', "%{$search}%");
                 });
-
             } elseif ($searchBy === 'project_name') {
 
                 $baseQuery->whereIn('id', function ($sub) use ($search) {
@@ -681,7 +677,6 @@ class PerformaSheetController extends Controller
                         )
                         ->where('pm.project_name', 'LIKE', "%{$search}%");
                 });
-
             } elseif ($searchBy === 'activity_type') {
 
                 $baseQuery->whereRaw(
@@ -689,7 +684,6 @@ class PerformaSheetController extends Controller
                     ["%{$search}%"]
                 );
             }
-
         } elseif ($search) {
 
             $baseQuery->where(function ($q) use ($search) {
@@ -2042,7 +2036,6 @@ class PerformaSheetController extends Controller
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
-
         } elseif ($user->hasRole(6)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -2052,11 +2045,9 @@ class PerformaSheetController extends Controller
                 ->pluck('id');
 
             $baseQuery->whereIn('user_id', $teamMemberIds);
-
         } elseif ($user->hasRole(7)) {
 
             $baseQuery->where('user_id', $user->id);
-
         } elseif (!empty($team_id)) {
 
             $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -2095,7 +2086,6 @@ class PerformaSheetController extends Controller
                 $baseQuery->whereHas('user', function ($uq) use ($search) {
                     $uq->where('name', 'LIKE', "%{$search}%");
                 });
-
             } elseif ($searchBy === 'project_name') {
 
                 $baseQuery->whereIn('id', function ($sub) use ($search) {
@@ -2109,7 +2099,6 @@ class PerformaSheetController extends Controller
                         )
                         ->where('pm.project_name', 'LIKE', "%{$search}%");
                 });
-
             } elseif ($searchBy === 'activity_type') {
 
                 $baseQuery->whereRaw(
@@ -2117,7 +2106,6 @@ class PerformaSheetController extends Controller
                     ["%{$search}%"]
                 );
             }
-
         } elseif ($search) {
 
             $baseQuery->where(function ($q) use ($search) {
@@ -3155,8 +3143,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                    ? Carbon::parse($holiday->end_date)
-                    : Carbon::parse($holiday->start_date)
+                        ? Carbon::parse($holiday->end_date)
+                        : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -4369,7 +4357,6 @@ class PerformaSheetController extends Controller
             }
             $finalData = [];
             foreach ($teams as $team) {
-
                 $finalData[$team->id] = [
                     "teamName" => $team->team_name ?? $team->name,
                     "expectedMinutes" => 0,
@@ -4391,6 +4378,14 @@ class PerformaSheetController extends Controller
                     ->where('is_active', true)
                     ->whereJsonContains('role_id', 7)
                     ->get();
+                    
+                $teamHolidayMinutes = 0;
+                $period = CarbonPeriod::create($startDate, $endDate);
+                foreach ($period as $date) {
+                    if ($date->isWeekend()) continue;
+                    $dateStr = $date->toDateString();
+                    $teamHolidayMinutes += $holidayMinutesPerDay[$dateStr] ?? 0;
+                }
                 foreach ($users as $user) {
 
                     $finalData[$team->id]['teamMembers'][$user->id] = [
@@ -4569,7 +4564,7 @@ class PerformaSheetController extends Controller
                         $finalData[$team->id]['expectedMinutes'] += $effectiveExpected;
                     }
                 }
-                $finalData[$team->id]['holidaysMinutes'] = $toTime($holidayMinutes);
+                $finalData[$team->id]['holidaysMinutes'] = $toTime($teamHolidayMinutes);
             }
             $response = [];
             foreach ($finalData as $team) {

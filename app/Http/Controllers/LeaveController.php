@@ -15,9 +15,10 @@ use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\Auth;
 use App\Mail\LeaveStatusUpdateMail;
 use App\Mail\LeaveAppliedMail;
-
+use App\Services\LeaveCreditService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ProjectAssignedMail;
+use App\Models\LeaveCredit;
 use Illuminate\Support\Facades\Storage;
 use LDAP\Result;
 use Illuminate\Support\Facades\Validator;
@@ -94,9 +95,43 @@ class LeaveController extends Controller
             $endDate = $request->end_date;
         }
         $hours = null;
-
+        $totalHours = null;
+        /**working hours */
+        $workingHoursPerDay = 8.5;
+        $halfDayHours = $workingHoursPerDay / 2;
         if ($request->leave_type === 'Short Leave') {
+            /**For Hours Calculation */
+            $startTime = Carbon::parse($request->start_time);
+            $endTime = Carbon::parse($request->end_time);
+            if ($endTime->lessThanOrEqualTo($startTime)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'End time must be greater than start time.'
+                ], 422);
+            }
+            $totalMinutes = $startTime->diffInMinutes($endTime);
+            $totalHours = round($totalMinutes / 60, 2);
+            /**For Hours Calculation */
             $hours = trim($request->start_time) . ' to ' . trim($request->end_time);
+        } elseif ($request->leave_type === 'Half Day') {
+            $totalHours = $halfDayHours;
+        } elseif ($request->leave_type === 'Full Leave') {
+            $totalHours = $workingHoursPerDay;
+        } elseif ($request->leave_type === 'Multiple Days Leave') {
+            $startDate = Carbon::parse($request->start_date);
+            $endDate = Carbon::parse($endDate);
+            $workingDays = 0;
+            $currentDate = $startDate->copy();
+
+            while ($currentDate->lte($endDate)) {
+                // Skip Saturday & Sunday
+                if (!$currentDate->isSaturday() && !$currentDate->isSunday()) {
+                    $workingDays++;
+                }
+
+                $currentDate->addDay();
+            }
+            $totalHours = $workingDays * $workingHoursPerDay;
         }
 
         $halfdayPeriod = ($request->leave_type === 'Half Day')
@@ -154,16 +189,27 @@ class LeaveController extends Controller
             }
         }
 
+        // ================= EMPLOYMENT PERIOD VALIDATION =================
+        $leaveCredit = LeaveCredit::where('user_id', $user_id)->first();
 
+        if (!$leaveCredit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Leave credit record not found for user.'
+            ], 400);
+        }
+        $employmentPeriod = $leaveCredit->employment_status;
         $leave = LeavePolicy::create([
             'user_id' => $user_id,
             'start_date' => $request->start_date,
             'end_date' => $endDate,
             'leave_type' => $request->leave_type,
+            'employment_period' => $employmentPeriod,
             'reason' => $request->reason,
             'status' => $request->status ?? 'Pending',
             'is_wfh' => (string) ($request->is_wfh ?? '0'),
             'hours' => $hours,
+            'total_hours' => $totalHours,
             'halfday_period' => $halfdayPeriod,
             'start_time' => $request->start_time,
             'end_time' => $request->end_time,
@@ -221,17 +267,13 @@ class LeaveController extends Controller
         if ($effectiveRole === $EMPLOYEE) {
             $teamBasedRoles = [$TL, $PM];
             $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
-
         } elseif ($effectiveRole === $TL) {
             $teamBasedRoles = [$PM];
             $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
-
         } elseif ($effectiveRole === $PM) {
             $globalOnlyRoles = [$HR, $BILLING_MANAGER, $SUPER_ADMIN];
-
         } elseif ($effectiveRole === $BILLING_MANAGER) {
             $globalOnlyRoles = [$HR, $SUPER_ADMIN];
-
         } elseif ($effectiveRole === $HR) {
             $globalOnlyRoles = [$SUPER_ADMIN];
         }
@@ -525,9 +567,17 @@ class LeaveController extends Controller
 
         $finalStatus = ucfirst(strtolower($request->status));
 
-        $leave->status = $finalStatus;
-        $leave->approved_bymanager = $current_user->id;
-        $leave->save();
+        $calculationResult = null;
+        DB::transaction(function () use ($leave, $finalStatus, $current_user, &$calculationResult) {
+            $leave->status = $finalStatus;
+            $leave->approved_bymanager = $current_user->id;
+            $leave->save();
+
+            if ($finalStatus === 'Approved') {
+                $calculationResult = app(LeaveCreditService::class)
+                    ->processApprovedLeave($leave);
+            }
+        });
 
         $user = User::where('id', $leave->user_id)
             ->where('is_active', 1)
@@ -544,7 +594,8 @@ class LeaveController extends Controller
         return response()->json([
             'status' => true,
             'message' => "Leave status updated to {$finalStatus} and mail sent",
-            'data' => $leave
+            'data' => $leave,
+            'calculationResult' => $calculationResult
         ]);
     }
 
@@ -654,7 +705,6 @@ class LeaveController extends Controller
             if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
 
                 $mainQuery->where('user_id', '!=', $currentUser->id);
-
             } elseif ($currentUser->hasRole(5)) {
 
                 $mainQuery->whereHas('user', function ($q) use ($teamIds) {
@@ -669,7 +719,6 @@ class LeaveController extends Controller
                             }
                         });
                 });
-
             } elseif ($currentUser->hasRole(6)) {
 
                 $teamMemberIds = User::whereJsonContains('role_id', 7)
@@ -680,11 +729,9 @@ class LeaveController extends Controller
                     ->toArray();
 
                 $mainQuery->whereIn('user_id', $teamMemberIds);
-
             } elseif ($currentUser->hasRole(7)) {
 
                 $mainQuery->where('user_id', $currentUser->id);
-
             } else {
 
                 $mainQuery->whereHas('user', function ($q) use ($teamIds) {
@@ -1363,7 +1410,6 @@ class LeaveController extends Controller
                 })
                 ->pluck('id')
                 ->toArray();
-
         } else {
 
             $buildTree = function ($managerId) use (&$buildTree) {
@@ -1449,6 +1495,4 @@ class LeaveController extends Controller
             ],
         ]);
     }
-
-
 }

@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Models;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -180,5 +181,12 @@ class User extends Authenticatable implements JWTSubject
     {
         return Role::whereIn('id', $this->role_ids)->get(); // collection of Role models
     }
-
+    public function leaveCredit()
+    {
+        return $this->hasOne(LeaveCredit::class);
+    }
+    public function leaveCreditLogs()
+    {
+        return $this->hasMany(LeaveCreditLog::class);
+    }
 }
