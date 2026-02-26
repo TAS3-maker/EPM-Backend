@@ -1171,7 +1171,6 @@ class ProjectMasterController extends Controller
                 })
                 ->map(function ($project) {
 
-                    // Tags
                     $tagIds = $project->project_tag_activity
                         ? json_decode($project->project_tag_activity, true)
                         : [];
@@ -1179,22 +1178,35 @@ class ProjectMasterController extends Controller
                     $tags = TagsActivity::whereIn('id', (array) $tagIds)
                         ->get(['id', 'name']);
 
-                    // Tasks
+                    $trackingIds = [];
+
+                    if (!empty($project->relation?->tracking_id)) {
+
+                        $decoded = is_string($project->relation->tracking_id)
+                            ? json_decode($project->relation->tracking_id, true)
+                            : $project->relation->tracking_id;
+
+                        $trackingIds = is_array($decoded) ? $decoded : [$decoded];
+                    }
+
+                    $trackingAccounts = ProjectAccount::whereIn('id', $trackingIds)
+                        ->get(['id', 'account_name']);
+
                     $assignedTasks = Task::where('project_id', $project->id)
                         ->with('projectManager:id,name')
                         ->get()
                         ->map(function ($task) {
-                        return [
-                            'id' => $task->id,
-                            'project_id' => $task->project_id,
-                            'title' => $task->title,
-                            'description' => $task->description,
-                            'hours' => $task->hours,
-                            'deadline' => $task->deadline,
-                            'status' => $task->status,
-                            'start_date' => $task->start_date,
-                        ];
-                    });
+                            return [
+                                'id' => $task->id,
+                                'project_id' => $task->project_id,
+                                'title' => $task->title,
+                                'description' => $task->description,
+                                'hours' => $task->hours,
+                                'deadline' => $task->deadline,
+                                'status' => $task->status,
+                                'start_date' => $task->start_date,
+                            ];
+                        });
 
                     return [
                         'id' => $project->id,
@@ -1215,6 +1227,7 @@ class ProjectMasterController extends Controller
 
                         'relation' => [
                             'client_id' => $project->relation->client_id ?? null,
+                            'tracking_accounts' => $trackingAccounts,
                             'assignees' => $project->relation->assignees ?? [],
                             'assigned_at' => optional($project->relation->created_at)->toDateString(),
                         ],
@@ -2195,7 +2208,7 @@ class ProjectMasterController extends Controller
                 if (!in_array((int) $data['project_id'], $filteredProjectIds, true)) {
                     return false;
                 }
-    
+
                 return true;
             });
 
