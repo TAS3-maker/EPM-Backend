@@ -185,8 +185,4 @@ class User extends Authenticatable implements JWTSubject
     {
         return $this->hasOne(LeaveCredit::class);
     }
-    public function leaveCreditLogs()
-    {
-        return $this->hasMany(LeaveCreditLog::class);
-    }
 }

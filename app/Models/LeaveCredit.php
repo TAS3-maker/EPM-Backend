@@ -8,6 +8,8 @@ class LeaveCredit extends Model
 {
     protected $fillable = [
         'user_id',
+        'month',
+        'year',
         'employment_status',
         'cycle_start_date',
         'cycle_end_date',
@@ -17,8 +19,10 @@ class LeaveCredit extends Model
         'provisional_leave_taken',
         'provisional_extended_months',
         'notice_start_date',
+        'notice_period_days',
         'paid_leaves',
         'bunch_time',
+        'bunch_payble_balance',
         'provisional_days',
         'joining_date',
     ];
@@ -49,13 +53,5 @@ class LeaveCredit extends Model
     public function isNotice()
     {
         return $this->employment_status === 'notice';
-    }
-    public function creditLogs()
-    {
-        return $this->hasMany(LeaveCreditLog::class, 'leave_credit_id');
-    }
-    public function logs()
-    {
-        return $this->hasMany(LeaveCreditLog::class);
     }
 }

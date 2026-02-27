@@ -12,7 +12,6 @@ use App\Http\Resources\UserResource;
 use App\Http\Helpers\ApiResponse;
 use App\Mail\SendEmployeeCredentials;
 use App\Models\LeaveCredit;
-use App\Models\LeaveCreditLog;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -304,28 +303,15 @@ class UserController extends Controller
                 'year' => now()->year,
                 'month' => now()->month,
                 'carry_forward_balance' => 0,
-                'total_used' => 0,
                 'provisional_leave_limit' => 3,
                 'provisional_leave_taken' => 0,
                 'provisional_extended_months' => 0,
                 'notice_start_date' => null,
-                'paid_leaves' => 0,
-                'bunch_time' => 0,
+                'paid_leaves' => 1,
+                'bunch_time' => 12,
                 'bunch_payble_balance' => 0,
-                'provisional_days' => 0,
+                'provisional_days' => 90,
             ]);
-
-            // Create current month log
-           /*  LeaveCreditLog::create([
-                'leave_credit_id' => $leaveCredit->id,
-                'user_id' => $user->id,
-                'year' => now()->year,
-                'month' => now()->month,
-                'worked_days' => 0,
-                'monthly_paid_leave' => 0,
-                'used_in_month' => 0,
-                'converted_to_unpaid' => 0,
-            ]); */
 
             DB::commit();
             return ApiResponse::success(

@@ -29,6 +29,7 @@ class LeaveCreditService
 
             //NOTICE PERIOD → All unpaid
             if ($credit->employment_status === 'notice') {
+                $credit->notice_period_days += $totalDays;
                 $unpaidDays = $totalDays;
             }
 
@@ -39,7 +40,7 @@ class LeaveCreditService
                 // Track total actual leave taken (exclude sandwich)
                 $newTotalTaken = $credit->provisional_leave_taken + $actualDays;
 
-                if ($credit->provisional_leave_taken < $limit) {
+                /* if ($credit->provisional_leave_taken < $limit) {
 
                     $remaining = $limit - $credit->provisional_leave_taken;
                     if ($actualDays <= $remaining) {
@@ -51,7 +52,7 @@ class LeaveCreditService
                 } else {
                     // Already crossed limit → all unpaid
                     $unpaidDays = $actualDays;
-                }
+                } */
 
                 /*HANDLE EXTENDED MONTHS*/
                 if ($newTotalTaken > $limit) {
@@ -84,24 +85,19 @@ class LeaveCreditService
                 if ($workedDaysThisMonth < 20) {
                     $unpaidDays = $actualDays;
                 } else {
-                    $monthlyLimit = $credit->paid_leaves ?? 1;
-                    $remainingPaid = max(0, $monthlyLimit - $approvedLeaveDays);
+                    $leaveToProcess = $actualDays + $sandwich;
 
                     if ($remainingPaid > 0) {
-                        if ($actualDays <= $remainingPaid) {
-                            $paidDays = $actualDays;
+                        if ($leaveToProcess <= $remainingPaid) {
+                            $paidDays = $leaveToProcess;
                         } else {
                             $paidDays = $remainingPaid;
-                            $unpaidDays = $actualDays - $remainingPaid;
+                            $unpaidDays = $leaveToProcess - $remainingPaid;
                         }
                     } else {
-                        $unpaidDays = $actualDays;
+                        $unpaidDays = $leaveToProcess;
                     }
                 }
-            }
-
-            if ($sandwich > 0) {
-                $unpaidDays += $sandwich;
             }
 
             $leave->deducted_days = $totalDays;
@@ -121,35 +117,20 @@ class LeaveCreditService
     {
         $start = Carbon::parse($leave->start_date);
         $end   = Carbon::parse($leave->end_date);
-        $actualDays = 0;
-        $sandwich = 0;
-        $includesFriday = false;
-        $includesMonday = false;
-        /**working hours */
         $workHoursPerDay = 8.5;
-        $current = $start->copy();
-        while ($current->lte($end)) {
 
-            // Count only working days (Mon–Fri)
-            if (!$current->isSaturday() && !$current->isSunday()) {
-                $actualDays++;
-            }
-            if ($current->isFriday()) {
-                $includesFriday = true;
-            }
-
-            if ($current->isMonday()) {
-                $includesMonday = true;
-            }
-
-            $current->addDay();
+        /*SHORT LEAVE*/
+        if ($leave->leave_type === 'Short Leave') {
+            $decimalDays = $leave->total_hours / $workHoursPerDay;
+            return [
+                'total_days'    => round($decimalDays, 2),
+                'actual_days'   => round($decimalDays, 2),
+                'sandwich_days' => 0
+            ];
         }
-        if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
-
-            if ($includesFriday || $includesMonday) {
-                $sandwich = 1.0;
-            }
-        } else if ($leave->leave_type === 'Half Day') {
+        /*HALF DAY*/
+        if ($leave->leave_type === 'Half Day') {
+            $sandwich = 0;
             // Friday Afternoon
             if ($start->isFriday() && strtolower($leave->halfday_period) === 'afternoon') {
                 $sandwich = 0.5;
@@ -159,17 +140,39 @@ class LeaveCreditService
             if ($start->isMonday() && strtolower($leave->halfday_period) === 'morning') {
                 $sandwich = 0.5;
             }
-        } else if ($leave->leave_type === 'Short Leave') {
-
-            $hours = $leave->total_hours;
-
-            $decimalDays = $hours / $workHoursPerDay;
 
             return [
-                'total_days'    => round($decimalDays, 2),
-                'actual_days'   => round($decimalDays, 2),
-                'sandwich_days' => 0
+                'total_days'    => 0.5 + $sandwich,
+                'actual_days'   => 0.5,
+                'sandwich_days' => $sandwich
             ];
+        }
+
+        /*FULL / MULTIPLE DAYS*/
+        $actualDays = 0;
+        $sandwich = 0;
+        $includesFriday = false;
+        $includesMonday = false;
+        $current = $start->copy();
+
+        while ($current->lte($end)) {
+
+            if (!$current->isSaturday() && !$current->isSunday()) {
+                $actualDays++;
+            }
+            if ($current->isFriday()) {
+                $includesFriday = true;
+            }
+            if ($current->isMonday()) {
+                $includesMonday = true;
+            }
+            $current->addDay();
+        }
+
+        if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+            if ($includesFriday || $includesMonday) {
+                $sandwich = 1.0;
+            }
         }
 
         return [
