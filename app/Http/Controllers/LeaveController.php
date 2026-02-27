@@ -693,7 +693,7 @@ class LeaveController extends Controller
         $endDate = $request->get('end_date');
 
 
-        $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')
+        $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')->whereNot('user_id',$currentUser->id)
             ->latest();
 
         $reporting_user = User::where('reporting_manager_id', $currentUser->id)

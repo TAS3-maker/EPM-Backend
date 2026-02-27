@@ -3697,8 +3697,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                        ? Carbon::parse($holiday->end_date)
-                        : Carbon::parse($holiday->start_date)
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -4247,7 +4247,7 @@ class PerformaSheetController extends Controller
                         case 'Half Holiday':
                             $holidayExpectedMinutes[$dateStr] = $STANDARD_DAY_MINUTES / 2;
                             $holidayMinutesTaken[$dateStr] = $STANDARD_DAY_MINUTES / 2;
-                             $availability = 'Half Holiday';
+                            $availability = 'Half Holiday';
                             break;
 
                         case 'Short Holiday':
@@ -4259,7 +4259,7 @@ class PerformaSheetController extends Controller
                                     max(0, $STANDARD_DAY_MINUTES - $holidayMin);
 
                                 $holidayMinutesTaken[$dateStr] = $holidayMin;
-                                 $availability = 'Short Holiday';
+                                $availability = 'Short Holiday';
                             }
                             break;
                     }
@@ -4327,12 +4327,12 @@ class PerformaSheetController extends Controller
 
                 $leaveMin = 0;
                 $leaveType = null;
-                $availability = 'Working';
+                // $availability = 'Working';
 
-                if ($currentDate->isWeekend()) {
-                    $availability = 'Weekend';
-                    $expected = 0;
-                }
+                // if ($currentDate->isWeekend()) {
+                //     $availability = 'Weekend';
+                //     $expected = 0;
+                // }
 
                 foreach ($leaves as $leave) {
 
@@ -4347,13 +4347,11 @@ class PerformaSheetController extends Controller
 
                             case 'Full Leave':
                             case 'Multiple Days Leave':
-                                $leaveMin = $expected;
-                                $availability = 'On Leave';
+                                $leaveMin = $STANDARD_DAY_MINUTES;
                                 break;
 
                             case 'Half Day':
-                                $leaveMin = min($expected / 2, $expected);
-                                $availability = 'On Half Day Leave';
+                                $leaveMin = $STANDARD_DAY_MINUTES / 2;
                                 break;
 
                             case 'Short Leave':
@@ -4361,15 +4359,61 @@ class PerformaSheetController extends Controller
                                     [$s, $e] = explode('to', $leave->hours);
                                     $leaveMin = Carbon::parse($s)
                                         ->diffInMinutes(Carbon::parse($e));
-                                    $availability = 'On Short Leave';
                                 }
                                 break;
                         }
+                        $leaveMin = min($leaveMin, $STANDARD_DAY_MINUTES - $holidayMin);
                         break;
                     }
                 }
 
                 $unfilled = max(0, $expected - $worked - $leaveMin);
+                $availabilityParts = [];
+
+                if ($currentDate->isWeekend()) {
+                    $availabilityParts[] = 'Weekend';
+                    $expected = 0;
+                }
+
+                if (isset($holidayTypeMap[$date])) {
+
+                    if ($holidayTypeMap[$date] === 'Full Holiday') {
+                        $availabilityParts[] = 'Full Holiday';
+                    }
+
+                    if ($holidayTypeMap[$date] === 'Half Holiday') {
+                        $availabilityParts[] = 'Half Holiday';
+                    }
+
+                    if ($holidayTypeMap[$date] === 'Short Holiday') {
+                        $availabilityParts[] = 'Short Holiday';
+                    }
+                }
+
+                if ($leaveMin > 0) {
+
+                    if (in_array($leaveType, ['Full Leave', 'Multiple Days Leave'])) {
+                        $availabilityParts[] = 'On Leave';
+                    }
+
+                    if ($leaveType === 'Half Day') {
+                        $availabilityParts[] = 'Half Day Leave';
+                    }
+
+                    if ($leaveType === 'Short Leave') {
+                        $availabilityParts[] = 'Short Leave';
+                    }
+                }
+
+                if ($worked > 0) {
+                    $availabilityParts[] = 'Working';
+                }
+
+                if (empty($availabilityParts)) {
+                    $availabilityParts[] = 'Working';
+                }
+
+                $availability = implode(' + ', $availabilityParts);
 
                 $response[$date] = [
                     'dayname' => $currentDate->format('D'),
@@ -5528,11 +5572,12 @@ class PerformaSheetController extends Controller
                     ->where('is_active', true)
                     ->whereJsonContains('role_id', 7)
                     ->get();
-                    
+
                 $teamHolidayMinutes = 0;
                 $period = CarbonPeriod::create($startDate, $endDate);
                 foreach ($period as $date) {
-                    if ($date->isWeekend()) continue;
+                    if ($date->isWeekend())
+                        continue;
                     $dateStr = $date->toDateString();
                     $teamHolidayMinutes += $holidayMinutesPerDay[$dateStr] ?? 0;
                 }
