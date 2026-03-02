@@ -46,6 +46,8 @@ class LeaveCreditController extends Controller
                 ->get();
 
             $credit->user->setRelation('leaves', $approvedLeaves);
+            $credit->leave_application_count = $approvedLeaves->count();
+            
             $approvedLeaveHours = $approvedLeaves->sum(function ($leave) {
 
                 if ($leave->total_hours) {
@@ -376,10 +378,7 @@ class LeaveCreditController extends Controller
 
             // Move to bunch if reached
             if ($remaining >= $bunchLimit) {
-
-                $credit->bunch_payble_balance =
-                    (float) ($credit->bunch_payble_balance ?? 0) + $bunchLimit;
-
+                $credit->bunch_payble_balance = (float) ($credit->bunch_payble_balance ?? 0) + $bunchLimit;
                 $credit->carry_forward_balance = $remaining - $bunchLimit;
             } else {
                 $credit->carry_forward_balance = $remaining;
