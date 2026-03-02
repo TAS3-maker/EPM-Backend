@@ -5276,6 +5276,7 @@ class PerformaSheetController extends Controller
 
                 if (!isset($filledDates[$dateStr]) && !$isLeave && !isset($holidayExpectedMinutesByDate[$dateStr])) {
                     $unfilledDates[$dateStr] = $expectedMinutes;
+                    $activityTotals['Unfilled'] += $expectedMinutes;
                     $unfilledCount++;
                     continue;
                 }
@@ -5284,6 +5285,7 @@ class PerformaSheetController extends Controller
                     $remaining = $expectedMinutes - $workedMinutes;
                     if ($remaining > 0) {
                         $unfilledDates[$dateStr] = $remaining;
+                        $activityTotals['Unfilled'] += $remaining; 
                         $unfilledCount++;
                     }
                 }
