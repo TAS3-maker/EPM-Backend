@@ -234,7 +234,7 @@ class LeaveCreditController extends Controller
     {
         $data = $request->validate([
             'user_id' => 'required|exists:users,id',
-            'paid_leaves' => 'required|integer|min:0',
+            'paid_leaves' => 'required|numeric|min:0',
             'bunch_time' => 'required|integer|min:1',
             'provisional_days' => 'required|integer|min:0',
             'joining_date' => 'required|date',
@@ -273,6 +273,7 @@ class LeaveCreditController extends Controller
                     'provisional_extended_months' => 'sometimes|integer|min:0',
                     'notice_start_date' => 'sometimes|nullable|date',
                     'paid_leaves' => 'sometimes|numeric|min:0',
+                    'notice_period_days' => 'sometimes|numeric|min:0',
                     'bunch_time'  => 'sometimes|integer|min:1',
                     'provisional_days' => 'sometimes|integer|min:0',
                     'joining_date' => 'sometimes|date|before_or_equal:today',
