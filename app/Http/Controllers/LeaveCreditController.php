@@ -272,7 +272,7 @@ class LeaveCreditController extends Controller
                     'provisional_leave_taken'  => 'sometimes|numeric|min:0',
                     'provisional_extended_months' => 'sometimes|integer|min:0',
                     'notice_start_date' => 'sometimes|nullable|date',
-                    'paid_leaves' => 'sometimes|integer|min:0',
+                    'paid_leaves' => 'sometimes|numeric|min:0',
                     'bunch_time'  => 'sometimes|integer|min:1',
                     'provisional_days' => 'sometimes|integer|min:0',
                     'joining_date' => 'sometimes|date|before_or_equal:today',
