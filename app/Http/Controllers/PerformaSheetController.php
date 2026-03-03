@@ -663,10 +663,14 @@ class PerformaSheetController extends Controller
 
                         if ($holiday->start_time && $holiday->end_time) {
 
-                            $start = Carbon::createFromFormat('H:i', $holiday->start_time);
-                            $end = Carbon::createFromFormat('H:i', $holiday->end_time);
+                            try {
+                                $start = Carbon::parse($holiday->start_time);
+                                $end = Carbon::parse($holiday->end_time);
 
-                            $holidayMinutes = $end->diffInMinutes($start);
+                                $holidayMinutes = $end->diffInMinutes($start);
+                            } catch (\Exception $e) {
+                                $holidayMinutes = 0;
+                            }
                         }
 
                         break;
