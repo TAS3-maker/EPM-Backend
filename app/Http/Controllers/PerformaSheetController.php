@@ -3038,6 +3038,7 @@ class PerformaSheetController extends Controller
                     'is_fillable' => $isFillable
                 ];
             }
+            $holidayMinutesByDate = [];
             foreach ($weeklyTotals as $date => &$totals) {
 
                 $worked = $workedMinutesByDate[$date] ?? 0;
@@ -3052,7 +3053,9 @@ class PerformaSheetController extends Controller
                 foreach ($holidayRanges as $holiday) {
 
                     $start_date = Carbon::parse($holiday->start_date)->toDateString();
-                    $end_date = Carbon::parse($holiday->end_date)->format('Y-m-d');
+                    $end_date = $holiday->end_date
+                        ? Carbon::parse($holiday->end_date)->toDateString()
+                        : null;
 
                     if (
                         $start_date <= $date &&
@@ -3060,24 +3063,29 @@ class PerformaSheetController extends Controller
                     ) {
 
                         if (in_array($holiday->type, ['Full Holiday', 'Multiple Holiday'])) {
+                            $holidayMinutesByDate[$date] = $FULL_DAY_MINUTES;
                             $dayTotal = 0;
-                            // $totals['is_fillable'] = 0;
                             break;
                         }
 
                         if ($holiday->type === 'Half Holiday') {
+                            $holidayMinutesByDate[$date] = $HALF_DAY_MINUTES;
                             $dayTotal = min($dayTotal, $HALF_DAY_MINUTES);
                         }
 
                         if ($holiday->type === 'Short Holiday') {
                             $start = Carbon::parse("$date {$holiday->start_time}");
                             $end = Carbon::parse("$date {$holiday->end_time}");
+
                             if ($end->lessThan($start)) {
                                 $end->addDay();
                             }
+                            $holidayMinutes = abs($end->diffInMinutes($start));
+                            $holidayMinutesByDate[$date] = $holidayMinutes;
+
                             $dayTotal = min(
                                 $dayTotal,
-                                max($FULL_DAY_MINUTES - abs($end->diffInMinutes($start)), 0)
+                                max($FULL_DAY_MINUTES - $holidayMinutes, 0)
                             );
                         }
                     }
@@ -3086,11 +3094,13 @@ class PerformaSheetController extends Controller
                 $available = max($dayTotal - ($worked + $leave), 0);
                 if ($available < 0)
                     $available = 0;
+                $holidayMinutes = $holidayMinutesByDate[$date] ?? 0;
 
                 $totals['totalHours'] = $minutesToTime($worked);
                 $totals['totalBillableHours'] = $minutesToTime($billable);
                 $totals['totalNonBillableHours'] = $minutesToTime($nonBillable);
                 $totals['leave_hours'] = $minutesToTime($leave);
+                $totals['holiday_hours'] = $minutesToTime($holidayMinutes);
                 $totals['available_hours'] = $minutesToTime($available);
                 $totals['is_wfh'] = $isWfh ? 1 : 0;
             }
