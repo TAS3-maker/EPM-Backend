@@ -5890,11 +5890,11 @@ class PerformaSheetController extends Controller
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
-                            $totalLeaveMinutes += $expectedMinutes;
+                            $totalLeaveMinutes += $STANDARD_DAY_MINUTES;
                             break;
 
                         case 'Half Day':
-                            $totalLeaveMinutes += $expectedMinutes / 2;
+                            $totalLeaveMinutes += $STANDARD_DAY_MINUTES / 2;
                             break;
 
                         case 'Short Leave':
