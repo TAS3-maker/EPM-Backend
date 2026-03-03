@@ -4966,7 +4966,7 @@ class PerformaSheetController extends Controller
             ], 500);
         }
     }
-    
+
     public function getUsersOfflineHours(Request $request)
     {
         try {
@@ -5585,6 +5585,7 @@ class PerformaSheetController extends Controller
             $sheets = [];
             $filledDates = [];
             $leaveDates = [];
+            $shortLeaveMinutesByDate = [];
             $workedMinutesByDate = [];
 
             $pendingCount = 0;
@@ -5678,11 +5679,26 @@ class PerformaSheetController extends Controller
                             break;
 
                         case 'Short Leave':
+
                             if ($leave->hours && str_contains($leave->hours, 'to')) {
+
                                 [$start, $end] = explode('to', $leave->hours);
-                                $leaveMin = Carbon::parse($start)
-                                    ->diffInMinutes(Carbon::parse($end));
+
+                                $start = trim($start);
+                                $end = trim($end);
+
+                                $startTime = Carbon::parse($dateStr . ' ' . $start);
+                                $endTime = Carbon::parse($dateStr . ' ' . $end);
+
+                                if ($endTime->lessThan($startTime)) {
+                                    $endTime->addDay();
+                                }
+
+                                $leaveMin = $startTime->diffInMinutes($endTime);
+
                                 $totalLeaveMinutes += $leaveMin;
+                                $shortLeaveMinutesByDate[$dateStr] =
+                                    ($shortLeaveMinutesByDate[$dateStr] ?? 0) + $leaveMin;
                             }
                             break;
                     }
@@ -5700,6 +5716,8 @@ class PerformaSheetController extends Controller
 
                 $expectedMinutes = $holidayExpectedMinutesByDate[$dateStr] ?? $STANDARD_DAY_MINUTES;
                 $workedMinutes = $workedMinutesByDate[$dateStr] ?? 0;
+                $shortLeaveMinutes = $shortLeaveMinutesByDate[$dateStr] ?? 0;
+                $expectedMinutes -= $shortLeaveMinutes;
                 $isLeave = $leaveDates[$dateStr] ?? null;
 
                 if (isset($holidayExpectedMinutesByDate[$dateStr]) && $expectedMinutes == 0) {
