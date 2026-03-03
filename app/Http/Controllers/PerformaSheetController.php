@@ -546,7 +546,6 @@ class PerformaSheetController extends Controller
 
         $currentSheetIds = collect($validatedData['data'])->pluck('id')->toArray();
         $submittedSheetsByDate = [];
-        $sheetsWithDetailsByDate = [];
         $updatedCount = 0;
 
         foreach ($validatedData['data'] as $record) {
@@ -555,14 +554,12 @@ class PerformaSheetController extends Controller
                 ->where('user_id', $authUser->id)
                 ->first();
 
-            if (!$sheet) {
+            if (!$sheet)
                 continue;
-            }
 
             $data = json_decode($sheet->data, true);
-            if (!is_array($data) || empty($data['date'])) {
+            if (!is_array($data) || empty($data['date']))
                 continue;
-            }
 
             $date = Carbon::parse($data['date'])->format('Y-m-d');
             $submittedSheetsByDate[$date][] = $data;
@@ -587,7 +584,6 @@ class PerformaSheetController extends Controller
                 $existingMinutes += $this->timeToMinutesforsheetapprovel($data['time']);
                 $existingWorkTypes[] = $data['work_type'];
             }
-
             $newMinutes = 0;
             $newWorkTypes = [];
 
@@ -634,14 +630,13 @@ class PerformaSheetController extends Controller
                 }
             }
 
-
             $holidayMinutes = 0;
             $holidayForDate = null;
 
-            $holiday = EventHoliday::whereDate('start_date', '<=', $date)
+            $holiday = EventHoliday::where('start_date', '<=', $date)
                 ->where(function ($q) use ($date) {
                     $q->whereNull('end_date')
-                        ->orWhereDate('end_date', '>=', $date);
+                        ->orWhere('end_date', '>=', $date);
                 })
                 ->first();
 
@@ -649,73 +644,50 @@ class PerformaSheetController extends Controller
 
                 $holidayForDate = $holiday;
 
-                switch ($holiday->type) {
+                if ($holiday->type === 'Full Holiday') {
+                    $holidayMinutes = $expectedMinutes;
+                }
 
-                    case 'Full Holiday':
-                        $holidayMinutes = $expectedMinutes;
-                        break;
+                if ($holiday->type === 'Half Holiday') {
+                    $holidayMinutes = $expectedMinutes / 2;
+                }
 
-                    case 'Half Holiday':
-                        $holidayMinutes = $expectedMinutes / 2;
-                        break;
+                if ($holiday->type === 'Short Holiday' && $holiday->start_time && $holiday->end_time) {
 
-                    case 'Short Holiday':
+                    try {
+                        $start = Carbon::createFromFormat('H:i', $holiday->start_time);
+                        $end = Carbon::createFromFormat('H:i', $holiday->end_time);
 
-                        if ($holiday->start_time && $holiday->end_time) {
-
-                            try {
-                                $start = Carbon::parse($holiday->start_time);
-                                $end = Carbon::parse($holiday->end_time);
-
-                                $holidayMinutes = $end->diffInMinutes($start);
-                            } catch (\Exception $e) {
-                                $holidayMinutes = 0;
-                            }
-                        }
-
-                        break;
+                        $holidayMinutes = abs($start->diffInMinutes($end));
+                    } catch (\Exception $e) {
+                        $holidayMinutes = 0;
+                    }
                 }
             }
-            $effectiveExpectedMinutes = max(
-                0,
-                $expectedMinutes - $leaveMinutes - $holidayMinutes
-            );
+
+            $maxAllowedMinutes = max(0, $expectedMinutes - $leaveMinutes);
+
+            $minRequiredMinutes = max(0, $maxAllowedMinutes - $holidayMinutes);
 
             $totalSubmittedMinutes = $existingMinutes + $newMinutes;
-            $remainingMinutes = max(0, $effectiveExpectedMinutes - $existingMinutes);
 
             $dateLabel = Carbon::parse($date)->format('d M Y');
 
-            if ($totalSubmittedMinutes > $effectiveExpectedMinutes) {
+            if ($totalSubmittedMinutes > $maxAllowedMinutes) {
 
-                $message = '';
-
-                if ($leaveForDate) {
-                    $message .= "You have a {$leaveForDate->leave_type} on {$dateLabel}, ";
-                }
-
-                if ($holidayForDate) {
-                    $message .= "You have a {$holidayForDate->type} on {$dateLabel}, ";
-                }
-
-                if ($existingMinutes > 0) {
-                    $existingHours = $this->minutesToHoursforsheetapprovel($existingMinutes);
-                    $message .= " and {$existingHours} hours are already submitted , so  ";
-                }
-
-                $message .= "you can submit only "
-                    . $this->minutesToHoursforsheetapprovel($remainingMinutes)
-                    . " hours for {$dateLabel}.";
+                $allowedRemaining = max(0, $maxAllowedMinutes - $existingMinutes);
 
                 return response()->json([
                     'success' => false,
-                    'message' => $message,
+                    'message' => "You can submit only "
+                        . $this->minutesToHoursforsheetapprovel($allowedRemaining)
+                        . " hours for {$dateLabel}.",
                 ], 422);
             }
 
-            if (!$isWFH && $totalSubmittedMinutes < $effectiveExpectedMinutes) {
+            if (!$isWFH && $totalSubmittedMinutes < $minRequiredMinutes) {
 
-                $missingMinutes = $effectiveExpectedMinutes - $totalSubmittedMinutes;
+                $missingMinutes = $minRequiredMinutes - $totalSubmittedMinutes;
 
                 $message = '';
 
@@ -724,12 +696,7 @@ class PerformaSheetController extends Controller
                 }
 
                 if ($holidayForDate) {
-                    $message .= " a {$holidayForDate->type} on {$dateLabel}, ";
-                }
-
-                if ($existingMinutes > 0) {
-                    $existingHours = $this->minutesToHoursforsheetapprovel($existingMinutes);
-                    $message .= " and {$existingHours} hours are already submitted , so ";
+                    $message .= "You have {$holidayForDate->type} on {$dateLabel}, ";
                 }
 
                 $message .= "you need to submit "
@@ -749,30 +716,14 @@ class PerformaSheetController extends Controller
                 ->where('user_id', $authUser->id)
                 ->first();
 
-            if (!$sheet) {
+            if (!$sheet)
                 continue;
-            }
 
             $data = json_decode($sheet->data, true);
             $sheet->update([
                 'data' => json_encode($data),
                 'status' => 'pending',
             ]);
-
-            $project = ProjectMaster::select('project_name')->find($data['project_id']);
-
-            $sheetsWithDetailsByDate[$data['date']][] = [
-                'submitting_user' => $authUser->name,
-                'project_name' => $project->project_name ?? null,
-                'task_id' => $data['task_id'],
-                'date' => $data['date'],
-                'time' => $data['time'],
-                'work_type' => $data['work_type'],
-                'activity_type' => $data['activity_type'],
-                'narration' => $data['narration'],
-                'project_type' => $data['project_type'],
-                'project_type_status' => $data['project_type_status'],
-            ];
 
             $updatedCount++;
         }
