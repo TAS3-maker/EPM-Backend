@@ -29,7 +29,9 @@ class LeaveCreditController extends Controller
         $leaveCredits = LeaveCredit::with([
             'user:id,name',
             'user.leaves'
-        ])->latest()->get();
+        ])->whereHas('user', function ($query) {
+            $query->where('is_active', 1);
+        })->latest()->get();
         // Append calculated fields
         $leaveCredits->transform(function ($credit) {
             $month = $credit->month;
@@ -54,7 +56,7 @@ class LeaveCreditController extends Controller
             $credit->leave_application_count = $approvedLeaves->count();
             $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
             $credit->provisional_extended_months = 0;
-            
+
             if ($credit->employment_status === 'provisional') {
                 $credit->user->setRelation('leaves', $provisionalLeaves);
             } else {
