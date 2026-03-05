@@ -6232,15 +6232,20 @@ class PerformaSheetController extends Controller
                                     continue;
 
                                 $dateStr = $date->toDateString();
-                                $leaveMinutes = $leaveMinutesMap[$leave->leave_type] ?? 0;
+                                $holidayMinutes = $holidayMinutesPerDay[$dateStr] ?? 0;
+                                $effectiveExpected = max($dailyExpectedMinutes - $holidayMinutes, 0);
+                                $leaveMinutes = 0;
 
-                                if ($leave->leave_type === 'Short Leave' && $leave->hours) {
+                                if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+                                    $leaveMinutes = $effectiveExpected;
+                                } elseif ($leave->leave_type === 'Half Day') {
+                                    $leaveMinutes = $effectiveExpected / 2;
+                                } elseif ($leave->leave_type === 'Short Leave' && $leave->hours) {
                                     if (strpos($leave->hours, 'to') !== false) {
                                         [$start, $end] = explode('to', $leave->hours);
                                         $leaveMinutes = Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
                                     }
                                 }
-
                                 $leavePerDay[$dateStr] = max($leavePerDay[$dateStr] ?? 0, $leaveMinutes);
                                 $leaveTypePerDay[$dateStr] = $leave->leave_type;
 
