@@ -3392,7 +3392,7 @@ class PerformaSheetController extends Controller
             $query = User::whereJsonContains('role_id', 7)
                 ->where('is_active', 1)
                 ->whereJsonDoesntContain('team_id', $bd_team);
-            $reporting_user = user::where('reporting_manager_id', $authUser->id)->pluck('id')
+            $reporting_user = user::where('reporting_manager_id', $authUser->id)->whereJsonContains('role_id', 7)->pluck('id')
                 ->toArray();
 
             if ($authUser->hasanyRole([1, 2, 3, 4])) {
