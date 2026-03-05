@@ -14,61 +14,6 @@ use League\Config\Exception\ValidationException;
 
 class LeaveCreditController extends Controller
 {
-    private function calculateHolidaySandwich($leaves, $holidays)
-    {
-        $leaveDates = collect();
-        $holidayDates = collect();
-        $extraHolidaySandwich = 0;
-
-        // Collect leave dates
-        foreach ($leaves as $leave) {
-            $start = Carbon::parse($leave->start_date);
-            $end   = $leave->end_date
-                ? Carbon::parse($leave->end_date)
-                : $start;
-
-            foreach (\Carbon\CarbonPeriod::create($start, $end) as $date) {
-                $leaveDates->push($date->toDateString());
-            }
-        }
-
-        $leaveDates = $leaveDates->unique();
-
-        if ($leaveDates->isEmpty()) {
-            return 0;
-        }
-
-        // Collect holiday dates
-        foreach ($holidays as $holiday) {
-            $start = Carbon::parse($holiday->start_date);
-            $end   = $holiday->end_date
-                ? Carbon::parse($holiday->end_date)
-                : $start;
-
-            foreach (\Carbon\CarbonPeriod::create($start, $end) as $date) {
-                if (!$date->isWeekend()) {
-                    $holidayDates->push($date->toDateString());
-                }
-            }
-        }
-
-        $holidayDates = $holidayDates->unique();
-
-        foreach ($holidayDates as $holidayDate) {
-
-            $holiday = Carbon::parse($holidayDate);
-
-            $prevDay = $holiday->copy()->subDay()->toDateString();
-            $nextDay = $holiday->copy()->addDay()->toDateString();
-
-            // Holiday between two leave days
-            if ($leaveDates->contains($prevDay) || $leaveDates->contains($nextDay)) {
-                $extraHolidaySandwich++;
-            }
-        }
-
-        return $extraHolidaySandwich;
-    }
     public function index(Request $request)
     {
         /* $month = $request->month ?? now()->month;
@@ -115,7 +60,55 @@ class LeaveCreditController extends Controller
                 })
                 ->get();
 
+            $credit->leave_application_count = $approvedLeaves->count();
+            $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
+            $credit->provisional_extended_months = 0;
 
+            if ($credit->employment_status === 'provisional') {
+                $credit->user->setRelation('leaves', $provisionalLeaves);
+            } else {
+                $credit->user->setRelation('leaves', $approvedLeaves);
+            }
+            /**provisional extended month calculation */
+            $limit = $credit->provisional_leave_limit ?? 3;
+            if ($credit->provisional_leave_taken > $limit) {
+                $exceededDays = $credit->provisional_leave_taken - $limit;
+                $credit->provisional_extended_months = $exceededDays;
+                // $credit->provisional_extended_months = ($credit->provisional_extended_months ?? 0) + $exceededDays;
+            }
+            /**end provisional extended month calculation */
+
+            $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
+
+            $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
+            $sandwichDays = $approvedLeaves->sum(function ($leave) {
+                return (float) ($leave->sandwich_extra_days ?? 0);
+            });
+            $deductedDays = $approvedLeaveDays + $sandwichDays;
+
+
+            /**working hours */
+            $sandwich_hours = $approvedLeaves->sum(function ($leave) {
+                return (float) ($leave->sandwich_extra_days ?? 0);
+            });
+
+
+            $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
+
+            $totalAllowedHours =
+                (($credit->paid_leaves ?? 0) +
+                    ($credit->carry_forward_balance ?? 0)) * 8.5;
+
+            $credit->remaining_paid_leave_hours =
+                max(0, $totalAllowedHours - $approvedLeaveHours);
+
+            $credit->leave_taken_hours = $approvedLeaveHours;
+            $credit->total_deducted_hours = $approvedLeaveHours + ($sandwich_hours * 8.5);
+            // $credit->sandwich_hours = $sandwich_hours * 8.5;
+            //Leave Taken (remaining paid leave for month)
+            $credit->leave_days = $approvedLeaveDays;
+            $credit->deducted_days = $deductedDays;
+            $dateForMonth = Carbon::create($year, $month, 1);
             // Holiday Calculation
             // ===============================
 
@@ -178,66 +171,6 @@ class LeaveCreditController extends Controller
                     }
                 }
             }
-
-
-            $credit->leave_application_count = $approvedLeaves->count();
-            $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
-            $credit->provisional_extended_months = 0;
-
-            if ($credit->employment_status === 'provisional') {
-                $credit->user->setRelation('leaves', $provisionalLeaves);
-            } else {
-                $credit->user->setRelation('leaves', $approvedLeaves);
-            }
-            /**provisional extended month calculation */
-            $limit = $credit->provisional_leave_limit ?? 3;
-            if ($credit->provisional_leave_taken > $limit) {
-                $exceededDays = $credit->provisional_leave_taken - $limit;
-                $credit->provisional_extended_months = $exceededDays;
-                // $credit->provisional_extended_months = ($credit->provisional_extended_months ?? 0) + $exceededDays;
-            }
-            /**end provisional extended month calculation */
-
-            $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
-
-            $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
-            // Weekend sandwich already saved in DB
-            $weekendSandwich = $approvedLeaves->sum(function ($leave) {
-                return (float) ($leave->sandwich_extra_days ?? 0);
-            });
-
-            // Add holiday sandwich dynamically
-            $holidaySandwich = $this->calculateHolidaySandwich($approvedLeaves, $holidays);
-
-            $sandwichDays = $weekendSandwich + $holidaySandwich;
-            $sandwichHours = $sandwichDays * 8.5;
-
-            // $deductedDays = $approvedLeaveDays + $sandwichDays;
-
-
-            /**working hours */
-            $sandwich_hours = $approvedLeaves->sum(function ($leave) {
-                return (float) ($leave->sandwich_extra_days ?? 0);
-            });
-
-
-            $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
-
-            $totalAllowedHours =
-                (($credit->paid_leaves ?? 0) +
-                    ($credit->carry_forward_balance ?? 0)) * 8.5;
-
-            $credit->remaining_paid_leave_hours =
-                max(0, $totalAllowedHours - $approvedLeaveHours);
-
-            $credit->leave_taken_hours = $approvedLeaveHours;
-            $credit->total_deducted_hours = $approvedLeaveHours + $sandwichHours;
-            $credit->deducted_days = $approvedLeaveDays + $sandwichDays;
-            // $credit->sandwich_hours = $sandwich_hours * 8.5;
-            //Leave Taken (remaining paid leave for month)
-            $credit->leave_days = $approvedLeaveDays;
-            // $credit->deducted_days = $deductedDays;
-            $dateForMonth = Carbon::create($year, $month, 1);
 
             // Attach holiday data
             $credit->holiday_days = $totalHolidayDays;
