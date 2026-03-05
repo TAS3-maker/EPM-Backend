@@ -301,7 +301,6 @@ class UserController extends Controller
                 'employment_status' => $validatedData['employment_status'],
                 'joining_date' => $validatedData['joining_date'],
                 'cycle_start_date' => $cycleStart,
-                'cycle_end_date' => $cycleEnd,
                 'year' => now()->year,
                 'month' => now()->month,
                 'carry_forward_balance' => 0,

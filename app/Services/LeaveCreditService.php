@@ -34,11 +34,11 @@ class LeaveCreditService
             }
 
             // PROVISIONAL (3 paid allowed total)
-            elseif ($credit->employment_status === 'provisional') {
+            //elseif ($credit->employment_status === 'provisional') {
 
-                $limit = $credit->provisional_leave_limit ?? 3;
+                //$limit = $credit->provisional_leave_limit ?? 3;
                 // Track total actual leave taken (exclude sandwich)
-                $newTotalTaken = $credit->provisional_leave_taken + $actualDays;
+                //$newTotalTaken = $credit->provisional_leave_taken + $actualDays;
 
                 /* if ($credit->provisional_leave_taken < $limit) {
 
@@ -55,16 +55,16 @@ class LeaveCreditService
                 } */
 
                 /*HANDLE EXTENDED MONTHS*/
-                if ($newTotalTaken > $limit) {
+               /*  if ($newTotalTaken > $limit) {
                     $exceededDays = $newTotalTaken - $limit;
 
                     // Example Rule: Every 1 extra leave = 1 month extension
                     $credit->provisional_extended_months = ($credit->provisional_extended_months ?? 0) + $exceededDays;
                 }
                 // Always update total provisional leave taken
-                $credit->provisional_leave_taken = $newTotalTaken;
-                $credit->save();
-            }
+                $credit->provisional_leave_taken = $newTotalTaken; */
+            //     $credit->save();
+            // }
 
             // appointed
             elseif ($credit->employment_status === 'appointed') {
@@ -113,7 +113,7 @@ class LeaveCreditService
         });
     }
 
-    private function calculateLeaveDays(LeavePolicy $leave)
+    public static function calculateLeaveDays(LeavePolicy $leave)
     {
         $start = Carbon::parse($leave->start_date);
         $end   = Carbon::parse($leave->end_date);
