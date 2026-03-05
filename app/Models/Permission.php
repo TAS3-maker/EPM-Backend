@@ -49,6 +49,8 @@ class Permission extends Model
         'standup_sheet',
         'sheet_reporting',
         'master_reporting',
+        'event_management',
+        'leave_credit',
     ];
 
     // Relationship to User

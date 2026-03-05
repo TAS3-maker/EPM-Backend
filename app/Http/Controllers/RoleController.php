@@ -78,6 +78,9 @@ class RoleController extends Controller
             "standup_sheet" => "0",
             "sheet_reporting" => "0",
             "master_reporting" => "0",
+            "event_management" => "0",
+            "leave_credit" => "0",
+
         ];
 
         $role = Role::create([
@@ -173,6 +176,8 @@ class RoleController extends Controller
                 'standup_sheet',
                 'sheet_reporting',
                 'master_reporting',
+                'event_management',
+                'leave_credit',
             ];
             foreach ($users as $user) {
                 $permission = Permission::where('user_id', $user->id)->first();

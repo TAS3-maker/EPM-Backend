@@ -51,6 +51,8 @@ class PermissionResource extends JsonResource
             'standup_sheet'=> $this->standup_sheet,
             'sheet_reporting'=> $this->sheet_reporting,
             'master_reporting'=> $this->master_reporting,
+            'event_management'=> $this->event_management,
+            'leave_credit'=> $this->leave_credit,
         ];
     }
 }

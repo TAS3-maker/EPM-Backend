@@ -83,6 +83,8 @@ class PermissionController extends Controller
                     "standup_sheet" => "0",
                     "sheet_reporting" => "0",
                     "master_reporting" => "0",
+                    "event_management" => "0",
+                    "leave_credit" => "0",
                 ];
 
                 $query = User::with('permission')
