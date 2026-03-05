@@ -81,12 +81,19 @@ class LeaveCreditController extends Controller
                     ->whereYear('start_date', $year);
             }
         ])->latest()->get(); */
-        $leaveCredits = LeaveCredit::with([
+        $currentUser = auth()->user();
+        $query =  LeaveCredit::with([
             'user:id,name',
             'user.leaves'
-        ])->whereHas('user', function ($query) {
-            $query->where('is_active', 1);
-        })->latest()->get();
+        ])->whereHas('user', function ($q) {
+            $q->where('is_active', 1);
+        });
+        if ($currentUser->hasAnyRole([1, 2, 3, 4])) {
+            // No additional filter (can see all)
+        } else {
+            $query->where('user_id', $currentUser->id);
+        }
+        $leaveCredits = $query->latest()->get();
         // Append calculated fields
         $leaveCredits->transform(function ($credit) {
             $month = $credit->month;
