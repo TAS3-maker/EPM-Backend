@@ -552,11 +552,11 @@ class LeaveCreditController extends Controller
             $processMonth = (int) $request->month;
             $processYear  = (int) $request->year;
         } else {
-            $previousMonthDate = now()->subMonth();
-            $processMonth = $previousMonthDate->month;
-            $processYear  = $previousMonthDate->year;
+            $currentDate  = now();
+            $processMonth = $currentDate->month;
+            $processYear  = $currentDate->year;
         }
-
+        $count = 0;
         $credits = LeaveCredit::whereIn('employment_status', ['appointed', 'notice'])->get();
 
         foreach ($credits as $credit) {
@@ -618,12 +618,14 @@ class LeaveCreditController extends Controller
             $credit->year  = $processYear;
 
             $credit->save();
+            $count++;
         }
 
         return response()->json([
             'success' => true,
             'processed_month' => $processMonth,
             'processed_year'  => $processYear,
+            'total_updated'  => $count,
         ]);
     }
     public function destroy($id)
