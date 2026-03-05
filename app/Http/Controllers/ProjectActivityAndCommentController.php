@@ -515,7 +515,7 @@ class ProjectActivityAndCommentController extends Controller
                 'pac.description as message',
                 DB::raw('NULL as time'),
                 'u.name as user',
-                'pac.created_at',
+                DB::raw("DATE(pac.created_at) as created_at"),
                 DB::raw("'comment' as source_type")
             )
             ->where('pac.task_id', $taskId)
@@ -544,7 +544,7 @@ class ProjectActivityAndCommentController extends Controller
             ) as time
         "),
                 'u.name as user',
-                'ps.created_at',
+                DB::raw("DATE(ps.created_at) as created_at"),
                 DB::raw("'narration' as source_type")
             )
             ->whereIn('ps.status', ['approved', 'pending', 'backdated'])
