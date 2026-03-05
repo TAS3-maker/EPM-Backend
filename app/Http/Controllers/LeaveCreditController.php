@@ -16,16 +16,6 @@ class LeaveCreditController extends Controller
 {
     public function index(Request $request)
     {
-        /* $month = $request->month ?? now()->month;
-        $year  = $request->year  ?? now()->year; */
-        /*  $leaveCredits = LeaveCredit::with([
-            'user:id,name',
-            'user.leaves' => function ($query) use ($month, $year) {
-                $query->where('status', 'Approved')->where('employment_period', 'appointed')
-                    ->whereMonth('start_date', $month)
-                    ->whereYear('start_date', $year);
-            }
-        ])->latest()->get(); */
         $currentUser = auth()->user();
         $query =  LeaveCredit::with([
             'user:id,name',
@@ -641,6 +631,7 @@ class LeaveCreditController extends Controller
 
         return response()->json([
             'success' => true,
+            'message'=> "Data Updated for Current Month",
             'processed_month' => $processMonth,
             'processed_year'  => $processYear,
             'total_updated'  => $count,
