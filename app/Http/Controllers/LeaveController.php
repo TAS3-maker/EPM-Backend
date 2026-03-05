@@ -564,11 +564,11 @@ class LeaveController extends Controller
                 'message' => 'Leave not found'
             ], 404);
         }
-
+        $previousStatus =  ucfirst(strtolower($leave->status));
         $finalStatus = ucfirst(strtolower($request->status));
 
         $calculationResult = null;
-        DB::transaction(function () use ($leave, $finalStatus, $current_user, &$calculationResult) {
+        DB::transaction(function () use ($leave, $finalStatus, $current_user, &$calculationResult, $previousStatus) {
             $leave->status = $finalStatus;
             $leave->approved_bymanager = $current_user->id;
             $leave->save();
@@ -577,6 +577,7 @@ class LeaveController extends Controller
                 $calculationResult = app(LeaveCreditService::class)
                     ->processApprovedLeave($leave);
             }
+
         });
 
         $user = User::where('id', $leave->user_id)

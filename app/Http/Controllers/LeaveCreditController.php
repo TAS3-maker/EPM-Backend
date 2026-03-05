@@ -44,34 +44,31 @@ class LeaveCreditController extends Controller
                 })
                 ->whereBetween('start_date', [$startDate, $endDate])
                 ->get();
+            $provisionalLeaves = $credit->user->leaves()
+                ->where('status', 'Approved')
+                ->where(function ($query) {
+                    $query->where('employment_period', 'provisional');
+                })
+                ->get();
 
-            $credit->user->setRelation('leaves', $approvedLeaves);
             $credit->leave_application_count = $approvedLeaves->count();
-            
-            $approvedLeaveHours = $approvedLeaves->sum(function ($leave) {
+            $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
 
-                if ($leave->total_hours) {
-                    return (float) $leave->total_hours;
-                }
-                if ($leave->leave_type === 'Full Leave') {
-                    return 8.5;
-                }
-                if ($leave->leave_type === 'Half Day') {
-                    return 4.25;
-                }
-                if (
-                    $leave->leave_type === 'Short Leave'
-                    && $leave->start_time
-                    && $leave->end_time
-                ) {
+            if ($credit->employment_status === 'provisional') {
+                $credit->user->setRelation('leaves', $provisionalLeaves);
+            } else {
+                $credit->user->setRelation('leaves', $approvedLeaves);
+            }
+            /**provisional extended month calculation */
+            $limit = $credit->provisional_leave_limit ?? 3;
+            if ($credit->provisional_leave_taken > $limit) {
+                $exceededDays = $credit->provisional_leave_taken - $limit;
+                $credit->provisional_extended_months = $exceededDays;
+                // $credit->provisional_extended_months = ($credit->provisional_extended_months ?? 0) + $exceededDays;
+            }
+            /**end provisional extended month calculation */
 
-                    $start = \Carbon\Carbon::parse($leave->start_time);
-                    $end   = \Carbon\Carbon::parse($leave->end_time);
-
-                    return $end->diffInMinutes($start) / 60;
-                }
-                return 0;
-            });
+            $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
 
             $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
             $sandwichDays = $approvedLeaves->sum(function ($leave) {
@@ -81,17 +78,17 @@ class LeaveCreditController extends Controller
 
             /**working hours */
             $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
-            
+
             $totalAllowedHours =
-            (($credit->paid_leaves ?? 0) +
-            ($credit->carry_forward_balance ?? 0)) * 8.5;
-            
+                (($credit->paid_leaves ?? 0) +
+                    ($credit->carry_forward_balance ?? 0)) * 8.5;
+
             $credit->remaining_paid_leave_hours =
-            max(0, $totalAllowedHours - $approvedLeaveHours);
-            
+                max(0, $totalAllowedHours - $approvedLeaveHours);
+
             $credit->leave_taken_hours = $approvedLeaveHours;
             //Leave Taken (remaining paid leave for month)
-            $credit->leave_days = $approvedLeaveDays; 
+            $credit->leave_days = $approvedLeaveDays;
             $credit->deducted_days = $deductedDays;
             $dateForMonth = Carbon::create($year, $month, 1);
             // Holiday Calculation
@@ -231,7 +228,23 @@ class LeaveCreditController extends Controller
             'data'    => $leaveCredits
         ]);
     }
+    private function calculateLeaveHours($leaves)
+    {
+        /**working hours used here*/
+        return $leaves->sum(function ($leave) {
+            if ($leave->total_hours) return (float) $leave->total_hours;
+            if ($leave->leave_type === 'Full Leave') return 8.5;
+            if ($leave->leave_type === 'Half Day') return 4.25;
 
+            if ($leave->leave_type === 'Short Leave' && $leave->start_time && $leave->end_time) {
+                $start = Carbon::parse($leave->start_time);
+                $end   = Carbon::parse($leave->end_time);
+                return $end->diffInMinutes($start) / 60;
+            }
+
+            return 0;
+        });
+    }
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -252,9 +265,198 @@ class LeaveCreditController extends Controller
 
     public function show($id)
     {
-        $leaveCredit = LeaveCredit::with('user')->findOrFail($id);
+        $credit = LeaveCredit::with([
+            'user:id,name',
+            'user.leaves'
+        ])->find($id);
 
-        return response()->json($leaveCredit);
+        if (!$credit) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Leave credit not found'
+            ], 404);
+        }
+
+        $month = $credit->month;
+        $year  = $credit->year;
+
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate   = Carbon::create($year, $month, 1)->endOfMonth();
+
+        $approvedLeaves = $credit->user->leaves()
+            ->where('status', 'Approved')
+            ->where(function ($query) {
+                $query->where('employment_period', 'appointed')
+                    ->orWhereNull('employment_period');
+            })
+            ->whereBetween('start_date', [$startDate, $endDate])
+            ->get();
+
+        $credit->user->setRelation('leaves', $approvedLeaves);
+        $credit->leave_application_count = $approvedLeaves->count();
+
+        $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
+
+        $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
+
+        $sandwichDays = $approvedLeaves->sum(function ($leave) {
+            return (float) ($leave->sandwich_extra_days ?? 0);
+        });
+
+        $deductedDays = $approvedLeaveDays + $sandwichDays;
+
+        $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
+
+        $totalAllowedHours =
+            (($credit->paid_leaves ?? 0) +
+                ($credit->carry_forward_balance ?? 0)) * 8.5;
+
+        $credit->remaining_paid_leave_hours =
+            max(0, $totalAllowedHours - $approvedLeaveHours);
+
+        $credit->leave_taken_hours = $approvedLeaveHours;
+        $credit->leave_days = $approvedLeaveDays;
+        $credit->deducted_days = $deductedDays;
+
+        /* ---------------- HOLIDAY CALCULATION ---------------- */
+
+        $monthStart = $startDate;
+        $monthEnd   = $endDate;
+
+        $holidays = \App\Models\EventHoliday::where(function ($q) use ($monthStart, $monthEnd) {
+            $q->whereBetween('start_date', [$monthStart, $monthEnd])
+                ->orWhereBetween('end_date', [$monthStart, $monthEnd])
+                ->orWhere(function ($q) use ($monthStart, $monthEnd) {
+                    $q->where('start_date', '<=', $monthStart)
+                        ->where('end_date', '>=', $monthEnd);
+                });
+        })->get();
+
+        $totalHolidayDays = 0;
+        $totalHolidayHours = 0;
+
+        foreach ($holidays as $holiday) {
+
+            $holidayStart = Carbon::parse($holiday->start_date);
+            $holidayEnd   = $holiday->end_date
+                ? Carbon::parse($holiday->end_date)
+                : $holidayStart;
+
+            $period = Carbon\CarbonPeriod::create($holidayStart, $holidayEnd);
+
+            foreach ($period as $date) {
+
+                if ($date->lt($monthStart) || $date->gt($monthEnd)) {
+                    continue;
+                }
+
+                if ($date->isSaturday() || $date->isSunday()) {
+                    continue;
+                }
+
+                switch ($holiday->type) {
+
+                    case 'Full Holiday':
+                    case 'Multiple Holiday':
+                        $totalHolidayDays += 1;
+                        $totalHolidayHours += 8.5;
+                        break;
+
+                    case 'Half Holiday':
+                        $totalHolidayDays += 0.5;
+                        $totalHolidayHours += 4.25;
+                        break;
+
+                    case 'Short Holiday':
+                        if ($holiday->start_time && $holiday->end_time) {
+                            $start = Carbon::parse($holiday->start_time);
+                            $end   = Carbon::parse($holiday->end_time);
+                            $totalHolidayHours += $end->diffInMinutes($start) / 60;
+                        }
+                        break;
+                }
+            }
+        }
+
+        $credit->holiday_days = $totalHolidayDays;
+        $credit->holiday_hours = $totalHolidayHours;
+
+        $dateForMonth = Carbon::create($year, $month, 1);
+
+        $expectedWorkingDays =
+            LeaveCreditService::getWorkingDaysInMonth($dateForMonth);
+
+        $expectedWorkingHours =
+            ($expectedWorkingDays * 8.5) - $totalHolidayHours;
+
+        $credit->expected_working_hours = max(0, $expectedWorkingHours);
+        $credit->worked_hours =
+            max(0, $expectedWorkingHours - $approvedLeaveHours);
+
+        /* ---------------- PAID / UNPAID ---------------- */
+
+        if ($approvedLeaveHours <= $monthlyLimitHours) {
+            $credit->paid_hours = $approvedLeaveHours;
+            $credit->unpaid_hours = 0;
+        } else {
+            $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
+
+            $unpaidCalculation =
+                max(0, $approvedLeaveHours - $monthlyLimitHours - $carryHours);
+
+            $credit->paid_hours =
+                $approvedLeaveHours - $unpaidCalculation;
+
+            $credit->unpaid_hours = $unpaidCalculation;
+        }
+
+        /* ---------------- NOTICE PERIOD ---------------- */
+
+        if ($credit->employment_status === 'notice' && $credit->notice_start_date) {
+
+            $startDate = Carbon::parse($credit->notice_start_date);
+            $basePeriodDays = (int) ($credit->notice_period_days ?? 0);
+
+            $initialEndDate = $startDate->copy()->addDays($basePeriodDays);
+
+            $noticeLeaves = $credit->user->leaves()
+                ->where('status', 'Approved')
+                ->whereBetween('start_date', [
+                    $startDate->toDateString(),
+                    $initialEndDate->toDateString()
+                ])
+                ->get();
+
+            $totalDeductedDays =
+                (float) $noticeLeaves->sum('deducted_days');
+
+            $extensionDays = (int) floor($totalDeductedDays);
+
+            $finalNoticePeriod =
+                $basePeriodDays + $extensionDays;
+
+            $credit->notice_end_date =
+                $startDate->copy()
+                ->addDays($finalNoticePeriod)
+                ->toDateString();
+        } else {
+            $credit->notice_end_date = null;
+        }
+
+        /* ---------------- PROVISIONAL ---------------- */
+
+        $credit->provisional_end_date =
+            $credit->joining_date
+            ? Carbon::parse($credit->joining_date)
+            ->addDays($credit->provisional_days ?? 0)
+            ->addDays(30 * ($credit->provisional_extended_months ?? 0))
+            ->toDateString()
+            : null;
+
+        return response()->json([
+            'success' => true,
+            'data'    => $credit
+        ]);
     }
 
     public function update(Request $request, $id)
@@ -267,9 +469,7 @@ class LeaveCreditController extends Controller
                     'user_id' => 'sometimes|exists:users,id',
                     'employment_status' => 'sometimes|in:provisional,appointed,notice',
                     'cycle_start_date' => 'sometimes|date',
-                    'cycle_end_date'   => 'sometimes|date|after_or_equal:cycle_start_date',
                     'carry_forward_balance'    => 'sometimes|numeric|min:0',
-                    'total_used'               => 'sometimes|numeric|min:0',
                     'provisional_leave_limit'  => 'sometimes|integer|min:0',
                     'provisional_leave_taken'  => 'sometimes|numeric|min:0',
                     'provisional_extended_months' => 'sometimes|integer|min:0',
@@ -328,7 +528,6 @@ class LeaveCreditController extends Controller
                         'month' => $currentMonth,
                         'employment_status' => 'appointed',
                         'cycle_start_date' => $cycleStart,
-                        'cycle_end_date' => $cycleEnd,
                         'provisional_days' => 90,
                         'joining_date' => $user->created_at,
                     ]
@@ -349,24 +548,48 @@ class LeaveCreditController extends Controller
     }
     public function processMonthlyLeaveCycle(Request $request)
     {
-        $today = now();
-
-        $previousMonthDate = $today->copy()->subMonth();
-        $processMonth = $previousMonthDate->month;
-        $processYear  = $previousMonthDate->year;
+        if ($request->filled('month') && $request->filled('year')) {
+            $processMonth = (int) $request->month;
+            $processYear  = (int) $request->year;
+        } else {
+            $previousMonthDate = now()->subMonth();
+            $processMonth = $previousMonthDate->month;
+            $processYear  = $previousMonthDate->year;
+        }
 
         $credits = LeaveCredit::whereIn('employment_status', ['appointed', 'notice'])->get();
 
         foreach ($credits as $credit) {
-            if ($credit->month == $today->month && $credit->year == $today->year) {
+            $credit->bunch_payble_balance = 0;
+            if ($credit->month == $processMonth && $credit->year == $processYear) {
                 continue;
             }
 
             $monthlyPaid   = (float) ($credit->paid_leaves ?? 0);
             $previousCarry = (float) ($credit->carry_forward_balance ?? 0);
-            $bunchLimit    = (float) ($credit->bunch_time ?? 12);
+            $bunchTime     = (int) ($credit->bunch_time ?? 12);
 
-            // Approved leave taken in previous month
+            // ==============================
+            // Proper Batch Logic (Delayed Payout)
+            // ==============================
+
+            $processDate = \Carbon\Carbon::create($processYear, $processMonth, 1);
+            $cycleStartDate = \Carbon\Carbon::parse($credit->cycle_start_date)
+                ->startOfMonth();
+
+            if ($processDate->lt($cycleStartDate)) {
+                continue;
+            }
+
+            $bunchTime = (int) ($credit->bunch_time ?? 12);
+
+            // Months since cycle started
+            $monthsSinceStart = $cycleStartDate->diffInMonths($processDate);
+
+            // Detect if PREVIOUS month was batch ending
+            $isPayoutMonth = ($monthsSinceStart % $bunchTime) === 0 && $monthsSinceStart != 0;
+
+            // Calculate Leave Taken
             $taken = (float) LeavePolicy::where('user_id', $credit->user_id)
                 ->where('status', 'Approved')
                 ->whereMonth('start_date', $processMonth)
@@ -376,26 +599,31 @@ class LeaveCreditController extends Controller
             $totalAvailable = $monthlyPaid + $previousCarry;
             $remaining      = max(0, $totalAvailable - $taken);
 
-            // Move to bunch if reached
-            if ($remaining >= $bunchLimit) {
-                $credit->bunch_payble_balance = (float) ($credit->bunch_payble_balance ?? 0) + $bunchLimit;
-                $credit->carry_forward_balance = $remaining - $bunchLimit;
+            if ($isPayoutMonth) {
+
+                // Move full accumulated balance to payable
+                $credit->bunch_payble_balance = $remaining;
+
+                // Reset carry for new batch
+                $credit->carry_forward_balance = 0;
             } else {
+
+                // Normal accumulation month
+                $credit->bunch_payble_balance = 0; // reset automatically after payout month
                 $credit->carry_forward_balance = $remaining;
             }
 
-            $credit->month = $today->month;
-            $credit->year  = $today->year;
+            // Update Active Month
+            $credit->month = $processMonth;
+            $credit->year  = $processYear;
 
             $credit->save();
         }
 
         return response()->json([
             'success' => true,
-            'processed_previous_month' => $processMonth,
-            'processed_previous_year'  => $processYear,
-            'new_active_month'         => $today->month,
-            'new_active_year'          => $today->year
+            'processed_month' => $processMonth,
+            'processed_year'  => $processYear,
         ]);
     }
     public function destroy($id)
