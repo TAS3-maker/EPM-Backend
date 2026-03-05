@@ -53,7 +53,8 @@ class LeaveCreditController extends Controller
 
             $credit->leave_application_count = $approvedLeaves->count();
             $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
-
+            $credit->provisional_extended_months = 0;
+            
             if ($credit->employment_status === 'provisional') {
                 $credit->user->setRelation('leaves', $provisionalLeaves);
             } else {
@@ -76,7 +77,13 @@ class LeaveCreditController extends Controller
             });
             $deductedDays = $approvedLeaveDays + $sandwichDays;
 
+
             /**working hours */
+            $sandwich_hours = $approvedLeaves->sum(function ($leave) {
+                return (float) ($leave->sandwich_extra_days ?? 0);
+            });
+
+
             $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
 
             $totalAllowedHours =
@@ -87,6 +94,8 @@ class LeaveCreditController extends Controller
                 max(0, $totalAllowedHours - $approvedLeaveHours);
 
             $credit->leave_taken_hours = $approvedLeaveHours;
+            $credit->total_deducted_hours = $approvedLeaveHours + ($sandwich_hours * 8.5);
+            // $credit->sandwich_hours = $sandwich_hours * 8.5;
             //Leave Taken (remaining paid leave for month)
             $credit->leave_days = $approvedLeaveDays;
             $credit->deducted_days = $deductedDays;
@@ -174,9 +183,9 @@ class LeaveCreditController extends Controller
             } else {
                 $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
                 $unpaidCalculation =
-                    max(0, $approvedLeaveHours - $monthlyLimitHours - $carryHours);
+                    max(0, $credit->total_deducted_hours - $monthlyLimitHours - $carryHours);
 
-                $credit->paid_hours = $approvedLeaveHours - $unpaidCalculation;
+                $credit->paid_hours = $credit->total_deducted_hours - $unpaidCalculation;
                 $credit->unpaid_hours = $unpaidCalculation;
             }
 
