@@ -5726,7 +5726,6 @@ class PerformaSheetController extends Controller
 
             $STANDARD_DAY_MINUTES = 510;
             $totalHolidayMinutes = 0;
-
             $holidayExpectedMinutesByDate = [];
 
             $holidays = DB::table('event_holidays')
@@ -5842,7 +5841,6 @@ class PerformaSheetController extends Controller
 
                     $entry['project_name'] = $projects[$entry['project_id']] ?? null;
                     $entry['status'] = $row->status;
-
                     $sheets[] = $entry;
 
                     $minutes = $this->timeToMinutesforgetUserPerformaData($entry['time']);
@@ -5885,8 +5883,6 @@ class PerformaSheetController extends Controller
                     $dateStr = $date->toDateString();
                     $leaveDates[$dateStr] = $leave->leave_type;
 
-                    $expectedMinutes = $holidayExpectedMinutesByDate[$dateStr] ?? $STANDARD_DAY_MINUTES;
-
                     switch ($leave->leave_type) {
 
                         case 'Full Leave':
@@ -5903,11 +5899,8 @@ class PerformaSheetController extends Controller
 
                                 [$start, $end] = explode('to', $leave->hours);
 
-                                $start = trim($start);
-                                $end = trim($end);
-
-                                $startTime = Carbon::parse($dateStr . ' ' . $start);
-                                $endTime = Carbon::parse($dateStr . ' ' . $end);
+                                $startTime = Carbon::parse($dateStr . ' ' . trim($start));
+                                $endTime = Carbon::parse($dateStr . ' ' . trim($end));
 
                                 if ($endTime->lessThan($startTime)) {
                                     $endTime->addDay();
@@ -5933,38 +5926,41 @@ class PerformaSheetController extends Controller
 
                 $dateStr = $date->toDateString();
 
-                $expectedMinutes = $holidayExpectedMinutesByDate[$dateStr] ?? $STANDARD_DAY_MINUTES;
                 $workedMinutes = $workedMinutesByDate[$dateStr] ?? 0;
-                $shortLeaveMinutes = $shortLeaveMinutesByDate[$dateStr] ?? 0;
-                $expectedMinutes -= $shortLeaveMinutes;
-                $isLeave = $leaveDates[$dateStr] ?? null;
 
-                if (isset($holidayExpectedMinutesByDate[$dateStr]) && $expectedMinutes == 0) {
-                    continue;
-                }
+                $leaveMinutes = 0;
 
-                if ($isLeave === 'Full Leave') {
-                    continue;
-                }
+                if (isset($leaveDates[$dateStr])) {
 
-                if ($isLeave === 'Half Day') {
-                    $expectedMinutes = $expectedMinutes / 2;
-                }
-
-                if (!isset($filledDates[$dateStr]) && !$isLeave && !isset($holidayExpectedMinutesByDate[$dateStr])) {
-                    $unfilledDates[$dateStr] = $expectedMinutes;
-                    $activityTotals['Unfilled'] += $expectedMinutes;
-                    $unfilledCount++;
-                    continue;
-                }
-
-                if ($workedMinutes < $expectedMinutes) {
-                    $remaining = $expectedMinutes - $workedMinutes;
-                    if ($remaining > 0) {
-                        $unfilledDates[$dateStr] = $remaining;
-                        $activityTotals['Unfilled'] += $remaining;
-                        $unfilledCount++;
+                    if ($leaveDates[$dateStr] === 'Full Leave') {
+                        $leaveMinutes = $STANDARD_DAY_MINUTES;
+                    } elseif ($leaveDates[$dateStr] === 'Half Day') {
+                        $leaveMinutes = $STANDARD_DAY_MINUTES / 2;
+                    } elseif ($leaveDates[$dateStr] === 'Short Leave') {
+                        $leaveMinutes = $shortLeaveMinutesByDate[$dateStr] ?? 0;
                     }
+                }
+
+                $holidayMinutes = 0;
+
+                if (isset($holidayExpectedMinutesByDate[$dateStr])) {
+
+                    $holidayExpected = $holidayExpectedMinutesByDate[$dateStr];
+
+                    if ($holidayExpected == 0) {
+                        $holidayMinutes = $STANDARD_DAY_MINUTES;
+                    } else {
+                        $holidayMinutes = $STANDARD_DAY_MINUTES - $holidayExpected;
+                    }
+                }
+
+                $remaining = $STANDARD_DAY_MINUTES
+                    - ($workedMinutes + $leaveMinutes + $holidayMinutes);
+
+                if ($remaining > 0) {
+                    $unfilledDates[$dateStr] = $remaining;
+                    $activityTotals['Unfilled'] += $remaining;
+                    $unfilledCount++;
                 }
             }
 
