@@ -19,6 +19,7 @@ use App\Http\Controllers\TagActivityController;
 use Illuminate\Support\Facades\Artisan;
 use App\Http\Controllers\CacheController;
 use App\Http\Controllers\Api\DepartmentController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ClientMasterController;
 use App\Http\Controllers\CommunicationTypeController;
@@ -270,5 +271,12 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/generate-leave-credits', [LeaveCreditController::class, 'generateLeaveCredits']);
         Route::post('/process-monthly-leave-cycle', [LeaveCreditController::class, 'processMonthlyLeaveCycle']);
         // Route::post('/leave-credits/reset', [LeaveCreditController::class, 'resetLeaveCredits']);
+        /**Calender Rules working/non-working */
+        Route::post('/calender/set-date', [CalendarController::class, 'setCalendarDate']);
+        Route::post('/calender/update-weekly-rule', [CalendarController::class, 'updateWeeklyRule']);
+        Route::get('/calender/non-working-days', [CalendarController::class, 'getNonWorkingDays']);
+        Route::get('/calender/check-date', [CalendarController::class, 'checkDate']);
+        Route::get('/calender/sandwich-days', [CalendarController::class, 'sandwichDays']);
+        Route::get('/calendar/month', [CalendarController::class, 'getMonthCalendar']);
     });
 });
