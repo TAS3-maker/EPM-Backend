@@ -140,17 +140,23 @@ class LeaveCreditController extends Controller
             $credit->worked_hours = max(0, $expectedWorkingHours - $approvedLeaveHours);
             $credit->expected_working_days = $expectedWorkingDays;
 
-            // Paid / Unpaid logic
-            if ($approvedLeaveHours <= $monthlyLimitHours) {
-                $credit->paid_hours = $approvedLeaveHours;
-                $credit->unpaid_hours = 0;
+            /* PAID LEAVE RULE : MIN 20 WORKING DAYS */
+            if ($expectedWorkingDays < 20) {
+                // Month not eligible for paid leave
+                $credit->paid_hours = 0;
+                $credit->unpaid_hours = $credit->total_deducted_hours;
             } else {
-                $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
-                $unpaidCalculation =
-                    max(0, $credit->total_deducted_hours - $monthlyLimitHours - $carryHours);
-
-                $credit->paid_hours = $credit->total_deducted_hours - $unpaidCalculation;
-                $credit->unpaid_hours = $unpaidCalculation;
+                if ($approvedLeaveHours <= $monthlyLimitHours) {
+                    $credit->paid_hours = $approvedLeaveHours;
+                    $credit->unpaid_hours = 0;
+                } else {
+                    $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
+                    $unpaidCalculation =
+                        max(0, $credit->total_deducted_hours - $monthlyLimitHours - $carryHours);
+                    $credit->paid_hours =
+                        $credit->total_deducted_hours - $unpaidCalculation;
+                    $credit->unpaid_hours = $unpaidCalculation;
+                }
             }
 
             if ($credit->employment_status === 'notice' && $credit->notice_start_date) {

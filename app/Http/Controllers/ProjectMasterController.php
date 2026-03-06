@@ -2037,6 +2037,7 @@ class ProjectMasterController extends Controller
 
     public function getUsersAllSheetsDataReporting(Request $request)
     {
+        $calendarController = new \App\Http\Controllers\CalendarController();
         $departmentIds = collect(explode(',', $request->department_id ?? ''))
             ->map(fn($v) => trim($v))
             ->filter(fn($v) => is_numeric($v))
@@ -2098,7 +2099,7 @@ class ProjectMasterController extends Controller
         $expectedDates = [];
         $cursor = $startDate->copy();
         while ($cursor->lte($endDate)) {
-            if (!$cursor->isWeekend()) {
+            if (!$calendarController->isNonWorkingDay($cursor)) {
                 $expectedDates[] = $cursor->toDateString();
             }
             $cursor->addDay();
