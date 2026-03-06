@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Services\ActivityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Artisan;
 
 class ProjectActivityAndCommentController extends Controller
 {
@@ -43,95 +42,6 @@ class ProjectActivityAndCommentController extends Controller
         ], 200);
     }
 
-    // public function store(Request $request)
-    // {
-    //     $validator = Validator::make($request->all(), [
-    //         'project_id' => 'required|integer',
-    //         // 'user_id' => 'required|integer',
-    //         'task_id' => 'nullable|string',
-    //         'type' => 'required|string',
-    //         'description' => 'nullable|string',
-    //         'attachments' => 'nullable',
-    //     ]);
-    //     $user = auth()->user();
-    //     $user_id = $user->id;
-    //     if ($validator->fails()) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Validation failed',
-    //             'errors' => $validator->errors(),
-    //         ], 200);
-    //     }
-
-    //     if (!$request->project_id || !$user_id) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Project ID or User ID is missing',
-    //         ], 200);
-    //     }
-
-    //     try {
-    //         $attachmentValue = null;
-
-    //         if ($request->hasFile('attachments')) {
-
-    //             $file = $request->file('attachments');
-
-    //             $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
-
-    //             if (!in_array($file->getClientOriginalExtension(), $allowedExtensions)) {
-    //                 return response()->json([
-    //                     'success' => false,
-    //                     'message' => 'Invalid attachment type',
-    //                 ], 200);
-    //             }
-
-    //             if (!Storage::disk('public')->exists('project_attachments')) {
-    //                 Storage::disk('public')->makeDirectory('project_attachments');
-    //             }
-
-    //             $filename = time() . '_' . uniqid() . '.' . $file->getClientOriginalExtension();
-    //             $file->storeAs('project_attachments', $filename, 'public');
-
-    //             $attachmentValue = 'project_attachments/' . $filename;
-    //         } elseif ($request->attachments && filter_var($request->attachments, FILTER_VALIDATE_URL)) {
-    //             $attachmentValue = $request->attachments;
-    //         }
-
-
-    //         $activity = ProjectActivityAndComment::create([
-    //             'project_id' => $request->project_id,
-    //             'user_id' => $user_id,
-    //             'task_id' => $request->task_id,
-    //             'type' => $request->type,
-    //             'description' => $request->description,
-    //             'attachments' => $attachmentValue,
-    //         ]);
-    //         if ($request->type != 'activity') {
-    //             ActivityService::log([
-    //                 'project_id' => $request->project_id,
-    //                 'type' => 'activity',
-    //                 'description' => $request->type . ' added by ' . auth()->user()->name,
-    //             ]);
-    //         }
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Activity created successfully',
-    //             'data' => new ProjectActivityAndCommentResource($activity),
-    //         ], 200);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Something went wrong',
-    //             'error' => $e->getMessage(),
-    //         ], 200);
-    //     }
-    // }
-
-
-
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -140,12 +50,10 @@ class ProjectActivityAndCommentController extends Controller
             'task_id' => 'nullable|string',
             'type' => 'required|string',
             'description' => 'nullable|string',
-            'attachments' => 'nullable'
+            'attachments' => 'nullable',
         ]);
-
         $user = auth()->user();
         $user_id = $user->id;
-
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
@@ -162,32 +70,21 @@ class ProjectActivityAndCommentController extends Controller
         }
 
         try {
-
             $attachmentValue = null;
 
             if ($request->hasFile('attachments')) {
 
                 $file = $request->file('attachments');
 
-                if (!$file->isValid()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'File upload failed',
-                    ], 200);
-                }
-
                 $allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf', 'doc', 'docx'];
 
-                if (!in_array(strtolower($file->getClientOriginalExtension()), $allowedExtensions)) {
+                if (!in_array($file->getClientOriginalExtension(), $allowedExtensions)) {
                     return response()->json([
                         'success' => false,
                         'message' => 'Invalid attachment type',
                     ], 200);
                 }
 
-                if (!file_exists(public_path('storage'))) {
-                    Artisan::call('storage:link');
-                }
                 if (!Storage::disk('public')->exists('project_attachments')) {
                     Storage::disk('public')->makeDirectory('project_attachments');
                 }
@@ -200,6 +97,7 @@ class ProjectActivityAndCommentController extends Controller
                 $attachmentValue = $request->attachments;
             }
 
+
             $activity = ProjectActivityAndComment::create([
                 'project_id' => $request->project_id,
                 'user_id' => $user_id,
@@ -208,7 +106,6 @@ class ProjectActivityAndCommentController extends Controller
                 'description' => $request->description,
                 'attachments' => $attachmentValue,
             ]);
-
             if ($request->type != 'activity') {
                 ActivityService::log([
                     'project_id' => $request->project_id,
@@ -229,10 +126,8 @@ class ProjectActivityAndCommentController extends Controller
                 'message' => 'Something went wrong',
                 'error' => $e->getMessage(),
             ], 200);
-
         }
     }
-
 
     // public function index(Request $request)
     // {
