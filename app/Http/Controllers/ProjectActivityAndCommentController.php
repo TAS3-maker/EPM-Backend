@@ -13,7 +13,6 @@ use App\Models\User;
 use App\Services\ActivityService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Artisan;
 
 class ProjectActivityAndCommentController extends Controller
 {
@@ -51,7 +50,7 @@ class ProjectActivityAndCommentController extends Controller
             'task_id' => 'nullable|string',
             'type' => 'required|string',
             'description' => 'nullable|string',
-            'attachments' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|url'
+            'attachments' => 'nullable',
         ]);
         $user = auth()->user();
         $user_id = $user->id;
@@ -85,9 +84,7 @@ class ProjectActivityAndCommentController extends Controller
                         'message' => 'Invalid attachment type',
                     ], 200);
                 }
-                if (!file_exists(public_path('storage'))) {
-                    Artisan::call('storage:link');
-                }
+
                 if (!Storage::disk('public')->exists('project_attachments')) {
                     Storage::disk('public')->makeDirectory('project_attachments');
                 }
