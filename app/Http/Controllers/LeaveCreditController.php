@@ -258,197 +258,179 @@ class LeaveCreditController extends Controller
 
     public function show($id)
     {
-        $credit = LeaveCredit::with([
+        $leaveCredits =  LeaveCredit::with([
             'user:id,name',
             'user.leaves'
         ])->find($id);
-
-        if (!$credit) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Leave credit not found'
-            ], 404);
-        }
-
-        $month = $credit->month;
-        $year  = $credit->year;
-
-        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
-        $endDate   = Carbon::create($year, $month, 1)->endOfMonth();
-
-        $approvedLeaves = $credit->user->leaves()
-            ->where('status', 'Approved')
-            ->where(function ($query) {
-                $query->where('employment_period', 'appointed')
-                    ->orWhereNull('employment_period');
-            })
-            ->whereBetween('start_date', [$startDate, $endDate])
-            ->get();
-
-        $credit->user->setRelation('leaves', $approvedLeaves);
-        $credit->leave_application_count = $approvedLeaves->count();
-
-        $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
-
-        $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
-
-        $sandwichDays = $approvedLeaves->sum(function ($leave) {
-            return (float) ($leave->sandwich_extra_days ?? 0);
-        });
-
-        $deductedDays = $approvedLeaveDays + $sandwichDays;
-
-        $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
-
-        $totalAllowedHours =
-            (($credit->paid_leaves ?? 0) +
-                ($credit->carry_forward_balance ?? 0)) * 8.5;
-
-        $credit->remaining_paid_leave_hours =
-            max(0, $totalAllowedHours - $approvedLeaveHours);
-
-        $credit->leave_taken_hours = $approvedLeaveHours;
-        $credit->leave_days = $approvedLeaveDays;
-        $credit->deducted_days = $deductedDays;
-
-        /* ---------------- HOLIDAY CALCULATION ---------------- */
-
-        $monthStart = $startDate;
-        $monthEnd   = $endDate;
-
-        $holidays = \App\Models\EventHoliday::where(function ($q) use ($monthStart, $monthEnd) {
-            $q->whereBetween('start_date', [$monthStart, $monthEnd])
-                ->orWhereBetween('end_date', [$monthStart, $monthEnd])
-                ->orWhere(function ($q) use ($monthStart, $monthEnd) {
-                    $q->where('start_date', '<=', $monthStart)
-                        ->where('end_date', '>=', $monthEnd);
-                });
-        })->get();
-
-        $totalHolidayDays = 0;
-        $totalHolidayHours = 0;
-
-        foreach ($holidays as $holiday) {
-
-            $holidayStart = Carbon::parse($holiday->start_date);
-            $holidayEnd   = $holiday->end_date
-                ? Carbon::parse($holiday->end_date)
-                : $holidayStart;
-
-            $period = \Carbon\CarbonPeriod::create($holidayStart, $holidayEnd);
-
-            foreach ($period as $date) {
-
-                if ($date->lt($monthStart) || $date->gt($monthEnd)) {
-                    continue;
-                }
-
-                if ($date->isSaturday() || $date->isSunday()) {
-                    continue;
-                }
-
-                switch ($holiday->type) {
-
-                    case 'Full Holiday':
-                    case 'Multiple Holiday':
-                        $totalHolidayDays += 1;
-                        $totalHolidayHours += 8.5;
-                        break;
-
-                    case 'Half Holiday':
-                        $totalHolidayDays += 0.5;
-                        $totalHolidayHours += 4.25;
-                        break;
-
-                    case 'Short Holiday':
-                        if ($holiday->start_time && $holiday->end_time) {
-                            $start = Carbon::parse($holiday->start_time);
-                            $end   = Carbon::parse($holiday->end_time);
-                            $totalHolidayHours += $end->diffInMinutes($start) / 60;
-                        }
-                        break;
-                }
-            }
-        }
-
-        $credit->holiday_days = $totalHolidayDays;
-        $credit->holiday_hours = $totalHolidayHours;
-
-        $dateForMonth = Carbon::create($year, $month, 1);
-
-        $expectedWorkingDays =
-            LeaveCreditService::getWorkingDaysInMonth($dateForMonth);
-
-        $expectedWorkingHours =
-            ($expectedWorkingDays * 8.5) - $totalHolidayHours;
-
-        $credit->expected_working_hours = max(0, $expectedWorkingHours);
-        $credit->worked_hours =
-            max(0, $expectedWorkingHours - $approvedLeaveHours);
-
-        /* ---------------- PAID / UNPAID ---------------- */
-
-        if ($approvedLeaveHours <= $monthlyLimitHours) {
-            $credit->paid_hours = $approvedLeaveHours;
-            $credit->unpaid_hours = 0;
-        } else {
-            $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
-
-            $unpaidCalculation =
-                max(0, $approvedLeaveHours - $monthlyLimitHours - $carryHours);
-
-            $credit->paid_hours =
-                $approvedLeaveHours - $unpaidCalculation;
-
-            $credit->unpaid_hours = $unpaidCalculation;
-        }
-
-        /* ---------------- NOTICE PERIOD ---------------- */
-
-        if ($credit->employment_status === 'notice' && $credit->notice_start_date) {
-
-            $startDate = Carbon::parse($credit->notice_start_date);
-            $basePeriodDays = (int) ($credit->notice_period_days ?? 0);
-
-            $initialEndDate = $startDate->copy()->addDays($basePeriodDays);
-
-            $noticeLeaves = $credit->user->leaves()
+        // Append calculated fields
+        $leaveCredits->transform(function ($credit) {
+            $month = $credit->month;
+            $year  = $credit->year;
+            $startDate = Carbon::create($credit->year, $credit->month, 1)->startOfMonth();
+            $endDate   = Carbon::create($credit->year, $credit->month, 1)->endOfMonth();
+            $approvedLeaves = $credit->user->leaves()
                 ->where('status', 'Approved')
-                ->whereBetween('start_date', [
-                    $startDate->toDateString(),
-                    $initialEndDate->toDateString()
-                ])
+                ->where(function ($query) {
+                    $query->where('employment_period', 'appointed')
+                        ->orWhereNull('employment_period');
+                })
+                ->whereBetween('start_date', [$startDate, $endDate])
+                ->get();
+            $provisionalLeaves = $credit->user->leaves()
+                ->where('status', 'Approved')
+                ->where(function ($query) {
+                    $query->where('employment_period', 'provisional');
+                })
                 ->get();
 
-            $totalDeductedDays =
-                (float) $noticeLeaves->sum('deducted_days');
+            $credit->leave_application_count = $approvedLeaves->count();
+            $credit->provisional_leave_taken = (float) $provisionalLeaves->sum('deducted_days');
+            $credit->provisional_extended_months = 0;
 
-            $extensionDays = (int) floor($totalDeductedDays);
+            if ($credit->employment_status === 'provisional') {
+                $credit->user->setRelation('leaves', $provisionalLeaves);
+            } else {
+                $credit->user->setRelation('leaves', $approvedLeaves);
+            }
+            /**provisional extended month calculation */
+            $limit = $credit->provisional_leave_limit ?? 3;
+            if ($credit->provisional_leave_taken > $limit) {
+                $exceededDays = $credit->provisional_leave_taken - $limit;
+                $credit->provisional_extended_months = $exceededDays;
+                // $credit->provisional_extended_months = ($credit->provisional_extended_months ?? 0) + $exceededDays;
+            }
+            /**end provisional extended month calculation */
 
-            $finalNoticePeriod =
-                $basePeriodDays + $extensionDays;
+            $approvedLeaveHours = $this->calculateLeaveHours($approvedLeaves);
 
-            $credit->notice_end_date =
-                $startDate->copy()
-                ->addDays($finalNoticePeriod)
-                ->toDateString();
-        } else {
-            $credit->notice_end_date = null;
-        }
+            $approvedLeaveDays = round($approvedLeaveHours / 8.5, 2);
+            $sandwichDays = $approvedLeaves->sum(function ($leave) {
+                return (float) ($leave->sandwich_extra_days ?? 0);
+            });
+            $deductedDays = $approvedLeaveDays + $sandwichDays;
 
-        /* ---------------- PROVISIONAL ---------------- */
 
-        $credit->provisional_end_date =
-            $credit->joining_date
-            ? Carbon::parse($credit->joining_date)
-            ->addDays($credit->provisional_days ?? 0)
-            ->addDays(30 * ($credit->provisional_extended_months ?? 0))
-            ->toDateString()
-            : null;
+            /**working hours */
+            $sandwich_hours = $approvedLeaves->sum(function ($leave) {
+                return (float) ($leave->sandwich_extra_days ?? 0);
+            });
+
+
+            $monthlyLimitHours = ($credit->paid_leaves ?? 0) * 8.5;
+
+            $totalAllowedHours =
+                (($credit->paid_leaves ?? 0) +
+                    ($credit->carry_forward_balance ?? 0)) * 8.5;
+
+            $credit->remaining_paid_leave_hours =
+                max(0, $totalAllowedHours - $approvedLeaveHours);
+
+            $credit->leave_taken_hours = $approvedLeaveHours;
+            $credit->total_deducted_hours = $approvedLeaveHours + ($sandwich_hours * 8.5);
+            // $credit->sandwich_hours = $sandwich_hours * 8.5;
+            //Leave Taken (remaining paid leave for month)
+            $credit->leave_days = $approvedLeaveDays;
+            $credit->deducted_days = $deductedDays;
+            $dateForMonth = Carbon::create($year, $month, 1);
+
+            // Holiday Calculation
+            $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
+            $monthEnd   = Carbon::create($year, $month, 1)->endOfMonth();
+
+            /*HR Non-Working Days (Holiday*/
+            $holidayOverrides = DayOverride::where('is_working', 0)
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->get();
+
+            $totalHolidayDays = 0;
+
+            foreach ($holidayOverrides as $override) {
+
+                $date = Carbon::parse($override->date);
+
+                $weekly = \App\Models\WeeklyWorkingDay::where(
+                    'day_of_week',
+                    $date->dayOfWeek
+                )->first();
+
+                // count only if weekly rule says working
+                if ($weekly && $weekly->is_working == 1) {
+                    $totalHolidayDays++;
+                }
+            }
+            $totalHolidayHours = $totalHolidayDays * 8.5;
+
+            $credit->holiday_days = $totalHolidayDays;
+            $credit->holiday_hours = $totalHolidayHours;
+
+            $expectedWorkingDays =
+                LeaveCreditService::getWorkingDaysInMonth($dateForMonth);
+
+            /**working hours */
+            $expectedWorkingHours = ($expectedWorkingDays * 8.5);
+            $credit->expected_working_hours = max(0, $expectedWorkingHours);
+            $credit->worked_hours = max(0, $expectedWorkingHours - $approvedLeaveHours);
+            $credit->expected_working_days = $expectedWorkingDays;
+
+            // Paid / Unpaid logic
+            if ($approvedLeaveHours <= $monthlyLimitHours) {
+                $credit->paid_hours = $approvedLeaveHours;
+                $credit->unpaid_hours = 0;
+            } else {
+                $carryHours = (float) ($credit->carry_forward_balance ?? 0) * 8.5;
+                $unpaidCalculation =
+                    max(0, $credit->total_deducted_hours - $monthlyLimitHours - $carryHours);
+
+                $credit->paid_hours = $credit->total_deducted_hours - $unpaidCalculation;
+                $credit->unpaid_hours = $unpaidCalculation;
+            }
+
+            if ($credit->employment_status === 'notice' && $credit->notice_start_date) {
+                $startDate = Carbon::parse($credit->notice_start_date);
+
+                $basePeriodDays = (int) ($credit->notice_period_days ?? 0);
+
+                // Initial notice end date (without extension)
+                $initialEndDate = $startDate->copy()->addDays($basePeriodDays);
+
+                // Get approved leaves during notice period
+                $noticeLeaves = $credit->user->leaves()
+                    ->where('status', 'Approved')
+                    ->whereBetween('start_date', [
+                        $startDate->toDateString(),
+                        $initialEndDate->toDateString()
+                    ])
+                    ->get();
+
+                // Total deducted days during notice
+                $totalDeductedDays = (float) $noticeLeaves->sum('deducted_days');
+
+                // Convert to whole number (HR rule)
+                $extensionDays = (int) floor($totalDeductedDays);
+
+                // Final recalculated notice period
+                $finalNoticePeriod = $basePeriodDays + $extensionDays;
+
+                $credit->notice_end_date = $startDate
+                    ->copy()
+                    ->addDays($finalNoticePeriod)
+                    ->toDateString();
+            } else {
+                $credit->notice_end_date = null;
+            }
+            $credit->provisional_end_date = $credit->joining_date
+                ? Carbon::parse($credit->joining_date)
+                ->addDays($credit->provisional_days ?? 0)
+                ->addDays(30 * ($credit->provisional_extended_months ?? 0))
+                ->toDateString()
+                : null;
+
+            return $credit;
+        });
 
         return response()->json([
             'success' => true,
-            'data'    => $credit
+            'data'    => $leaveCredits
         ]);
     }
 

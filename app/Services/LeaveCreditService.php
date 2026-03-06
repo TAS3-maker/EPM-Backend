@@ -242,20 +242,16 @@ class LeaveCreditService
         } else {
 
             // Normal sandwich rule for full / half / multi leave
-            if (self::isNonWorking($prevDay) || self::isNonWorking($nextDay)) {
-                $touchesNonWorkingBlock = true;
+            if ($leave->leave_type === 'Multiple Days Leave') {
+                $sandwich = 1; // only one sandwich day
+            } else {
+                $sandwich = $leaveDays; // full/half leave
             }
         }
 
-        if ($touchesNonWorkingBlock) {
-            $sandwich = $leaveDays;
-        }
-
         // -------- Convert Sandwich to Hours --------
-
         $sandwichHours = round($sandwich * $workHoursPerDay, 2);
         $totalHours = round($actualHours + $sandwichHours , 2);
-
         return [
             'actual_days'   => $leaveDays,
             'sandwich_days' => $sandwich,
