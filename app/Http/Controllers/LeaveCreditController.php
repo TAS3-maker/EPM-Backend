@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Helpers\ApiResponse;
+use App\Models\DayOverride;
 use App\Models\LeaveCredit;
 use App\Models\LeavePolicy;
 use App\Models\User;
@@ -99,81 +100,45 @@ class LeaveCreditController extends Controller
             $credit->leave_days = $approvedLeaveDays;
             $credit->deducted_days = $deductedDays;
             $dateForMonth = Carbon::create($year, $month, 1);
-            // Holiday Calculation
-            // ===============================
 
+            // Holiday Calculation
             $monthStart = Carbon::create($year, $month, 1)->startOfMonth();
             $monthEnd   = Carbon::create($year, $month, 1)->endOfMonth();
 
-            // Get holidays overlapping this month
-            $holidays = \App\Models\EventHoliday::where(function ($q) use ($monthStart, $monthEnd) {
-                $q->whereBetween('start_date', [$monthStart, $monthEnd])
-                    ->orWhereBetween('end_date', [$monthStart, $monthEnd])
-                    ->orWhere(function ($q) use ($monthStart, $monthEnd) {
-                        $q->where('start_date', '<=', $monthStart)
-                            ->where('end_date', '>=', $monthEnd);
-                    });
-            })->get();
+            /*HR Non-Working Days (Holiday*/
+            $holidayOverrides = DayOverride::where('is_working', 0)
+                ->whereBetween('date', [$monthStart, $monthEnd])
+                ->get();
 
             $totalHolidayDays = 0;
-            $totalHolidayHours = 0;
-            foreach ($holidays as $holiday) {
 
-                $holidayStart = Carbon::parse($holiday->start_date);
-                $holidayEnd   = $holiday->end_date
-                    ? Carbon::parse($holiday->end_date)
-                    : $holidayStart;
+            foreach ($holidayOverrides as $override) {
 
-                $period = \Carbon\CarbonPeriod::create($holidayStart, $holidayEnd);
+                $date = Carbon::parse($override->date);
 
-                foreach ($period as $date) {
+                $weekly = \App\Models\WeeklyWorkingDay::where(
+                    'day_of_week',
+                    $date->dayOfWeek
+                )->first();
 
-                    if ($date->lt($monthStart) || $date->gt($monthEnd)) {
-                        continue;
-                    }
-
-                    if ($date->isSaturday() || $date->isSunday()) {
-                        continue; // skip weekends
-                    }
-
-                    switch ($holiday->type) {
-
-                        case 'Full Holiday':
-                        case 'Multiple Holiday':
-                            $totalHolidayDays += 1;
-                            $totalHolidayHours += 8.5;
-                            break;
-
-                        case 'Half Holiday':
-                            $totalHolidayDays += 0.5;
-                            $totalHolidayHours += 4.25;
-                            break;
-
-                        case 'Short Holiday':
-                            if ($holiday->start_time && $holiday->end_time) {
-                                $start = Carbon::parse($holiday->start_time);
-                                $end   = Carbon::parse($holiday->end_time);
-                                $hours = $end->diffInMinutes($start) / 60;
-
-                                $totalHolidayHours += $hours;
-                            }
-                            break;
-                    }
+                // count only if weekly rule says working
+                if ($weekly && $weekly->is_working == 1) {
+                    $totalHolidayDays++;
                 }
             }
+            $totalHolidayHours = $totalHolidayDays * 8.5;
 
-            // Attach holiday data
             $credit->holiday_days = $totalHolidayDays;
             $credit->holiday_hours = $totalHolidayHours;
+
             $expectedWorkingDays =
                 LeaveCreditService::getWorkingDaysInMonth($dateForMonth);
 
             /**working hours */
-            $expectedWorkingHours = ($expectedWorkingDays * 8.5) - $totalHolidayHours;
+            $expectedWorkingHours = ($expectedWorkingDays * 8.5);
             $credit->expected_working_hours = max(0, $expectedWorkingHours);
-            $credit->worked_hours =
-                max(0, $expectedWorkingHours - $approvedLeaveHours);
-            // $credit->expected_working_days = $expectedWorkingDays;
+            $credit->worked_hours = max(0, $expectedWorkingHours - $approvedLeaveHours);
+            $credit->expected_working_days = $expectedWorkingDays;
 
             // Paid / Unpaid logic
             if ($approvedLeaveHours <= $monthlyLimitHours) {
@@ -238,19 +203,39 @@ class LeaveCreditController extends Controller
     }
     private function calculateLeaveHours($leaves)
     {
-        /**working hours used here*/
-        return $leaves->sum(function ($leave) {
-            if ($leave->total_hours) return (float) $leave->total_hours;
-            if ($leave->leave_type === 'Full Leave') return 8.5;
-            if ($leave->leave_type === 'Half Day') return 4.25;
+        /**working hours used here */
+        $WORKING_HOURS = 8.5;
+
+        return $leaves->sum(function ($leave) use ($WORKING_HOURS) {
+
+            // If total_hours already calculated
+            if (!empty($leave->total_hours)) {
+                return (float) $leave->total_hours;
+            }
+
+            $hours = 0;
+
+            // Actual leave hours
+            if ($leave->leave_type === 'Full Leave') {
+                $hours += $WORKING_HOURS;
+            }
+
+            if ($leave->leave_type === 'Half Day') {
+                $hours += $WORKING_HOURS / 2;
+            }
 
             if ($leave->leave_type === 'Short Leave' && $leave->start_time && $leave->end_time) {
                 $start = Carbon::parse($leave->start_time);
                 $end   = Carbon::parse($leave->end_time);
-                return $end->diffInMinutes($start) / 60;
+                $hours += $end->diffInMinutes($start) / 60;
             }
 
-            return 0;
+            // Add sandwich days hours
+            // if (!empty($leave->sandwich_extra_days)) {
+            //     $hours += $leave->sandwich_extra_days * $WORKING_HOURS;
+            // }
+
+            return $hours;
         });
     }
     public function store(Request $request)
@@ -631,7 +616,7 @@ class LeaveCreditController extends Controller
 
         return response()->json([
             'success' => true,
-            'message'=> "Data Updated for Current Month",
+            'message' => "Data Updated for Current Month",
             'processed_month' => $processMonth,
             'processed_year'  => $processYear,
             'total_updated'  => $count,

@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\DayOverride;
 use App\Models\LeavePolicy;
 use App\Models\LeaveCredit;
 use App\Models\User;
+use App\Models\WeeklyWorkingDay;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Request;
@@ -36,11 +38,11 @@ class LeaveCreditService
             // PROVISIONAL (3 paid allowed total)
             //elseif ($credit->employment_status === 'provisional') {
 
-                //$limit = $credit->provisional_leave_limit ?? 3;
-                // Track total actual leave taken (exclude sandwich)
-                //$newTotalTaken = $credit->provisional_leave_taken + $actualDays;
+            //$limit = $credit->provisional_leave_limit ?? 3;
+            // Track total actual leave taken (exclude sandwich)
+            //$newTotalTaken = $credit->provisional_leave_taken + $actualDays;
 
-                /* if ($credit->provisional_leave_taken < $limit) {
+            /* if ($credit->provisional_leave_taken < $limit) {
 
                     $remaining = $limit - $credit->provisional_leave_taken;
                     if ($actualDays <= $remaining) {
@@ -54,8 +56,8 @@ class LeaveCreditService
                     $unpaidDays = $actualDays;
                 } */
 
-                /*HANDLE EXTENDED MONTHS*/
-               /*  if ($newTotalTaken > $limit) {
+            /*HANDLE EXTENDED MONTHS*/
+            /*  if ($newTotalTaken > $limit) {
                     $exceededDays = $newTotalTaken - $limit;
 
                     // Example Rule: Every 1 extra leave = 1 month extension
@@ -112,73 +114,160 @@ class LeaveCreditService
             ];
         });
     }
+    public static function isWorkingDay(Carbon $date)
+    {
+        $override = DayOverride::whereDate('date', $date)->first();
 
+        if ($override) {
+            return (bool) $override->is_working;
+        }
+
+        $weekly = WeeklyWorkingDay::where('day_of_week', $date->dayOfWeek)->first();
+
+        return $weekly ? (bool) $weekly->is_working : true;
+    }
+    public static function isNonWorking($date)
+    {
+        $date = Carbon::parse($date);
+
+        $override = DayOverride::whereDate('date', $date)->first();
+
+        if ($override) {
+            return !$override->is_working;
+        }
+
+        $weekly = WeeklyWorkingDay::where(
+            'day_of_week',
+            $date->dayOfWeek
+        )->first();
+
+        return $weekly ? !$weekly->is_working : false;
+    }
+    public static function getAdjacentNonWorkingBlock(Carbon $date)
+    {
+        $days = 0;
+        $current = $date->copy();
+
+        while (!self::isWorkingDay($current)) {
+            $days++;
+            $current->addDay();
+        }
+
+        return $days;
+    }
     public static function calculateLeaveDays(LeavePolicy $leave)
     {
         $start = Carbon::parse($leave->start_date);
         $end   = Carbon::parse($leave->end_date);
+
         $workHoursPerDay = 8.5;
 
-        /*SHORT LEAVE*/
-        if ($leave->leave_type === 'Short Leave') {
-            $decimalDays = $leave->total_hours / $workHoursPerDay;
-            return [
-                'total_days'    => round($decimalDays, 2),
-                'actual_days'   => round($decimalDays, 2),
-                'sandwich_days' => 0
-            ];
-        }
-        /*HALF DAY*/
-        if ($leave->leave_type === 'Half Day') {
-            $sandwich = 0;
-            // Friday Afternoon
-            if ($start->isFriday() && strtolower($leave->halfday_period) === 'afternoon') {
-                $sandwich = 0.5;
-            }
-
-            // Monday Morning
-            if ($start->isMonday() && strtolower($leave->halfday_period) === 'morning') {
-                $sandwich = 0.5;
-            }
-
-            return [
-                'total_days'    => 0.5 + $sandwich,
-                'actual_days'   => 0.5,
-                'sandwich_days' => $sandwich
-            ];
-        }
-
-        /*FULL / MULTIPLE DAYS*/
-        $actualDays = 0;
+        $leaveDays = 0;
         $sandwich = 0;
-        $includesFriday = false;
-        $includesMonday = false;
-        $current = $start->copy();
 
-        while ($current->lte($end)) {
+        $actualHours = 0;
+        $sandwichHours = 0;
 
-            if (!$current->isSaturday() && !$current->isSunday()) {
-                $actualDays++;
-            }
-            if ($current->isFriday()) {
-                $includesFriday = true;
-            }
-            if ($current->isMonday()) {
-                $includesMonday = true;
-            }
-            $current->addDay();
+        $startTime = null;
+        $endTime = null;
+
+        // -------- Determine leave value --------
+
+        if ($leave->leave_type === 'Full Leave') {
+            $leaveDays = 1;
+            $actualHours = $workHoursPerDay;
         }
 
-        if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
-            if ($includesFriday || $includesMonday) {
-                $sandwich = 1.0;
+        if ($leave->leave_type === 'Half Day') {
+            $leaveDays = 0.5;
+            $actualHours = $workHoursPerDay / 2;
+        }
+
+        if ($leave->leave_type === 'Short Leave' && $leave->hours) {
+
+            [$startStr, $endStr] = explode(' to ', $leave->hours);
+
+            $startTime = Carbon::parse($leave->start_date . ' ' . trim($startStr));
+            $endTime   = Carbon::parse($leave->start_date . ' ' . trim($endStr));
+
+            // calculate exact minutes
+            $actualMinutes = $startTime->diffInMinutes($endTime);
+
+            // convert to hours (no rounding)
+            $actualHours = $actualMinutes / 60;
+
+            $leaveDays = round($actualHours / $workHoursPerDay, 2);
+        }
+
+        if ($leave->leave_type === 'Multiple Days Leave') {
+
+            $current = $start->copy();
+
+            while ($current->lte($end)) {
+
+                if (!self::isNonWorking($current)) {
+                    $leaveDays++;
+                    $actualHours += $workHoursPerDay;
+                }
+
+                $current->addDay();
             }
         }
+
+        // -------- Sandwich Detection --------
+
+        $prevDay = $start->copy()->subDay();
+        $nextDay = $end->copy()->addDay();
+
+        $touchesNonWorkingBlock = false;
+
+        if ($leave->leave_type === 'Short Leave' && $leave->hours) {
+
+            [$startStr, $endStr] = explode(' to ', $leave->hours);
+
+            $startTime = Carbon::parse($leave->start_date . ' ' . trim($startStr));
+            $endTime   = Carbon::parse($leave->start_date . ' ' . trim($endStr));
+
+            $workStart = Carbon::parse($leave->start_date . ' 10:00');
+            $workEnd   = Carbon::parse($leave->start_date . ' 19:00');
+
+            // touching office boundary
+            if (
+                ($endTime->gte($workEnd) && self::isNonWorking($nextDay)) ||
+                ($startTime->lte($workStart) && self::isNonWorking($prevDay))
+            ) {
+                $sandwich = $leaveDays;
+                $touchesNonWorkingBlock = true;
+            }
+        } else {
+
+            // Normal sandwich rule for full / half / multi leave
+            if (self::isNonWorking($prevDay) || self::isNonWorking($nextDay)) {
+                $touchesNonWorkingBlock = true;
+            }
+        }
+
+        if ($touchesNonWorkingBlock) {
+            $sandwich = $leaveDays;
+        }
+
+        // -------- Convert Sandwich to Hours --------
+
+        $sandwichHours = round($sandwich * $workHoursPerDay, 2);
+        $totalHours = round($actualHours + $sandwichHours , 2);
 
         return [
-            'total_days'    => $actualDays + $sandwich,
-            'actual_days'   => $actualDays,
-            'sandwich_days' => $sandwich
+            'actual_days'   => $leaveDays,
+            'sandwich_days' => $sandwich,
+            'total_days'    => $leaveDays + $sandwich,
+
+            'actual_hours'   => round($actualHours, 2),
+            'sandwich_hours' => $sandwichHours,
+            'total_hours'    => $totalHours,
+
+            'touchesNonWorkingBlock' => $touchesNonWorkingBlock,
+            'startTime' => $startTime,
+            'endTime'   => $endTime,
         ];
     }
     public static function getWorkingDaysInMonth(Carbon $date)
@@ -187,12 +276,37 @@ class LeaveCreditService
         $endOfMonth   = $date->copy()->endOfMonth();
 
         $workingDays = 0;
+
+        // preload monthly overrides
+        $overrides = DayOverride::whereBetween('date', [$startOfMonth, $endOfMonth])
+            ->get()
+            ->keyBy(function ($item) {
+                return Carbon::parse($item->date)->toDateString();
+            });
+
+        // preload weekly rules
+        $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+
         $current = $startOfMonth->copy();
 
         while ($current->lte($endOfMonth)) {
 
-            if (!$current->isSaturday() && !$current->isSunday()) {
-                $workingDays++;
+            $dateKey = $current->toDateString();
+
+            // 1️⃣ Check override first
+            if (isset($overrides[$dateKey])) {
+
+                if ($overrides[$dateKey]->is_working) {
+                    $workingDays++;
+                }
+            } else {
+
+                // 2️⃣ fallback to weekly rule
+                $weekday = $current->dayOfWeek;
+
+                if (isset($weeklyRules[$weekday]) && $weeklyRules[$weekday]) {
+                    $workingDays++;
+                }
             }
 
             $current->addDay();
