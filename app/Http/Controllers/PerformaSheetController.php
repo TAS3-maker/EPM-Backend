@@ -3542,7 +3542,7 @@ class PerformaSheetController extends Controller
                                 $endTime->addDay();
                             }
 
-                            $holidayMinutes = $endTime->diffInMinutes($startTime);
+                            $holidayMinutes = abs($startTime->diffInMinutes($endTime));
                         }
 
                         break;
