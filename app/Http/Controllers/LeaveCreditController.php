@@ -52,28 +52,59 @@ class LeaveCreditController extends Controller
 
             $monthLeaveDays = 0;
             $monthSandwichDays = 0;
-
-            // 1. Calculate ACTUAL leave days in month
+            $WORK_HOURS_PER_DAY = 8.5;
+            $totalActualLeaveHours = 0;
+            // ✅ 1. Calculate ACTUAL leave days (Full/Half/Short)
             foreach ($allApprovedLeaves as $leave) {
                 $leaveStart = Carbon::parse($leave->start_date);
                 $leaveEnd = Carbon::parse($leave->end_date);
 
+                // ✅ Clip to month boundaries
                 $monthLeaveStart = $leaveStart->copy()->max($startDate);
                 $monthLeaveEnd = $leaveEnd->copy()->min($endDate);
 
                 if ($monthLeaveStart <= $monthLeaveEnd) {
-                    $daysInMonth = (int) floor($monthLeaveStart->diffInDays($monthLeaveEnd, false) + 1);
-                    $monthLeaveDays += $daysInMonth;
-                    // ✅ NO sandwich_extra_days from DB used here
+                    if (empty($leave->halfday_period) && empty($leave->hours)) {
+                        // FULL DAY
+                        $fullDays = (int) floor($monthLeaveStart->diffInDays($monthLeaveEnd, false) + 1);
+                        $monthLeaveDays += $fullDays;
+                        $totalActualLeaveHours += $fullDays * $WORK_HOURS_PER_DAY;
+                    } elseif (!empty($leave->halfday_period)) {
+                        // HALF DAY
+                        $halfDays = (int) floor($monthLeaveStart->diffInDays($monthLeaveEnd, false) + 1);
+                        $monthLeaveDays += $halfDays * 0.5;
+                        $totalActualLeaveHours += $halfDays * ($WORK_HOURS_PER_DAY / 2);
+                    } elseif (!empty($leave->hours)) {
+                        // ✅ SHORT DAY: Parse time range
+                        $timeRange = $leave->hours;
+                        if (preg_match('/(\d{1,2}:\d{2}\s*(?:AM|PM))(?:\s*to\s*)(.+)/i', $timeRange, $matches)) {
+                            $startTime = $matches[1];
+                            $endTime = trim($matches[2]);
+                            $start = Carbon::parse($startTime);
+                            $end = Carbon::parse($endTime);
+                            $leaveHours = $start->floatDiffInHours($end);
+                        } else {
+                            $leaveHours = (float) $leave->hours;
+                        }
+
+                        $dayFraction = $leaveHours / $WORK_HOURS_PER_DAY;
+                        $monthLeaveDays += $dayFraction;
+                        $totalActualLeaveHours += $leaveHours;
+                    }
                 }
             }
 
-            // 2. ✅ DYNAMIC sandwich: Day BEFORE and AFTER leave (using CalendarController)
+            // ✅ 2. DYNAMIC sandwich days (only full days qualify)
             foreach ($allApprovedLeaves as $leave) {
+                // Skip half/short leaves for sandwich
+                if (!empty($leave->halfday_period) || !empty($leave->hours)) {
+                    continue;
+                }
+
                 $leaveStart = Carbon::parse($leave->start_date);
                 $leaveEnd = Carbon::parse($leave->end_date);
 
-                // Day BEFORE leave starts (only if in this month)
+                // Day BEFORE leave starts
                 $sandwichBefore = $leaveStart->copy()->subDay();
                 if ($sandwichBefore >= $startDate && $sandwichBefore <= $endDate) {
                     if ($calendarController->isNonWorkingDay($sandwichBefore->toDateString())) {
@@ -81,7 +112,7 @@ class LeaveCreditController extends Controller
                     }
                 }
 
-                // Day AFTER leave ends (only if in this month)
+                // Day AFTER leave ends
                 $sandwichAfter = $leaveEnd->copy()->addDay();
                 if ($sandwichAfter >= $startDate && $sandwichAfter <= $endDate) {
                     if ($calendarController->isNonWorkingDay($sandwichAfter->toDateString())) {
@@ -90,14 +121,13 @@ class LeaveCreditController extends Controller
                 }
             }
 
-            $WORK_HOURS_PER_DAY = 8.5;
+            // ✅ Hours calculation
             $approvedLeaveDays = round($monthLeaveDays, 2);
             $approvedLeaveHours = round($monthLeaveDays * $WORK_HOURS_PER_DAY, 2);
             $sandwichHours = round($monthSandwichDays * $WORK_HOURS_PER_DAY, 2);
             $deductedDays = round($monthLeaveDays + $monthSandwichDays, 2);
             $totalDeductedHours = round($approvedLeaveHours + $sandwichHours, 2);
 
-            $credit->leave_application_count = $allApprovedLeaves->count();
             $credit->leave_days = $approvedLeaveDays;
             $credit->deducted_days = $deductedDays;
             $credit->leave_taken_hours = $approvedLeaveHours;
