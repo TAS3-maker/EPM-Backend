@@ -3416,7 +3416,8 @@ class PerformaSheetController extends Controller
                 $leavePeriod = CarbonPeriod::create(Carbon::parse($leave->start_date), Carbon::parse($leave->end_date));
 
                 foreach ($leavePeriod as $date) {
-                    if (!$date->between($startOfWeek, $endOfWeek)) continue;
+                    if (!$date->between($startOfWeek, $endOfWeek))
+                        continue;
                     $dateStr = $date->toDateString();
 
                     if ($leave->is_wfh == 1) {
@@ -3474,10 +3475,12 @@ class PerformaSheetController extends Controller
                     $workingDays = 0;
                     $cursor = $carbonDay->copy();
                     while ($cursor->lt($today)) {
-                        if (!$calendarController->isNonWorkingDay($cursor)) $workingDays++;
+                        if (!$calendarController->isNonWorkingDay($cursor))
+                            $workingDays++;
                         $cursor->addDay();
                     }
-                    if ($workingDays > 2) $isFillable = 0;
+                    if ($workingDays > 2)
+                        $isFillable = 0;
                 }
 
                 /* -------- Default totals -------- */
@@ -4009,8 +4012,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                        ? Carbon::parse($holiday->end_date)
-                        : Carbon::parse($holiday->start_date)
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -6404,10 +6407,20 @@ class PerformaSheetController extends Controller
             ];
 
             $performaSheets = DB::table('performa_sheets')
-                ->get()->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->whereIn('status', ['approved', 'pending', 'backdated'])
+                ->whereBetween(
+                    DB::raw("JSON_UNQUOTE(JSON_EXTRACT(JSON_UNQUOTE(data), '$.date'))"),
+                    [$startDate->toDateString(), $endDate->toDateString()]
+                )
+                ->select('user_id', 'status', 'data')
+                ->get()
                 ->groupBy('user_id');
 
             $leaves = LeavePolicy::where('status', 'Approved')
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->whereDate('start_date', '<=', $endDate)
+                        ->whereDate('end_date', '>=', $startDate);
+                })
                 ->get()
                 ->groupBy('user_id');
 
