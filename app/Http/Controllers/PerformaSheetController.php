@@ -4333,7 +4333,7 @@ class PerformaSheetController extends Controller
             $FULL_DAY_MINUTES = 510;
             $dailyExpectedMinutes = $FULL_DAY_MINUTES;
 
-            /* $holidayRanges = EventHoliday::get()->map(function ($holiday) {
+            $holidayRanges = EventHoliday::get()->map(function ($holiday) {
                 return [
                     'start' => Carbon::parse($holiday->start_date)->toDateString(),
                     'end' => $holiday->end_date
@@ -4343,7 +4343,7 @@ class PerformaSheetController extends Controller
                     'start_time' => $holiday->start_time,
                     'end_time' => $holiday->end_time,
                 ];
-            }); */
+            });
 
             $current_user = auth()->user();
             $currentTeamIds = $current_user->team_id;
@@ -4418,7 +4418,7 @@ class PerformaSheetController extends Controller
                         $expectedMinutes = $dailyExpectedMinutes;
                         $leaveMinutes = 0;
 
-                        /* foreach ($holidayRanges as $holiday) {
+                        foreach ($holidayRanges as $holiday) {
 
                             if ($holiday['start'] <= $dateStr && $holiday['end'] >= $dateStr) {
 
@@ -4453,7 +4453,7 @@ class PerformaSheetController extends Controller
                                         break;
                                 }
                             }
-                        } */
+                        }
 
                         $userLeaves = LeavePolicy::where('user_id', $user->id)
                             ->whereIn('leave_type', [
