@@ -6030,9 +6030,42 @@ class PerformaSheetController extends Controller
                 : Carbon::today()->endOfDay();
 
             $STANDARD_DAY_MINUTES = 510;
+            $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+
+            $overrides = DayOverride::where('date', '>=', $startDate->toDateString())
+                ->where('date', '<=', $endDate->toDateString())
+                ->get()
+                ->keyBy(fn($d) => Carbon::parse($d->date)->toDateString());
+
             $totalHolidayMinutes = 0;
 
             $holidayExpectedMinutesByDate = [];
+
+            $period = CarbonPeriod::create($startDate, $endDate);
+
+            foreach ($period as $date) {
+
+                $dateStr = $date->toDateString();
+
+                $isWorking = true;
+                $weekday = $date->dayOfWeek;
+
+                if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
+                    $isWorking = false;
+                }
+
+                if (isset($overrides[$dateStr])) {
+                    $override = $overrides[$dateStr];
+                    $isWorking = $override->is_working ? true : false;
+                }
+
+                if (!$isWorking) {
+
+                    $holidayExpectedMinutesByDate[$dateStr] = 0;
+
+                    $totalHolidayMinutes += $STANDARD_DAY_MINUTES;
+                }
+            }
 
             $holidays = DB::table('event_holidays')
                 ->where(function ($q) use ($startDate, $endDate) {
@@ -6057,7 +6090,14 @@ class PerformaSheetController extends Controller
 
                 foreach ($period as $date) {
 
-                    if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
+                    if (!$date->between($startDate, $endDate)) {
+                        continue;
+                    }
+
+                    $dateStr = $date->toDateString();
+
+                    /* Skip if already marked as non-working */
+                    if (isset($holidayExpectedMinutesByDate[$dateStr]) && $holidayExpectedMinutesByDate[$dateStr] == 0) {
                         continue;
                     }
 
@@ -6136,8 +6176,7 @@ class PerformaSheetController extends Controller
 
                     if (
                         $entryDate->lt($startDate) ||
-                        $entryDate->gt($endDate) ||
-                        $entryDate->isWeekend()
+                        $entryDate->gt($endDate)
                     ) {
                         continue;
                     }
@@ -6183,7 +6222,7 @@ class PerformaSheetController extends Controller
 
                 foreach ($period as $date) {
 
-                    if ($date->isWeekend() || !$date->between($startDate, $endDate)) {
+                    if (!$date->between($startDate, $endDate)) {
                         continue;
                     }
 
@@ -6232,7 +6271,21 @@ class PerformaSheetController extends Controller
 
             foreach ($period as $date) {
 
-                if ($date->isWeekend()) {
+                $dateStr = $date->toDateString();
+
+                $isWorking = true;
+                $weekday = $date->dayOfWeek;
+
+                if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
+                    $isWorking = false;
+                }
+
+                if (isset($overrides[$dateStr])) {
+                    $override = $overrides[$dateStr];
+                    $isWorking = $override->is_working ? true : false;
+                }
+
+                if (!$isWorking) {
                     continue;
                 }
 
