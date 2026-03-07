@@ -1072,7 +1072,6 @@ class LeaveController extends Controller
         $overrides = DayOverride::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
             ->get()->keyBy(fn($d) => Carbon::parse($d->date)->toDateString());
 
-
         $period = iterator_to_array(CarbonPeriod::create($startDate, $endDate));
         $today = Carbon::today();
         $response = [];
@@ -1101,7 +1100,7 @@ class LeaveController extends Controller
                 }
 
                 $attendanceData[$dayStr] = [
-                    'present' => ($isWeekend || $date->gt($today)) ? '' : 1,
+                    'present' => (!$isWorkingDay || $date->gt($today)) ? '' : 1,
                     'leave_type' => '',
                     'halfday_period' => '',
                     'hours' => '',

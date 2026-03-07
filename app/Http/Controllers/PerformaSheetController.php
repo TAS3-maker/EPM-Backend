@@ -3118,14 +3118,16 @@ class PerformaSheetController extends Controller
             $WFH_DAY_MINUTES = 600;
             /* CALENDAR RULES (weekly + overrides)*/
 
+            $calendarController = new \App\Http\Controllers\CalendarController();
             $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
 
-            $overrides = DayOverride::whereBetween('date', [
-                $startOfWeek->toDateString(),
-                $endOfWeek->toDateString()
-            ])->get()->keyBy(function ($d) {
-                return Carbon::parse($d->date)->toDateString();
-            });
+            $overrides = DayOverride::where('date', '>=', $startOfWeek->toDateString())
+                ->where('date', '<=', $endOfWeek->copy()->addWeek()->toDateString())
+                ->get()
+                ->keyBy(function ($d) {
+                    return Carbon::parse($d->date)->toDateString();
+                });
+
             $sheets = PerformaSheet::where('user_id', $user->id)
                 ->whereIn('status', ['approved', 'pending', 'backdated', 'standup'])
                 ->get()
@@ -3224,7 +3226,7 @@ class PerformaSheetController extends Controller
                     $cursor = $carbonDay->copy();
 
                     while ($cursor->lt($today)) {
-                        if (!$cursor->isWeekend()) {
+                        if (!$calendarController->isNonWorkingDay($cursor)) {
                             $workingDays++;
                         }
                         $cursor->addDay();
@@ -3285,17 +3287,13 @@ class PerformaSheetController extends Controller
                 /* -------- NON WORKING DAY -------- */
 
                 if (!$isWorking) {
-
-                    if ($reason) { // HR holiday
-
+                    if ($reason) { // HR holiday or free holiday
                         $totals['holiday_hours'] = $minutesToTime($FULL_DAY_MINUTES);
                     } else { // weekly off
-
                         $totals['holiday_hours'] = '00:00';
                     }
 
                     $totals['available_hours'] = '00:00';
-
                     continue;
                 }
 
@@ -3312,6 +3310,7 @@ class PerformaSheetController extends Controller
                 // $totals['holiday_hours'] = $minutesToTime($holidayMinutes);
                 $totals['available_hours'] = $minutesToTime($available);
                 $totals['is_wfh'] = $isWfh ? 1 : 0;
+                $totals['isWorking'] = $isWorking;
             }
 
             return response()->json([
