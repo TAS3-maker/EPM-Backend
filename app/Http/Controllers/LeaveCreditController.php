@@ -188,7 +188,7 @@ class LeaveCreditController extends Controller
                 $credit->paid_hours = 0;
                 $credit->unpaid_hours = $totalDeductedHours;
             } else {
-                if ($approvedLeaveHours <= $monthlyLimitHours) {
+                if ($totalDeductedHours <= $monthlyLimitHours) {
                     $credit->paid_hours = $approvedLeaveHours;
                     $credit->unpaid_hours = 0;
                 } else {
