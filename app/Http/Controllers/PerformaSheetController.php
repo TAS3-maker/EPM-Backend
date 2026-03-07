@@ -535,6 +535,213 @@ class PerformaSheetController extends Controller
 
 
 
+    // public function submitForApproval(Request $request)
+    // {
+    //     $authUser = auth()->user();
+
+    //     $validatedData = $request->validate([
+    //         'data' => 'required|array|min:1',
+    //         'data.*.id' => [
+    //             'required',
+    //             Rule::exists('performa_sheets', 'id')->where('user_id', $authUser->id),
+    //         ],
+    //     ]);
+
+    //     $currentSheetIds = collect($validatedData['data'])->pluck('id')->toArray();
+    //     $submittedSheetsByDate = [];
+    //     $updatedCount = 0;
+
+    //     foreach ($validatedData['data'] as $record) {
+
+    //         $sheet = PerformaSheet::where('id', $record['id'])
+    //             ->where('user_id', $authUser->id)
+    //             ->first();
+
+    //         if (!$sheet)
+    //             continue;
+
+    //         $data = json_decode($sheet->data, true);
+    //         if (!is_array($data) || empty($data['date']))
+    //             continue;
+
+    //         $date = Carbon::parse($data['date'])->format('Y-m-d');
+    //         $submittedSheetsByDate[$date][] = $data;
+    //     }
+
+    //     foreach ($submittedSheetsByDate as $date => $newSheets) {
+
+    //         $existingSheets = PerformaSheet::where('user_id', $authUser->id)
+    //             ->whereIn('status', ['pending', 'approved'])
+    //             ->whereNotIn('id', $currentSheetIds)
+    //             ->get()
+    //             ->filter(function ($sheet) use ($date) {
+    //                 $data = json_decode($sheet->data, true);
+    //                 return is_array($data) && ($data['date'] ?? null) === $date;
+    //             });
+
+    //         $existingMinutes = 0;
+    //         $existingWorkTypes = [];
+
+    //         foreach ($existingSheets as $sheet) {
+    //             $data = json_decode($sheet->data, true);
+    //             $existingMinutes += $this->timeToMinutesforsheetapprovel($data['time']);
+    //             $existingWorkTypes[] = $data['work_type'];
+    //         }
+    //         $newMinutes = 0;
+    //         $newWorkTypes = [];
+
+    //         foreach ($newSheets as $sheet) {
+    //             $newMinutes += $this->timeToMinutesforsheetapprovel($sheet['time']);
+    //             $newWorkTypes[] = $sheet['work_type'];
+    //         }
+
+    //         $allWorkTypes = array_unique(array_merge($existingWorkTypes, $newWorkTypes));
+    //         $isWFH = in_array('WFH', $allWorkTypes);
+
+    //         $expectedMinutes = $isWFH ? 600 : 510;
+
+    //         $leaveMinutes = 0;
+    //         $leaveForDate = null;
+
+    //         $leaves = LeavePolicy::where('user_id', $authUser->id)
+    //             ->whereIn('status', ['Approved', 'Pending'])
+    //             ->get();
+
+    //         foreach ($leaves as $leave) {
+
+    //             if (!Carbon::parse($date)->between($leave->start_date, $leave->end_date)) {
+    //                 continue;
+    //             }
+
+    //             $leaveForDate = $leave;
+
+    //             if (in_array($leave->leave_type, ['Full Leave', 'Multiple Days Leave'])) {
+    //                 return response()->json([
+    //                     'success' => false,
+    //                     'message' => "You cannot submit performa sheets on "
+    //                         . Carbon::parse($date)->format('d M Y')
+    //                         . " due to {$leave->leave_type}.",
+    //                 ], 422);
+    //             }
+
+    //             if ($leave->leave_type === 'Half Day') {
+    //                 $leaveMinutes += ($expectedMinutes / 2);
+    //             }
+
+    //             if ($leave->leave_type === 'Short Leave') {
+    //                 $leaveMinutes += $this->shortLeaveMinutesforsheetapprovel($leave->hours);
+    //             }
+    //         }
+
+    //         $holidayMinutes = 0;
+    //         $holidayForDate = null;
+
+    //         $holiday = EventHoliday::where('start_date', '<=', $date)
+    //             ->where(function ($q) use ($date) {
+    //                 $q->whereNull('end_date')
+    //                     ->orWhere('end_date', '>=', $date);
+    //             })
+    //             ->first();
+
+    //         if ($holiday) {
+
+    //             $holidayForDate = $holiday;
+
+    //             if ($holiday->type === 'Full Holiday') {
+    //                 $holidayMinutes = $expectedMinutes;
+    //             }
+
+    //             if ($holiday->type === 'Half Holiday') {
+    //                 $holidayMinutes = $expectedMinutes / 2;
+    //             }
+
+    //             if ($holiday->type === 'Short Holiday' && $holiday->start_time && $holiday->end_time) {
+
+    //                 try {
+    //                     $start = Carbon::createFromFormat('H:i', $holiday->start_time);
+    //                     $end = Carbon::createFromFormat('H:i', $holiday->end_time);
+
+    //                     $holidayMinutes = abs($start->diffInMinutes($end));
+    //                 } catch (\Exception $e) {
+    //                     $holidayMinutes = 0;
+    //                 }
+    //             }
+    //         }
+
+    //         $maxAllowedMinutes = max(0, $expectedMinutes - $leaveMinutes);
+
+    //         $minRequiredMinutes = max(0, $maxAllowedMinutes - $holidayMinutes);
+
+    //         $totalSubmittedMinutes = $existingMinutes + $newMinutes;
+
+    //         $dateLabel = Carbon::parse($date)->format('d M Y');
+
+    //         if ($totalSubmittedMinutes > $maxAllowedMinutes) {
+
+    //             $allowedRemaining = max(0, $maxAllowedMinutes - $existingMinutes);
+
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => "You can submit only "
+    //                     . $this->minutesToHoursforsheetapprovel($allowedRemaining)
+    //                     . " hours for {$dateLabel}.",
+    //             ], 422);
+    //         }
+
+    //         if (!$isWFH && $totalSubmittedMinutes < $minRequiredMinutes) {
+
+    //             $missingMinutes = $minRequiredMinutes - $totalSubmittedMinutes;
+
+    //             $message = '';
+
+    //             if ($leaveForDate) {
+    //                 $message .= "You have a {$leaveForDate->leave_type} on {$dateLabel}, ";
+    //             }
+
+    //             if ($holidayForDate) {
+    //                 $message .= "You have {$holidayForDate->type} on {$dateLabel}, ";
+    //             }
+
+    //             $message .= "you need to submit "
+    //                 . $this->minutesToHoursforsheetapprovel($missingMinutes)
+    //                 . " more hours for {$dateLabel}.";
+
+    //             return response()->json([
+    //                 'success' => false,
+    //                 'message' => $message,
+    //             ], 422);
+    //         }
+    //     }
+
+    //     foreach ($validatedData['data'] as $record) {
+
+    //         $sheet = PerformaSheet::where('id', $record['id'])
+    //             ->where('user_id', $authUser->id)
+    //             ->first();
+
+    //         if (!$sheet)
+    //             continue;
+
+    //         $data = json_decode($sheet->data, true);
+    //         $sheet->update([
+    //             'data' => json_encode($data),
+    //             'status' => 'pending',
+    //         ]);
+
+    //         $updatedCount++;
+    //     }
+
+    //     ActivityService::log([
+    //         'type' => 'activity',
+    //         'description' => 'Performa Sheets submitted for approval by ' . $authUser->name,
+    //     ]);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => "{$updatedCount} Performa Sheets submitted for approval successfully.",
+    //     ]);
+    // }
+
     public function submitForApproval(Request $request)
     {
         $authUser = auth()->user();
@@ -550,6 +757,12 @@ class PerformaSheetController extends Controller
         $currentSheetIds = collect($validatedData['data'])->pluck('id')->toArray();
         $submittedSheetsByDate = [];
         $updatedCount = 0;
+
+        $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+
+        $overrides = DayOverride::get()->keyBy(function ($d) {
+            return Carbon::parse($d->date)->toDateString();
+        });
 
         foreach ($validatedData['data'] as $record) {
 
@@ -675,6 +888,17 @@ class PerformaSheetController extends Controller
             $totalSubmittedMinutes = $existingMinutes + $newMinutes;
 
             $dateLabel = Carbon::parse($date)->format('d M Y');
+            $dayName = Carbon::parse($date)->format('l');
+            $isWorkingDay = $weeklyRules[$dayName] ?? true;
+
+            if (isset($overrides[$date])) {
+                $isWorkingDay = $overrides[$date]->is_working;
+            }
+
+            if (!$isWorkingDay) {
+                $minRequiredMinutes = 0;
+                $maxAllowedMinutes = $expectedMinutes;
+            }
 
             if ($totalSubmittedMinutes > $maxAllowedMinutes) {
 
@@ -3785,8 +4009,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                        ? Carbon::parse($holiday->end_date)
-                        : Carbon::parse($holiday->start_date)
+                    ? Carbon::parse($holiday->end_date)
+                    : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -4271,7 +4495,7 @@ class PerformaSheetController extends Controller
                                         [$start, $end] = explode('to', $leave->hours);
 
                                         $startTime = Carbon::parse($dateStr . ' ' . trim($start));
-                                        $endTime   = Carbon::parse($dateStr . ' ' . trim($end));
+                                        $endTime = Carbon::parse($dateStr . ' ' . trim($end));
 
                                         if ($endTime->lessThan($startTime)) {
                                             $endTime->addDay();
@@ -6115,7 +6339,8 @@ class PerformaSheetController extends Controller
                 );
 
                 foreach ($period as $date) {
-                    if ($calendarController->isNonWorkingDay($date)) continue;
+                    if ($calendarController->isNonWorkingDay($date))
+                        continue;
                     $dateStr = $date->toDateString();
                     switch ($holiday->type) {
                         case 'Full Holiday':
@@ -6176,7 +6401,8 @@ class PerformaSheetController extends Controller
                 $teamHolidayMinutes = 0;
                 $period = CarbonPeriod::create($startDate, $endDate);
                 foreach ($period as $date) {
-                    if ($calendarController->isNonWorkingDay($date)) continue;
+                    if ($calendarController->isNonWorkingDay($date))
+                        continue;
                     $dateStr = $date->toDateString();
                     $teamHolidayMinutes += $holidayMinutesPerDay[$dateStr] ?? 0;
                 }
@@ -6216,7 +6442,8 @@ class PerformaSheetController extends Controller
                                     continue;
 
                                 $entryDate = Carbon::parse($entry['date']);
-                                if ($calendarController->isNonWorkingDay($entryDate)) continue;
+                                if ($calendarController->isNonWorkingDay($entryDate))
+                                    continue;
                                 if ($entryDate->lt($startDate) || $entryDate->gt($endDate))
                                     continue;
 
@@ -6275,7 +6502,8 @@ class PerformaSheetController extends Controller
                             );
 
                             foreach ($period as $date) {
-                                if ($calendarController->isNonWorkingDay($date)) continue;
+                                if ($calendarController->isNonWorkingDay($date))
+                                    continue;
                                 if (!$date->between($startDate, $endDate))
                                     continue;
 
@@ -6310,7 +6538,8 @@ class PerformaSheetController extends Controller
                     }
                     $period = CarbonPeriod::create($effectiveStart, $endDate);
                     foreach ($period as $date) {
-                        if ($calendarController->isNonWorkingDay($date)) continue;
+                        if ($calendarController->isNonWorkingDay($date))
+                            continue;
 
                         $dateStr = $date->toDateString();
                         $worked = $workedPerDay[$dateStr] ?? 0;
