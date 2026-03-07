@@ -6066,7 +6066,7 @@ class PerformaSheetController extends Controller
 
                     $holidayExpectedMinutesByDate[$dateStr] = 0;
 
-                    $totalHolidayMinutes += $STANDARD_DAY_MINUTES;
+                    // $totalHolidayMinutes += $STANDARD_DAY_MINUTES;
                 }
             }
 
