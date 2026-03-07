@@ -3095,67 +3095,76 @@ class PerformaSheetController extends Controller
         try {
             $weeklyTotals = [];
 
-            $selectedDate = $request->input('date') ? Carbon::parse($request->input('date')) : Carbon::today();
+            $selectedDate = $request->input('date')
+                ? Carbon::parse($request->input('date'))
+                : Carbon::today();
 
             $startOfWeek = $selectedDate->copy()->startOfWeek();
             $endOfWeek = $selectedDate->copy()->endOfWeek();
             $today = Carbon::today();
             $period = new \DatePeriod($startOfWeek, \DateInterval::createFromDateString('1 day'), $endOfWeek->copy()->addDay());
 
-            $timeToMinutes = function ($time) {
-                [$hours, $minutes] = explode(':', $time);
-                return intval($hours) * 60 + intval($minutes);
-            };
-
-            $minutesToTime = function ($minutes) {
-                $h = floor($minutes / 60);
-                $m = $minutes % 60;
-                return str_pad($h, 2, '0', STR_PAD_LEFT) . ':' . str_pad($m, 2, '0', STR_PAD_LEFT);
-            };
+            $timeToMinutes = fn($time) => intval(explode(':', $time)[0]) * 60 + intval(explode(':', $time)[1]);
+            $minutesToTime = fn($minutes) => str_pad(floor($minutes / 60), 2, '0', STR_PAD_LEFT) . ':' . str_pad($minutes % 60, 2, '0', STR_PAD_LEFT);
 
             $FULL_DAY_MINUTES = 510;
             $HALF_DAY_MINUTES = 255;
             $WFH_DAY_MINUTES = 600;
-            /* CALENDAR RULES (weekly + overrides)*/
 
-            $calendarController = new \App\Http\Controllers\CalendarController();
-            $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
-
-            $overrides = DayOverride::where('date', '>=', $startOfWeek->toDateString())
-                ->where('date', '<=', $endOfWeek->copy()->addWeek()->toDateString())
-                ->get()
-                ->keyBy(function ($d) {
-                    return Carbon::parse($d->date)->toDateString();
-                });
-
+            /* -----------------------------
+           Fetch Performa Sheets
+        ----------------------------- */
             $sheets = PerformaSheet::where('user_id', $user->id)
                 ->whereIn('status', ['approved', 'pending', 'backdated', 'standup'])
                 ->get()
                 ->filter(function ($sheet) use ($startOfWeek, $endOfWeek) {
                     $data = json_decode($sheet->data, true);
-                    if (!$data || !isset($data['date']))
-                        return false;
 
-                    return $data['date'] >= $startOfWeek->toDateString() &&
-                        $data['date'] <= $endOfWeek->toDateString();
+                    if (!$data || !isset($data['date'])) {
+                        return false;
+                    }
+
+                    return $data['date'] >= $startOfWeek->toDateString()
+                        && $data['date'] <= $endOfWeek->toDateString();
                 })
                 ->values();
 
             $workedMinutesByDate = [];
             $billableMinutesByDate = [];
             $nonBillableMinutesByDate = [];
+            $wfhDatesFromSheets = [];
 
             foreach ($sheets as $sheet) {
+
                 $data = json_decode($sheet->data, true);
-                if (!$data || !isset($data['date'], $data['time'], $data['activity_type']))
+                if (!$data || !isset($data['date'], $data['time'])) {
                     continue;
+                }
 
                 $date = $data['date'];
                 $minutes = $timeToMinutes($data['time']);
-                $type = strtolower($data['activity_type']);
+
+                // Detect WFH
                 if (isset($data['work_type']) && strtolower($data['work_type']) === 'wfh') {
                     $wfhDatesFromSheets[$date] = true;
                 }
+
+                /* ---------- STANDUP SHEETS ---------- */
+                if ($sheet->status === 'standup') {
+
+                    // Standup contributes only to total hours
+                    $workedMinutesByDate[$date] = ($workedMinutesByDate[$date] ?? 0) + $minutes;
+
+                    continue;
+                }
+
+                /* ---------- NORMAL SHEETS ---------- */
+                if (!isset($data['activity_type'])) {
+                    continue;
+                }
+
+                $type = strtolower($data['activity_type']);
+
                 $workedMinutesByDate[$date] = ($workedMinutesByDate[$date] ?? 0) + $minutes;
 
                 if ($type === 'billable') {
@@ -3165,6 +3174,9 @@ class PerformaSheetController extends Controller
                 }
             }
 
+            /* -----------------------------
+           Fetch Leaves
+        ----------------------------- */
             $leaveMinutesByDate = [];
             $wfhDates = [];
 
@@ -3177,65 +3189,74 @@ class PerformaSheetController extends Controller
                 ->get();
 
             foreach ($leaves as $leave) {
-
-                $leavePeriod = CarbonPeriod::create(
-                    Carbon::parse($leave->start_date),
-                    Carbon::parse($leave->end_date)
-                );
+                $leavePeriod = CarbonPeriod::create(Carbon::parse($leave->start_date), Carbon::parse($leave->end_date));
 
                 foreach ($leavePeriod as $date) {
-
                     if (!$date->between($startOfWeek, $endOfWeek)) continue;
-
                     $dateStr = $date->toDateString();
 
                     if ($leave->is_wfh == 1) {
                         $wfhDates[$dateStr] = true;
                         continue;
                     }
+
                     switch ($leave->leave_type) {
-
                         case 'Full Leave':
-                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + 510;
+                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + $FULL_DAY_MINUTES;
                             break;
-
                         case 'Half Day':
-                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + 255;
+                            $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + $HALF_DAY_MINUTES;
                             break;
-
                         case 'Short Leave':
                             if ($leave->hours && str_contains($leave->hours, 'to')) {
                                 [$start, $end] = explode('to', $leave->hours);
-                                $leaveMin = Carbon::parse(trim($start))
-                                    ->diffInMinutes(Carbon::parse(trim($end)));
-
+                                $leaveMin = Carbon::parse(trim($start))->diffInMinutes(Carbon::parse(trim($end)));
                                 $leaveMinutesByDate[$dateStr] = ($leaveMinutesByDate[$dateStr] ?? 0) + $leaveMin;
                             }
                             break;
                     }
                 }
             }
+
+            /* -----------------------------
+           Fetch Weekly Rules & Overrides
+        ----------------------------- */
+            $calendarController = new \App\Http\Controllers\CalendarController();
+            $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+            $overrides = DayOverride::where('date', '>=', $startOfWeek->toDateString())
+                ->where('date', '<=', $endOfWeek->copy()->addWeek()->toDateString())
+                ->get()
+                ->keyBy(fn($d) => Carbon::parse($d->date)->toDateString());
+
+            /* -----------------------------
+           Fetch Holidays
+        ----------------------------- */
+            $holidayRanges = EventHoliday::where('start_date', '<=', $endOfWeek->toDateString())
+                ->where(function ($q) use ($startOfWeek) {
+                    $q->whereNull('end_date')
+                        ->orWhere('end_date', '>=', $startOfWeek->toDateString());
+                })->get();
+
+            /* -----------------------------
+           Loop through each day
+        ----------------------------- */
             foreach ($period as $day) {
                 $carbonDay = Carbon::instance($day);
                 $dateKey = $carbonDay->toDateString();
 
-                /* is_fillable calculation per day*/
+                /* -------- is_fillable calculation -------- */
                 $isFillable = 1;
                 if ($carbonDay->lt($today)) {
                     $workingDays = 0;
                     $cursor = $carbonDay->copy();
-
                     while ($cursor->lt($today)) {
-                        if (!$calendarController->isNonWorkingDay($cursor)) {
-                            $workingDays++;
-                        }
+                        if (!$calendarController->isNonWorkingDay($cursor)) $workingDays++;
                         $cursor->addDay();
                     }
-
-                    if ($workingDays > 2) {
-                        $isFillable = 0;
-                    }
+                    if ($workingDays > 2) $isFillable = 0;
                 }
+
+                /* -------- Default totals -------- */
                 $weeklyTotals[$dateKey] = [
                     'dayname' => $carbonDay->format('D'),
                     'totalHours' => '00:00',
@@ -3245,72 +3266,100 @@ class PerformaSheetController extends Controller
                     'totalBillableHours' => '00:00',
                     'totalNonBillableHours' => '00:00',
                     'is_wfh' => 0,
-                    'is_fillable' => $isFillable
+                    'is_fillable' => $isFillable,
+                    'isWorking' => true,
                 ];
-            }
-            /* -------------------------------------------------
-           CALCULATE DAILY TOTALS
-        ------------------------------------------------- */
-            // $holidayMinutesByDate = [];
-            foreach ($weeklyTotals as $date => &$totals) {
-                $dateCarbon = Carbon::parse($date);
-                $worked = $workedMinutesByDate[$date] ?? 0;
-                $billable = $billableMinutesByDate[$date] ?? 0;
-                $nonBillable = $nonBillableMinutesByDate[$date] ?? 0;
-                $leave = $leaveMinutesByDate[$date] ?? 0;
 
-                $isWfh = isset($wfhDates[$date]) || isset($wfhDatesFromSheets[$date]);
-
-                $dayTotal = $isWfh ? $WFH_DAY_MINUTES : $FULL_DAY_MINUTES;
-
-                /* -------- check override first -------- */
-
+                /* -------- Determine dayTotal & isWorking -------- */
+                // Determine if day is working
                 $isWorking = true;
-                $reason = null;
+                $holidayMinutes = 0;
+                $dayTotal = isset($wfhDates[$dateKey]) ? $WFH_DAY_MINUTES : $FULL_DAY_MINUTES;
 
-                if (isset($overrides[$date])) {
+                /* -------- Weekly rules -------- */
+                $weekday = $carbonDay->dayOfWeek;
+                if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
+                    $isWorking = false;
+                }
 
-                    $override = $overrides[$date];
+                /* -------- Overrides -------- */
+                if (isset($overrides[$dateKey])) {
+                    $override = $overrides[$dateKey];
+                    $isWorking = $override->is_working ? true : false;
+                }
+                /* -------- Non Working Day Holiday -------- */
+                if (!$isWorking) {
+                    $holidayMinutes = $FULL_DAY_MINUTES;
+                }
 
-                    $isWorking = $override->is_working;
+                /* -------- Holidays (ALWAYS CALCULATE) -------- */
+                foreach ($holidayRanges as $holiday) {
 
-                    $reason = $override->reason;
+                    $start = Carbon::parse($holiday->start_date)->toDateString();
+                    $end = $holiday->end_date
+                        ? Carbon::parse($holiday->end_date)->toDateString()
+                        : $start;
+
+                    if ($dateKey >= $start && $dateKey <= $end) {
+
+                        if (in_array($holiday->type, ['Full Holiday', 'Multiple Holiday'])) {
+
+                            $holidayMinutes = $FULL_DAY_MINUTES;
+                            $isWorking = false;
+                        } elseif ($holiday->type === 'Half Holiday') {
+
+                            $holidayMinutes = $HALF_DAY_MINUTES;
+                        } elseif ($holiday->type === 'Short Holiday') {
+
+                            $startTime = Carbon::parse("$dateKey {$holiday->start_time}");
+                            $endTime = Carbon::parse("$dateKey {$holiday->end_time}");
+
+                            if ($endTime->lessThan($startTime)) {
+                                $endTime->addDay();
+                            }
+
+                            $holidayMinutes = $endTime->diffInMinutes($startTime);
+                        }
+
+                        break;
+                    }
+                }
+
+                /* -------- Work & Leave -------- */
+                $leave = min($leaveMinutesByDate[$dateKey] ?? 0, $dayTotal);
+                $worked = $workedMinutesByDate[$dateKey] ?? 0;
+
+                /* -------- Available Hours -------- */
+
+                $dayTotal = isset($wfhDates[$dateKey]) ? $WFH_DAY_MINUTES : $FULL_DAY_MINUTES;
+
+                $worked = $workedMinutesByDate[$dateKey] ?? 0;
+
+                /* FULL HOLIDAY */
+                if (!$isWorking && $holidayMinutes >= $dayTotal) {
+
+                    $leave = 0;
+                    $available = 0;
                 } else {
 
-                    $weekday = $dateCarbon->dayOfWeek;
+                    $effectiveWorkingMinutes = max($dayTotal - $holidayMinutes, 0);
 
-                    if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
-                        $isWorking = false;
-                    }
+                    $leave = min($leaveMinutesByDate[$dateKey] ?? 0, $effectiveWorkingMinutes);
+
+                    $available = $isWorking
+                        ? max($effectiveWorkingMinutes - ($worked + $leave), 0)
+                        : 0;
                 }
 
-                /* -------- NON WORKING DAY -------- */
-
-                if (!$isWorking) {
-                    if ($reason) { // HR holiday or free holiday
-                        $totals['holiday_hours'] = $minutesToTime($FULL_DAY_MINUTES);
-                    } else { // weekly off
-                        $totals['holiday_hours'] = '00:00';
-                    }
-
-                    $totals['available_hours'] = '00:00';
-                    continue;
-                }
-
-                /* -------- WORKING DAY -------- */
-
-                $leave = min($leave, $dayTotal);
-
-                $available = max($dayTotal - ($worked + $leave), 0);
-
-                $totals['totalHours'] = $minutesToTime($worked);
-                $totals['totalBillableHours'] = $minutesToTime($billable);
-                $totals['totalNonBillableHours'] = $minutesToTime($nonBillable);
-                $totals['leave_hours'] = $minutesToTime($leave);
-                // $totals['holiday_hours'] = $minutesToTime($holidayMinutes);
-                $totals['available_hours'] = $minutesToTime($available);
-                $totals['is_wfh'] = $isWfh ? 1 : 0;
-                $totals['isWorking'] = $isWorking;
+                // Assign totals
+                $weeklyTotals[$dateKey]['totalHours'] = $minutesToTime($worked);
+                $weeklyTotals[$dateKey]['totalBillableHours'] = $minutesToTime($billableMinutesByDate[$dateKey] ?? 0);
+                $weeklyTotals[$dateKey]['totalNonBillableHours'] = $minutesToTime($nonBillableMinutesByDate[$dateKey] ?? 0);
+                $weeklyTotals[$dateKey]['leave_hours'] = $minutesToTime($leave);
+                $weeklyTotals[$dateKey]['holiday_hours'] = $minutesToTime($holidayMinutes);
+                $weeklyTotals[$dateKey]['available_hours'] = $minutesToTime($available);
+                $weeklyTotals[$dateKey]['is_wfh'] = isset($wfhDates[$dateKey]) || isset($wfhDatesFromSheets[$dateKey]) ? 1 : 0;
+                $weeklyTotals[$dateKey]['isWorking'] = $isWorking;
             }
 
             return response()->json([
