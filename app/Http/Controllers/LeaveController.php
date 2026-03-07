@@ -18,7 +18,9 @@ use App\Mail\LeaveAppliedMail;
 use App\Services\LeaveCreditService;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\ProjectAssignedMail;
+use App\Models\DayOverride;
 use App\Models\LeaveCredit;
+use App\Models\WeeklyWorkingDay;
 use Illuminate\Support\Facades\Storage;
 use LDAP\Result;
 use Illuminate\Support\Facades\Validator;
@@ -577,7 +579,6 @@ class LeaveController extends Controller
                 $calculationResult = app(LeaveCreditService::class)
                     ->processApprovedLeave($leave);
             }
-
         });
 
         $user = User::where('id', $leave->user_id)
@@ -694,7 +695,7 @@ class LeaveController extends Controller
         $endDate = $request->get('end_date');
 
 
-        $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')->whereNot('user_id',$currentUser->id)
+        $leavesQuery = LeavePolicy::with('user:id,name,role_id,team_id')->whereNot('user_id', $currentUser->id)
             ->latest();
 
         $reporting_user = User::where('reporting_manager_id', $currentUser->id)
@@ -1064,6 +1065,14 @@ class LeaveController extends Controller
             }
         }
 
+        // Fetch weekly working rules
+        $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+
+        // Fetch overrides
+        $overrides = DayOverride::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+            ->get()->keyBy(fn($d) => Carbon::parse($d->date)->toDateString());
+
+
         $period = iterator_to_array(CarbonPeriod::create($startDate, $endDate));
         $today = Carbon::today();
         $response = [];
@@ -1073,10 +1082,25 @@ class LeaveController extends Controller
             $attendanceData = [];
 
             foreach ($period as $date) {
-                $day = $date->format('Y-m-d');
+                $dayStr = $date->format('Y-m-d');
                 $isWeekend = $date->isSaturday() || $date->isSunday();
+                $isWorkingDay = true;
+                $reason = null;
 
-                $attendanceData[$day] = [
+                // Check overrides
+                if (isset($overrides[$dayStr])) {
+                    $override = $overrides[$dayStr];
+                    $isWorkingDay = $override->is_working;
+                    $reason = $override->reason;
+                } else {
+                    // Check weekly rules
+                    $weekday = $date->dayOfWeek;
+                    if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
+                        $isWorkingDay = false;
+                    }
+                }
+
+                $attendanceData[$dayStr] = [
                     'present' => ($isWeekend || $date->gt($today)) ? '' : 1,
                     'leave_type' => '',
                     'halfday_period' => '',
@@ -1087,17 +1111,19 @@ class LeaveController extends Controller
                     'holiday_halfday_period' => '',
                     'start_time' => '',
                     'end_time' => '',
-                    'description' => ''
+                    'description' => '',
+                    'is_working_day' => $isWorkingDay ? 1 : 0,
+                    'reason' => $reason ? $reason : '',
                 ];
 
-                if (isset($holidayMap[$day])) {
-
-                    $attendanceData[$day]['present'] = 2; 
-                    $attendanceData[$day]['holiday_type'] = $holidayMap[$day]['holiday_type'];
-                    $attendanceData[$day]['holiday_halfday_period'] = $holidayMap[$day]['holiday_halfday_period'];
-                    $attendanceData[$day]['start_time'] = $holidayMap[$day]['start_time'];
-                    $attendanceData[$day]['end_time'] = $holidayMap[$day]['end_time'];
-                    $attendanceData[$day]['description'] = $holidayMap[$day]['description'];
+                // If holiday
+                if (isset($holidayMap[$dayStr])) {
+                    $attendanceData[$dayStr]['present'] = 2;
+                    $attendanceData[$dayStr]['holiday_type'] = $holidayMap[$dayStr]['holiday_type'];
+                    $attendanceData[$dayStr]['holiday_halfday_period'] = $holidayMap[$dayStr]['holiday_halfday_period'];
+                    $attendanceData[$dayStr]['start_time'] = $holidayMap[$dayStr]['start_time'];
+                    $attendanceData[$dayStr]['end_time'] = $holidayMap[$dayStr]['end_time'];
+                    $attendanceData[$dayStr]['description'] = $holidayMap[$dayStr]['description'];
                 }
             }
 
@@ -1116,27 +1142,25 @@ class LeaveController extends Controller
                         }
 
                         $dayStr = $day->format('Y-m-d');
-                        $attendanceData[$dayStr]['present'] = 0; 
+                        $attendanceData[$dayStr]['present'] = 0;
 
-                        if (
-                            $leave->leave_type === 'Multiple Days Leave' ||
-                            $leave->leave_type === 'Full Leave'
-                        ) {
-                            $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+                        switch ($leave->leave_type) {
+                            case 'Multiple Days Leave':
+                            case 'Full Leave':
+                                $attendanceData[$dayStr]['leave_type'] = 'Full Leave';
+                                break;
+                            case 'Half Day':
+                                $attendanceData[$dayStr]['leave_type'] = 'Half Day';
+                                $attendanceData[$dayStr]['halfday_period'] = $leave->halfday_period;
+                                break;
+                            case 'Short Leave':
+                                $attendanceData[$dayStr]['leave_type'] = 'Short Leave';
+                                $attendanceData[$dayStr]['hours'] = $leave->hours;
+                                break;
                         }
 
-                        if ($leave->leave_type === 'Half Day') {
-                            $attendanceData[$dayStr]['leave_type'] = 'Half Day';
-                            $attendanceData[$dayStr]['halfday_period'] = $leave->halfday_period;
-                        }
-
-                        if ($leave->leave_type === 'Short Leave') {
-                            $attendanceData[$dayStr]['leave_type'] = 'Short Leave';
-                            $attendanceData[$dayStr]['hours'] = $leave->hours;
-                        }
-
-                        $attendanceData[$dayStr]['reason'] = $leave->reason;
-                        $attendanceData[$dayStr]['status'] = $leave->status;
+                        // $attendanceData[$dayStr]['reason'] = $leave->reason;
+                        // $attendanceData[$dayStr]['status'] = $leave->status;
                     }
                 }
             }
