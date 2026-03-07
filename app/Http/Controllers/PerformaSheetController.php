@@ -4009,8 +4009,8 @@ class PerformaSheetController extends Controller
                 $period = CarbonPeriod::create(
                     Carbon::parse($holiday->start_date),
                     $holiday->end_date
-                    ? Carbon::parse($holiday->end_date)
-                    : Carbon::parse($holiday->start_date)
+                        ? Carbon::parse($holiday->end_date)
+                        : Carbon::parse($holiday->start_date)
                 );
 
                 foreach ($period as $date) {
@@ -4775,6 +4775,15 @@ class PerformaSheetController extends Controller
             $holidayTypeMap = [];
             $holidayDescriptionMap = [];
 
+            $calendarController = new \App\Http\Controllers\CalendarController();
+
+            $weeklyRules = WeeklyWorkingDay::pluck('is_working', 'day_of_week');
+
+            $overrides = DayOverride::where('date', '>=', $startDate->toDateString())
+                ->where('date', '<=', $endDate->toDateString())
+                ->get()
+                ->keyBy(fn($d) => Carbon::parse($d->date)->toDateString());
+
             $holidays = DB::table('event_holidays')
                 ->where('start_date', '<=', $endDate)
                 ->where(function ($q) use ($startDate) {
@@ -4890,8 +4899,25 @@ class PerformaSheetController extends Controller
                 $date = Carbon::instance($day)->toDateString();
                 $currentDate = Carbon::parse($date);
 
+                $isWorking = true;
+
+                $weekday = $currentDate->dayOfWeek;
+
+                if (isset($weeklyRules[$weekday]) && !$weeklyRules[$weekday]) {
+                    $isWorking = false;
+                }
+
+                if (isset($overrides[$date])) {
+                    $override = $overrides[$date];
+                    $isWorking = $override->is_working ? true : false;
+                }
+
                 $expected = $holidayExpectedMinutes[$date] ?? $STANDARD_DAY_MINUTES;
                 $holidayMin = $holidayMinutesTaken[$date] ?? 0;
+                if (!$isWorking) {
+                    $holidayMin = $STANDARD_DAY_MINUTES;
+                    $expected = 0;
+                }
                 $worked = $workedMinutes[$date] ?? 0;
 
                 $leaveMin = 0;
@@ -4939,9 +4965,12 @@ class PerformaSheetController extends Controller
                 $unfilled = max(0, $expected - $worked - $leaveMin);
                 $availabilityParts = [];
 
-                if ($currentDate->isWeekend()) {
+                /* if ($currentDate->isWeekend()) {
                     $availabilityParts[] = 'Weekend';
                     $expected = 0;
+                } */
+                if (!$isWorking) {
+                    $availabilityParts[] = 'Non Working Day';
                 }
 
                 if (isset($holidayTypeMap[$date])) {
