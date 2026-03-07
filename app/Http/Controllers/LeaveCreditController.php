@@ -564,67 +564,124 @@ class LeaveCreditController extends Controller
             $processMonth = $currentDate->month;
             $processYear  = $currentDate->year;
         }
+
         $count = 0;
         $credits = LeaveCredit::whereIn('employment_status', ['appointed', 'notice'])->get();
+        $calendarController = new \App\Http\Controllers\CalendarController();  // ✅ Same controller
 
         foreach ($credits as $credit) {
             $credit->bunch_payble_balance = 0;
+
             if ($credit->month == $processMonth && $credit->year == $processYear) {
                 continue;
             }
+
+            // ✅ SAME LOGIC as index() method
+            $startDate = Carbon::create($processYear, $processMonth, 1)->startOfMonth();
+            $endDate   = Carbon::create($processYear, $processMonth, 1)->endOfMonth();
+
+            $allApprovedLeaves = $credit->user->leaves()
+                ->where('status', 'Approved')
+                ->where(function ($q) {
+                    $q->where('employment_period', 'appointed')
+                        ->orWhereNull('employment_period');
+                })
+                ->where(function ($q) use ($startDate, $endDate) {
+                    $q->where('start_date', '<=', $endDate)
+                        ->where('end_date', '>=', $startDate);
+                })
+                ->get();
+
+            $monthLeaveDays = 0;
+            $totalActualLeaveHours = 0;
+            $monthSandwichDays = 0;
+            $WORK_HOURS_PER_DAY = 8.5;
+
+            // ✅ EXACT SAME CALCULATION as index()
+            foreach ($allApprovedLeaves as $leave) {
+                $leaveStart = Carbon::parse($leave->start_date);
+                $leaveEnd = Carbon::parse($leave->end_date);
+                $monthLeaveStart = $leaveStart->copy()->max($startDate);
+                $monthLeaveEnd = $leaveEnd->copy()->min($endDate);
+
+                if ($monthLeaveStart <= $monthLeaveEnd) {
+                    if (empty($leave->halfday_period) && empty($leave->hours)) {
+                        $calendarDays = (int) floor($monthLeaveStart->diffInDays($monthLeaveEnd, false) + 1);
+                        $monthLeaveDays += $calendarDays;
+                        $totalActualLeaveHours += $calendarDays * $WORK_HOURS_PER_DAY;
+                    } elseif (!empty($leave->halfday_period)) {
+                        $halfDays = (int) floor($monthLeaveStart->diffInDays($monthLeaveEnd, false) + 1);
+                        $monthLeaveDays += $halfDays * 0.5;
+                        $totalActualLeaveHours += $halfDays * ($WORK_HOURS_PER_DAY / 2);
+                    } elseif (!empty($leave->hours)) {
+                        $timeRange = $leave->hours;
+                        if (preg_match('/(\d{1,2}:\d{2}\s*(?:AM|PM))(?:\s*to\s*)(.+)/i', $timeRange, $matches)) {
+                            $startTime = $matches[1];
+                            $endTime = trim($matches[2]);
+                            $start = Carbon::parse($startTime);
+                            $end = Carbon::parse($endTime);
+                            $leaveHours = $start->floatDiffInHours($end);
+                        } else {
+                            $leaveHours = (float) $leave->hours;
+                        }
+                        $dayFraction = $leaveHours / $WORK_HOURS_PER_DAY;
+                        $monthLeaveDays += $dayFraction;
+                        $totalActualLeaveHours += $leaveHours;
+                    }
+                }
+            }
+
+            // ✅ Sandwich calculation (same as index)
+            foreach ($allApprovedLeaves as $leave) {
+                if (!empty($leave->halfday_period) || !empty($leave->hours)) {
+                    continue;
+                }
+                $leaveStart = Carbon::parse($leave->start_date);
+                $leaveEnd = Carbon::parse($leave->end_date);
+
+                $fridayBefore = $leaveStart->copy()->subDays(1);
+                $mondayAfter = $leaveEnd->copy()->addDays(1);
+
+                if ($fridayBefore->isFriday() && $mondayAfter->isMonday()) {
+                    if (
+                        $calendarController->isNonWorkingDay($fridayBefore->toDateString()) &&
+                        $calendarController->isNonWorkingDay($mondayAfter->toDateString()) &&
+                        $fridayBefore >= $startDate && $mondayAfter <= $endDate
+                    ) {
+                        $monthSandwichDays += 1;
+                    }
+                }
+            }
+
+            $taken = round($monthLeaveDays + $monthSandwichDays, 2);  // ✅ DYNAMIC taken
 
             $monthlyPaid   = (float) ($credit->paid_leaves ?? 0);
             $previousCarry = (float) ($credit->carry_forward_balance ?? 0);
             $bunchTime     = (int) ($credit->bunch_time ?? 12);
 
-            // ==============================
-            // Proper Batch Logic (Delayed Payout)
-            // ==============================
-
             $processDate = \Carbon\Carbon::create($processYear, $processMonth, 1);
-            $cycleStartDate = \Carbon\Carbon::parse($credit->cycle_start_date)
-                ->startOfMonth();
+            $cycleStartDate = \Carbon\Carbon::parse($credit->cycle_start_date)->startOfMonth();
 
             if ($processDate->lt($cycleStartDate)) {
                 continue;
             }
 
-            $bunchTime = (int) ($credit->bunch_time ?? 12);
-
-            // Months since cycle started
             $monthsSinceStart = $cycleStartDate->diffInMonths($processDate);
-
-            // Detect if PREVIOUS month was batch ending
             $isPayoutMonth = ($monthsSinceStart % $bunchTime) === 0 && $monthsSinceStart != 0;
-
-            // Calculate Leave Taken
-            $taken = (float) LeavePolicy::where('user_id', $credit->user_id)
-                ->where('status', 'Approved')
-                ->whereMonth('start_date', $processMonth)
-                ->whereYear('start_date', $processYear)
-                ->sum('deducted_days');
 
             $totalAvailable = $monthlyPaid + $previousCarry;
             $remaining      = max(0, $totalAvailable - $taken);
 
             if ($isPayoutMonth) {
-
-                // Move full accumulated balance to payable
                 $credit->bunch_payble_balance = $remaining;
-
-                // Reset carry for new batch
                 $credit->carry_forward_balance = 0;
             } else {
-
-                // Normal accumulation month
-                $credit->bunch_payble_balance = 0; // reset automatically after payout month
+                $credit->bunch_payble_balance = 0;
                 $credit->carry_forward_balance = $remaining;
             }
 
-            // Update Active Month
             $credit->month = $processMonth;
             $credit->year  = $processYear;
-
             $credit->save();
             $count++;
         }
@@ -634,9 +691,10 @@ class LeaveCreditController extends Controller
             'message' => "Data Updated for Current Month",
             'processed_month' => $processMonth,
             'processed_year'  => $processYear,
-            'total_updated'  => $count,
+            'total_updated'   => $count,
         ]);
     }
+
     public function destroy($id)
     {
         $leaveCredit = LeaveCredit::findOrFail($id);
